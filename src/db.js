@@ -129,7 +129,6 @@ function migrate(db) {
     CREATE INDEX IF NOT EXISTS idx_hides_user ON conversation_hides(user_id, conversation_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_upgrades_status ON upgrades(status);
-    CREATE INDEX IF NOT EXISTS idx_users_host ON users(host_status);
   `);
   ensureColumn(db, 'users', 'is_special', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'users', 'badge', 'TEXT');
@@ -144,6 +143,7 @@ function migrate(db) {
   ensureColumn(db, 'users', 'host_status', "TEXT NOT NULL DEFAULT 'none'");
   ensureColumn(db, 'users', 'is_host', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'users', 'host_reviewed_at', 'INTEGER');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_users_host ON users(host_status)');
 }
 
 function ensureColumn(db, table, name, spec) {
