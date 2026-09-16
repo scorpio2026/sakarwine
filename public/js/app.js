@@ -25,7 +25,8 @@ const ICONS = {
   send: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12l16-7-7 16-2-7-7-2z"/></svg>`,
   image: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M7 17l4-4 3 3 3-3 3 4"/></svg>`,
   mic: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v3"/></svg>`,
-  block: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M7 7l10 10"/></svg>`
+  block: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M7 7l10 10"/></svg>`,
+  trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 7h14M10 7V5h4v2M8 7l1 12h6l1-12"/></svg>`
 };
 
 function toast(msg) {
@@ -389,7 +390,7 @@ function renderBubble(m) {
   } else {
     inner = escapeHtml(m.body || '');
   }
-  return `<div class="${cls}">${inner}</div>`;
+  return `<div class="${cls}" contenteditable="false">${inner}</div>`;
 }
 
 function escapeHtml(s) {
@@ -405,6 +406,7 @@ async function openChat(userId, opts = {}) {
       peer: full.conversation.peer,
       window: full.conversation.window,
       blocked: full.conversation.blocked,
+      canDelete: full.conversation.canDelete,
       messages: full.messages
     };
     renderChat(opts);
@@ -434,7 +436,10 @@ function renderChat(opts = {}) {
           <div class="name">${c.peer.username} ${roleMark(c.peer)}</div>
           <div class="sub">${c.peer.online ? 'Online' : 'Offline'} · ${formatRemain(c.window.remainingMs, c.window)}</div>
         </div>
-        ${c.peer.isAi ? '' : `<button class="icon-btn" id="block">${ICONS.block}</button>`}
+        ${c.peer.isAi ? '' : `<div class="chat-actions">
+          <button class="icon-btn" id="block" title="Block">${ICONS.block}</button>
+          <button class="icon-btn" id="delete-chat" title="Delete for me">${ICONS.trash}</button>
+        </div>`}
       </div>
       ${expired ? `<div class="upgrade-banner">Free 24 hours has ended for this chat. Upgrade to keep talking with unlimited people during your paid period.<br><button class="btn" id="go-up" style="margin-top:8px">See plans</button></div>` : ''}
       <div id="messages" class="messages">${c.messages.map(renderBubble).join('')}</div>
@@ -467,6 +472,23 @@ function renderChat(opts = {}) {
       toast('Blocked');
       showHome();
     }
+  };
+  if ($('#delete-chat')) $('#delete-chat').onclick = () => {
+    modal(`<h3 style="margin-top:0">Delete this chat?</h3>
+      <p>This only clears the history on <strong>your</strong> account. ${escapeHtml(c.peer.username)} will still keep the conversation. Messages cannot be edited or undone.</p>
+      <button class="btn danger block" id="m-del">Delete for me</button>
+      <button class="btn secondary block" id="m-cancel" style="margin-top:8px">Keep chat</button>`);
+    $('#m-cancel').onclick = closeModal;
+    $('#m-del').onclick = async () => {
+      try {
+        await api(`/api/conversations/${c.id}`, { method: 'DELETE' });
+        closeModal();
+        toast('Chat deleted for you only');
+        showHome();
+      } catch (e) {
+        toast(e.message);
+      }
+    };
   };
   let sending = false;
   const sendText = async () => {
@@ -658,11 +680,14 @@ function showHelp(inApp = false) {
     <section class="screen">
       <div class="topbar">
         ${inApp ? '' : `<button class="icon-btn" id="back">${ICONS.back}</button>`}
-        <h2>PIN recovery</h2>
+        <h2>Help</h2>
       </div>
       <div class="glass-card">
+        <h3 style="margin-top:0">PIN recovery</h3>
         <p>There is no self-serve reset. Contact the sakarwine admin and give the <strong>phone number you used at registration</strong>. They will verify it and set a new 6-digit PIN.</p>
         <p class="small muted">${escapeHtml(state.settings.adminContact || '')}</p>
+        <h3>Chat history</h3>
+        <p>Deleting a conversation removes it from <strong>your</strong> history only. The other person still keeps every message. You cannot edit any message after it is sent.</p>
       </div>
       ${inApp ? nav('help') : ''}
     </section>`;

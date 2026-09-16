@@ -166,6 +166,11 @@ body {
   box-shadow: 0 8px 0 #240812, 0 12px 20px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.2);
 }
 .btn.block { width: 100%; }
+.btn.danger {
+  color: #fff6f8;
+  background: linear-gradient(180deg, #c43a58, #7a1832);
+  box-shadow: 0 8px 0 #3a0a16, 0 12px 20px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.2);
+}
 .btn.ghost {
   background: transparent;
   color: var(--rose);
@@ -268,6 +273,8 @@ body {
 .nav .icon-btn { width: 44px; height: 44px; }
 
 .chat-head { display: flex; align-items: center; gap: 10px; }
+.chat-head .icon-btn { width: 42px; height: 42px; flex-shrink: 0; }
+.chat-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .messages {
   flex: 1;
   overflow: auto;

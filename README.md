@@ -40,6 +40,8 @@ Copy `.env.example` into your shell or Render dashboard. The app reads standard 
 - Block anyone you don’t want. Images and voice notes are allowed; **video is not**.
 - Filters: no Myanmar numbers starting with `09`; messages cannot start with `@`.
 - Photos are **locked** until **Level 3** (three approved upgrades). Lower levels see a locked card and a notice on tap. You can always see photos you sent.
+- **Chat history is per-user.** Deleting a conversation (trash in the chat header) clears it for you only. The other person — and admin — still keep the full thread. The Saka guide chat cannot be deleted.
+- **Messages cannot be edited** after they are sent (no edit API or UI).
 - Forgot PIN? There is **no self-serve reset**. Contact admin with the phone used at registration.
 
 ## Upgrades

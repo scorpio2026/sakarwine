@@ -309,6 +309,7 @@ function startAiWelcome(user) {
     'Send a photo with the raised picture button, or a voice note with the mic. Video is not allowed.',
     'Photos stay softly locked until you reach Level 3 (three approved upgrades). Tap a locked photo to read why.',
     'Please don’t send Myanmar numbers starting with 09, and don’t start a message with @.',
+    'You can delete a chat for yourself only — the other person still keeps the history. Sent messages cannot be edited.',
     'Forgot your 6-digit PIN? There is no self-serve reset — contact admin and give the phone you registered.'
   ];
   const ins = db.prepare(
@@ -357,8 +358,45 @@ function serializeMessage(msg, viewer) {
         })
       : null,
     mediaUrl,
-    imageLocked: isImage && !canSeeImage
+    imageLocked: isImage && !canSeeImage,
+    editable: false
   };
+}
+
+function hiddenFor(conversationId, userId) {
+  return db
+    .prepare(
+      'SELECT hidden_at, hidden_after_id FROM conversation_hides WHERE conversation_id = ? AND user_id = ?'
+    )
+    .get(conversationId, userId);
+}
+
+function listMessagesForViewer(convId, viewer) {
+  const hide = viewer && !viewer._admin ? hiddenFor(convId, viewer.id) : null;
+  const rows = hide
+    ? db
+        .prepare(
+          'SELECT * FROM messages WHERE conversation_id = ? AND id > ? ORDER BY id ASC'
+        )
+        .all(convId, hide.hidden_after_id)
+    : db.prepare('SELECT * FROM messages WHERE conversation_id = ? ORDER BY id ASC').all(convId);
+  return rows.map((m) => serializeMessage(m, viewer));
+}
+
+function hideConversationForUser(convId, userId, at = Date.now()) {
+  const last = db.prepare('SELECT MAX(id) AS id FROM messages WHERE conversation_id = ?').get(convId);
+  const afterId = last && last.id ? last.id : 0;
+  db.prepare(
+    `INSERT INTO conversation_hides (conversation_id, user_id, hidden_at, hidden_after_id)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(conversation_id, user_id) DO UPDATE SET
+       hidden_at = excluded.hidden_at,
+       hidden_after_id = excluded.hidden_after_id`
+  ).run(convId, userId, at, afterId);
+}
+
+function rejectMessageEdit(_req, res) {
+  res.status(403).json({ error: 'Messages cannot be edited.' });
 }
 
 app.get('/health', (_req, res) => {
@@ -570,10 +608,7 @@ app.get('/api/conversations/:id', requireUser, requireActive, (req, res) => {
     return res.status(404).json({ error: 'Conversation not found.' });
   }
   const peer = db.prepare('SELECT * FROM users WHERE id = ?').get(otherUserId(conv, req.user.id));
-  const messages = db
-    .prepare('SELECT * FROM messages WHERE conversation_id = ? ORDER BY id ASC')
-    .all(conv.id)
-    .map((m) => serializeMessage(m, req.user));
+  const messages = listMessagesForViewer(conv.id, req.user);
   const blocked =
     db.prepare('SELECT 1 FROM blocks WHERE blocker_id = ? AND blocked_id = ?').get(req.user.id, peer.id) != null;
   res.json({
@@ -581,10 +616,26 @@ app.get('/api/conversations/:id', requireUser, requireActive, (req, res) => {
       id: conv.id,
       peer: publicUser(peer, { online: isOnline(peer.id), viewer: req.user }),
       window: freeWindow(conv, req.user),
-      blocked
+      blocked,
+      canDelete: !peer.is_ai,
+      messagesEditable: false,
+      hiddenAt: (hiddenFor(conv.id, req.user.id) || {}).hidden_at || null
     },
     messages
   });
+}
+
+app.delete('/api/conversations/:id', requireUser, requireActive, (req, res) => {
+  const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(Number(req.params.id));
+  if (!conv || (conv.user_lo !== req.user.id && conv.user_hi !== req.user.id)) {
+    return res.status(404).json({ error: 'Conversation not found.' });
+  }
+  const peer = db.prepare('SELECT * FROM users WHERE id = ?').get(otherUserId(conv, req.user.id));
+  if (peer && peer.is_ai) {
+    return res.status(400).json({ error: 'You cannot delete the Saka guide chat.' });
+  }
+  hideConversationForUser(conv.id, req.user.id);
+  res.json({ ok: true, hiddenFor: 'self' });
 });
 
 app.post(
@@ -655,6 +706,11 @@ app.post(
     res.json({ message: forMe, window: freeWindow(conv, req.user) });
   }
 );
+
+app.put('/api/conversations/:id/messages/:messageId', requireUser, rejectMessageEdit);
+app.patch('/api/conversations/:id/messages/:messageId', requireUser, rejectMessageEdit);
+app.put('/api/messages/:id', requireUser, rejectMessageEdit);
+app.patch('/api/messages/:id', requireUser, rejectMessageEdit);
 
 app.get('/api/upgrade/quote', requireUser, requireActive, (req, res) => {
   const months = Number(req.query.months);

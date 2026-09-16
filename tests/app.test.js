@@ -3,7 +3,7 @@
 process.env.DATA_DIR = require('fs').mkdtempSync(require('path').join(require('os').tmpdir(), 'sakarwine-'));
 process.env.ADMIN_USERNAME = 'admin';
 process.env.ADMIN_PASSWORD = 'admin123';
-process.env.FREE_CHAT_MS = '80';
+process.env.FREE_CHAT_MS = '60000';
 process.env.SESSION_SECRET = 'test-secret';
 
 const { test, after } = require('node:test');
@@ -157,7 +157,7 @@ test('two users chat, filters, image lock, upgrade path', async () => {
   assert.equal(approved.data.user.level, 1);
   assert.ok(approved.data.user.paid);
 
-  await new Promise((r) => setTimeout(r, 120));
+  await req(`/api/admin/conversations/${cid}/expire-free`, { method: 'POST', jar: admin });
   const expired = await req(`/api/conversations/${cid}/messages`, {
     method: 'POST',
     json: { body: 'after window' },
@@ -267,6 +267,89 @@ test('admin account ID search opens a full dossier', async () => {
   assert.equal(hide.data.hideAccountId, true);
   const again = await req(`/api/admin/dossier?q=${member.user.accountId}`, { jar: admin });
   assert.equal(again.data.user.accountIdHidden, true);
+});
+
+test('chat history is per-user delete and messages cannot be edited', async () => {
+  await started;
+  const a = await register('keep' + Date.now().toString().slice(-6), '111111', 'female');
+  const b = await register('wipe' + Date.now().toString().slice(-6), '222222', 'male');
+  const usersA = await req('/api/users', { jar: a.jar });
+  const peer = usersA.data.users.find((u) => u.username === b.user.username);
+  const opened = await req(`/api/conversations/with/${peer.id}`, { method: 'POST', jar: a.jar });
+  const cid = opened.data.conversation.id;
+
+  const first = await req(`/api/conversations/${cid}/messages`, {
+    method: 'POST',
+    json: { body: 'remember this forever' },
+    jar: a.jar
+  });
+  assert.equal(first.res.status, 200);
+  const msgId = first.data.message.id;
+  assert.equal(first.data.message.editable, false);
+
+  const edited = await req(`/api/conversations/${cid}/messages/${msgId}`, {
+    method: 'PUT',
+    json: { body: 'changed my mind' },
+    jar: a.jar
+  });
+  assert.equal(edited.res.status, 403);
+  assert.match(edited.data.error, /cannot be edited/i);
+
+  const patched = await req(`/api/messages/${msgId}`, {
+    method: 'PATCH',
+    json: { body: 'still trying' },
+    jar: a.jar
+  });
+  assert.equal(patched.res.status, 403);
+
+  const afterEdit = await req(`/api/conversations/${cid}`, { jar: a.jar });
+  assert.equal(afterEdit.data.messages.find((m) => m.id === msgId).body, 'remember this forever');
+  assert.equal(afterEdit.data.conversation.messagesEditable, false);
+  assert.equal(afterEdit.data.conversation.canDelete, true);
+
+  const del = await req(`/api/conversations/${cid}`, { method: 'DELETE', jar: b.jar });
+  assert.equal(del.res.status, 200, del.data.error);
+  assert.equal(del.data.hiddenFor, 'self');
+
+  const asB = await req(`/api/conversations/${cid}`, { jar: b.jar });
+  assert.equal(asB.data.messages.some((m) => m.body === 'remember this forever'), false);
+  assert.ok(asB.data.conversation.hiddenAt);
+
+  const asA = await req(`/api/conversations/${cid}`, { jar: a.jar });
+  assert.equal(asA.data.messages.some((m) => m.body === 'remember this forever'), true);
+
+  const next = await req(`/api/conversations/${cid}/messages`, {
+    method: 'POST',
+    json: { body: 'fresh after delete' },
+    jar: a.jar
+  });
+  assert.equal(next.res.status, 200, next.data.error);
+
+  const asB2 = await req(`/api/conversations/${cid}`, { jar: b.jar });
+  assert.equal(asB2.data.messages.length, 1);
+  assert.equal(asB2.data.messages[0].body, 'fresh after delete');
+
+  const asA2 = await req(`/api/conversations/${cid}`, { jar: a.jar });
+  assert.ok(asA2.data.messages.some((m) => m.body === 'remember this forever'));
+  assert.ok(asA2.data.messages.some((m) => m.body === 'fresh after delete'));
+
+  const admin = cookieJar();
+  await req('/api/admin/login', {
+    method: 'POST',
+    json: { username: 'admin', password: 'admin123' },
+    jar: admin
+  });
+  const mod = await req(`/api/admin/conversations/${cid}`, { jar: admin });
+  assert.ok(mod.data.messages.some((m) => m.body === 'remember this forever'));
+  assert.ok(mod.data.messages.some((m) => m.body === 'fresh after delete'));
+
+  const saka = usersA.data.users.find((u) => u.isAi);
+  const withSaka = await req(`/api/conversations/with/${saka.id}`, { method: 'POST', jar: a.jar });
+  const delSaka = await req(`/api/conversations/${withSaka.data.conversation.id}`, {
+    method: 'DELETE',
+    jar: a.jar
+  });
+  assert.equal(delSaka.res.status, 400);
 });
 
 after(() => new Promise((resolve) => server.close(resolve)));

@@ -65,6 +65,16 @@ function migrate(db) {
       FOREIGN KEY (sender_id) REFERENCES users(id)
     );
 
+    CREATE TABLE IF NOT EXISTS conversation_hides (
+      conversation_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      hidden_at INTEGER NOT NULL,
+      hidden_after_id INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (conversation_id, user_id),
+      FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
     CREATE TABLE IF NOT EXISTS blocks (
       blocker_id INTEGER NOT NULL,
       blocked_id INTEGER NOT NULL,
@@ -108,6 +118,7 @@ function migrate(db) {
     );
 
     CREATE INDEX IF NOT EXISTS idx_messages_convo ON messages(conversation_id, id);
+    CREATE INDEX IF NOT EXISTS idx_hides_user ON conversation_hides(user_id, conversation_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_upgrades_status ON upgrades(status);
   `);
@@ -115,6 +126,7 @@ function migrate(db) {
   ensureColumn(db, 'users', 'badge', 'TEXT');
   ensureColumn(db, 'users', 'hide_account_id', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'users', 'created_by_admin', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(db, 'conversation_hides', 'hidden_after_id', 'INTEGER NOT NULL DEFAULT 0');
 }
 
 function ensureColumn(db, table, name, spec) {
