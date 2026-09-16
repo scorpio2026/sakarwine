@@ -883,14 +883,22 @@ function incomeDemoBlock(u) {
   return `
     <div class="income-demo">
       <h3>How host income works</h3>
-      <p class="small muted">Sample walkthrough — this is not a chat video message. Chat still cannot send video.</p>
-      <div class="chat-demo" aria-hidden="true">
-        <div class="chat-demo-head">koKo · Lv 1 visits you</div>
-        <div class="bubble them">Hi, can we talk?</div>
-        <div class="bubble me">Yes — stay here 10 minutes.</div>
-        <div class="host-earn">+500 credited for this partner</div>
+      <p class="small muted">Sample chat only. Members still cannot send video messages.</p>
+      <div class="chat-demo" role="img" aria-label="Sample chat showing how host income is earned">
+        <div class="chat-demo-head">
+          <span class="badge-lv">Lv 1</span> koKo <span class="muted">visited you · sample</span>
+        </div>
+        <div class="chat-demo-thread">
+          <div class="bubble them">Hi, I came to talk.</div>
+          <div class="bubble me">Stay here 10 minutes — hosts earn 500 once.</div>
+          <div class="bubble them chat-demo-clip">
+            <video class="income-video" controls playsinline preload="metadata" src="${escapeHtml(src)}"></video>
+            <span class="small muted">Sample walkthrough inside this chat</span>
+          </div>
+          <div class="host-earn">+500 credited for this partner</div>
+        </div>
+        <div class="chat-demo-bar muted small">Composer locked in this sample · video is not a chat send</div>
       </div>
-      <video class="income-video" controls playsinline preload="metadata" src="${escapeHtml(src)}"></video>
     </div>`;
 }
 

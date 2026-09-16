@@ -513,22 +513,47 @@ body {
 }
 .income-demo { margin: 8px 0 12px; }
 .chat-demo {
-  border-radius: 16px;
-  padding: 10px;
+  border-radius: 18px;
   margin: 8px 0;
-  background: rgba(8,4,10,.45);
-  border: 1px solid rgba(255,244,236,.12);
-  display: grid;
-  gap: 8px;
+  background: rgba(8,4,10,.5);
+  border: 1px solid rgba(255,244,236,.14);
+  overflow: hidden;
 }
-.chat-demo-head { font-size: .75rem; opacity: .7; }
-.chat-demo .bubble { max-width: 86%; }
+.chat-demo-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255,244,236,.1);
+  font-size: .85rem;
+}
+.chat-demo-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  min-height: 220px;
+  background: linear-gradient(180deg, rgba(18,8,14,.2), rgba(8,4,10,.55));
+}
+.chat-demo .bubble { max-width: 88%; }
+.chat-demo .bubble.them { align-self: flex-start; }
+.chat-demo .bubble.me { align-self: flex-end; }
+.chat-demo-clip {
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+}
 .income-video {
   width: 100%;
-  border-radius: 14px;
-  margin-top: 8px;
+  border-radius: 12px;
   background: #12080e;
-  max-height: 220px;
+  max-height: 180px;
+  display: block;
+}
+.chat-demo-bar {
+  padding: 8px 12px 10px;
+  border-top: 1px solid rgba(255,244,236,.1);
+  text-align: center;
 }
 .bubble.system {
   align-self: center;
