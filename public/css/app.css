@@ -487,6 +487,23 @@ body {
   100% { background-position: 100% 50%; }
 }
 .typing { font-size: 0.78rem; opacity: .7; min-height: 1em; }
+.host-earn {
+  font-size: 0.8rem;
+  padding: 8px 10px;
+  border-radius: 12px;
+  margin-bottom: 8px;
+  background: rgba(61,126,255,.14);
+  border: 1px solid rgba(126,200,255,.35);
+  color: #cfe8ff;
+}
+.host-earn.dim { opacity: .75; }
+.ledger { display: grid; gap: 6px; }
+.ledger-row {
+  font-size: 0.82rem;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: rgba(255,244,236,.08);
+}
 
 @media (min-width: 900px) {
   body { padding: 24px 0; }

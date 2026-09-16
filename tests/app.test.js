@@ -4,6 +4,9 @@ process.env.DATA_DIR = require('fs').mkdtempSync(require('path').join(require('o
 process.env.ADMIN_USERNAME = 'admin';
 process.env.ADMIN_PASSWORD = 'admin123';
 process.env.FREE_CHAT_MS = '60000';
+process.env.HOST_CHAT_MS = '80';
+process.env.HOST_CREDIT_AMOUNT = '500';
+process.env.HOST_PRESENCE_GRACE_MS = '5000';
 process.env.SESSION_SECRET = 'test-secret';
 
 const { test, after } = require('node:test');
@@ -79,6 +82,41 @@ async function register(name, pin, gender = 'female') {
     jar
   });
   return { jar, user: data.user };
+}
+
+async function loginAdmin() {
+  const jar = cookieJar();
+  const login = await req('/api/admin/login', {
+    method: 'POST',
+    json: { username: 'admin', password: 'admin123' },
+    jar
+  });
+  assert.equal(login.data.ok, true);
+  return jar;
+}
+
+async function giveUpgrade(admin, member) {
+  const receipt = new FormData();
+  receipt.set('accountId', member.user.accountId);
+  receipt.set('months', '1');
+  receipt.set('receipt', new Blob([PNG], { type: 'image/png' }), 'pay.png');
+  const submitted = await req('/api/upgrade', { method: 'POST', form: receipt, jar: member.jar });
+  assert.equal(submitted.res.status, 200, submitted.data.error);
+  const queue = await req('/api/admin/upgrades', { jar: admin });
+  const pending = queue.data.upgrades.find((u) => u.status === 'pending' && u.accountId === member.user.accountId);
+  assert.ok(pending);
+  const approved = await req(`/api/admin/upgrades/${pending.id}/approve`, { method: 'POST', jar: admin });
+  assert.ok(approved.data.user.level >= 1);
+  member.user = approved.data.user;
+  return member;
+}
+
+async function sitTogether(cid, jarA, jarB, waitMs = 120) {
+  await req(`/api/conversations/${cid}/presence`, { method: 'POST', json: { action: 'enter' }, jar: jarA });
+  await req(`/api/conversations/${cid}/presence`, { method: 'POST', json: { action: 'enter' }, jar: jarB });
+  await new Promise((r) => setTimeout(r, waitMs));
+  await req(`/api/conversations/${cid}/presence`, { method: 'POST', json: { action: 'ping' }, jar: jarB });
+  return req(`/api/conversations/${cid}/presence`, { method: 'POST', json: { action: 'ping' }, jar: jarA });
 }
 
 test('health', async () => {
@@ -447,6 +485,78 @@ test('female accounts need NRC, admin-only ID photos, and host badge after appro
   });
   assert.equal(income.res.status, 200);
   assert.equal(income.data.user.occupation, 'Singer');
+});
+
+test('hosts earn 500 per qualifying Lv1+ partner after 10 minutes of mutual chat', async () => {
+  await started;
+  const admin = await loginAdmin();
+  const host = await register('earny' + Date.now().toString().slice(-5), '777777', 'female');
+  const paid = await register('payer' + Date.now().toString().slice(-5), '888888', 'male');
+  const free = await register('broke' + Date.now().toString().slice(-5), '999999', 'male');
+  const paid2 = await register('payer' + Date.now().toString().slice(-4), '666666', 'male');
+
+  const okHost = await req(`/api/admin/accounts/${host.user.id}/host-approve`, { method: 'POST', jar: admin });
+  assert.equal(okHost.data.user.isHost, true);
+  await giveUpgrade(admin, paid);
+  await giveUpgrade(admin, paid2);
+
+  const withPaid = await req(`/api/conversations/with/${paid.user.id}`, { method: 'POST', jar: host.jar });
+  const cid1 = withPaid.data.conversation.id;
+  const tick = await sitTogether(cid1, host.jar, paid.jar, 120);
+  assert.ok(tick.data.mutual.totalMs >= 80, JSON.stringify(tick.data.mutual));
+  assert.equal(tick.data.hostEarnings, 500);
+  assert.equal(tick.data.mutual.credited, true);
+
+  const me = await req('/api/me', { jar: host.jar });
+  assert.equal(me.data.user.isHost, true);
+  assert.equal(me.data.user.hostEarnings, 500);
+  assert.equal(me.data.user.hostIncomeLedger.length, 1);
+  assert.equal(me.data.user.hostIncomeLedger[0].partner.username, paid.user.username);
+  assert.equal(me.data.user.hostIncomeLedger[0].amount, 500);
+
+  const again = await sitTogether(cid1, host.jar, paid.jar, 120);
+  assert.equal(again.data.hostEarnings, 500);
+
+  const withFree = await req(`/api/conversations/with/${free.user.id}`, { method: 'POST', jar: host.jar });
+  const freeTick = await sitTogether(withFree.data.conversation.id, host.jar, free.jar, 120);
+  assert.equal(freeTick.data.mutual.partnerQualifies, false);
+  const still = await req('/api/me', { jar: host.jar });
+  assert.equal(still.data.user.hostEarnings, 500);
+
+  const withPaid2 = await req(`/api/conversations/with/${paid2.user.id}`, { method: 'POST', jar: host.jar });
+  const tick2 = await sitTogether(withPaid2.data.conversation.id, host.jar, paid2.jar, 120);
+  assert.equal(tick2.data.hostEarnings, 1000);
+  const me2 = await req('/api/me', { jar: host.jar });
+  assert.equal(me2.data.user.hostEarnings, 1000);
+  assert.equal(me2.data.user.hostIncomeLedger.length, 2);
+
+  const people = await req('/api/users', { jar: host.jar });
+  const saka = people.data.users.find((u) => u.isAi);
+  const withSaka = await req(`/api/conversations/with/${saka.id}`, { method: 'POST', jar: host.jar });
+  await req(`/api/conversations/${withSaka.data.conversation.id}/presence`, {
+    method: 'POST',
+    json: { action: 'enter' },
+    jar: host.jar
+  });
+  await new Promise((r) => setTimeout(r, 120));
+  await req(`/api/conversations/${withSaka.data.conversation.id}/presence`, {
+    method: 'POST',
+    json: { action: 'ping' },
+    jar: host.jar
+  });
+  const afterSaka = await req('/api/me', { jar: host.jar });
+  assert.equal(afterSaka.data.user.hostEarnings, 1000);
+
+  const dossier = await req(`/api/admin/dossier?q=${host.user.accountId}`, { jar: admin });
+  assert.equal(dossier.data.hostIncome.hostEarnings, 1000);
+  assert.equal(dossier.data.hostIncome.hostIncomeLedger.length, 2);
+
+  const notHost = await register('plain' + Date.now().toString().slice(-5), '555555', 'female');
+  const withPaid3 = await req(`/api/conversations/with/${paid.user.id}`, { method: 'POST', jar: notHost.jar });
+  await sitTogether(withPaid3.data.conversation.id, notHost.jar, paid.jar, 120);
+  const plainMe = await req('/api/me', { jar: notHost.jar });
+  assert.equal(plainMe.data.user.isHost, false);
+  assert.equal(plainMe.data.user.hostEarnings, 0);
 });
 
 after(() => new Promise((resolve) => server.close(resolve)));

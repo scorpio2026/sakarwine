@@ -27,6 +27,8 @@ Copy `.env.example` into your shell or Render dashboard. The app reads standard 
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | `/admin` login |
 | `SITE_NAME` | Public brand (also editable in admin) |
 | `FREE_CHAT_MS` | Free window per conversation (default 24 hours) |
+| `HOST_CHAT_MS` | Mutual chat duration required for host credit (default 10 minutes) |
+| `HOST_CREDIT_AMOUNT` | Credit per qualifying partner (default 500) |
 
 `npm test` runs filter, pricing, and API flow checks.
 
@@ -34,6 +36,7 @@ Copy `.env.example` into your shell or Render dashboard. The app reads standard 
 
 - Register with username, **exactly 6-digit PIN**, profile photo, male/female, birth year, and phone. A unique `SW########` account ID is assigned.
 - **Female accounts** include an **income form** (occupation, monthly income in MMK, source) and must upload **Myanmar NRC front + back** at registration. Admin approves that verification. After approval, a blue neon **host** label sits beside the level (or special) badge. NRC images are stored on disk and served only to `/admin` (no public or member URLs).
+- **Host income:** a verified host earns **500** (shown in her Income section) for each partner who has **at least one approved upgrade (Lv ≥ 1)** after they share a **mutual chat of at least 10 minutes** (both have the thread open; duration is tracked). A new qualifying partner adds another 500 — per partner, not per minute. The AI guide Saka does not count.
 - Face-scan liveness: turn your head left, then right. On-device camera tracking (skin-pixel centroid) estimates gender. **Limitation:** this is a pragmatic heuristic, not a biometric identity product — lighting, camera angle, makeup, and skin tone strongly affect results.
 - After the scan, **Saka** (the AI guide account) opens a chat and a coach-mark tour explains people, photos, and voice notes.
 - Home lists every active member, **online first**, then offline.

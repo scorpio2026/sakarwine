@@ -151,6 +151,25 @@ function connectSocket() {
       if (state.view === 'profile') showProfile();
     });
   });
+  socket.on('host:income', (payload) => {
+    toast(`+${payload.amount} host credit from ${payload.partnerUsername}`);
+    refreshMe().then(() => {
+      if (state.view === 'profile') showProfile();
+    });
+    if (state.chat) {
+      state.chat.mutual = state.chat.mutual || {};
+      state.chat.mutual.credited = true;
+      const el = $('#host-earn');
+      if (el) el.outerHTML = hostCreditBanner(state.chat);
+    }
+  });
+  socket.on('chat:mutual', ({ conversationId, mutual }) => {
+    if (state.chat && state.chat.id === conversationId && mutual) {
+      state.chat.mutual = mutual;
+      const el = $('#host-earn');
+      if (el) el.outerHTML = hostCreditBanner(state.chat);
+    }
+  });
   socket.on('account:status', () => {
     toast('Your account status changed.');
     location.reload();
@@ -481,12 +500,77 @@ async function openChat(userId, opts = {}) {
       window: full.conversation.window,
       blocked: full.conversation.blocked,
       canDelete: full.conversation.canDelete,
+      mutual: full.conversation.mutual,
       messages: full.messages
     };
     renderChat(opts);
   } catch (e) {
     toast(e.message);
   }
+}
+
+function formatChatMs(ms) {
+  const n = Math.max(0, Number(ms) || 0);
+  if (n < 60000) return `${Math.round(n / 1000)}s`;
+  const m = Math.floor(n / 60000);
+  const s = Math.floor((n % 60000) / 1000);
+  return s ? `${m}m ${s}s` : `${m}m`;
+}
+
+function hostCreditBanner(c) {
+  const m = c.mutual;
+  if (!m || !state.user || !state.user.isHost || c.peer.isAi) return '';
+  if (m.credited) {
+    return `<div class="host-earn" id="host-earn">+${m.creditAmount} credited for this partner</div>`;
+  }
+  if (!m.partnerQualifies) {
+    return `<div class="host-earn dim" id="host-earn">Host credit needs a partner at Lv 1+ (one approved upgrade).</div>`;
+  }
+  return `<div class="host-earn" id="host-earn">Mutual chat ${formatChatMs(m.totalMs)} / ${formatChatMs(m.neededMs)} toward +${m.creditAmount} with this member</div>`;
+}
+
+function stopChatPresence() {
+  if (state.chatPing) {
+    clearInterval(state.chatPing);
+    state.chatPing = null;
+  }
+  const id = state.presentingChatId;
+  if (id) {
+    if (state.socket) state.socket.emit('chat:leave', { conversationId: id });
+    api(`/api/conversations/${id}/presence`, { method: 'POST', json: { action: 'leave' } }).catch(() => {});
+    state.presentingChatId = null;
+  }
+}
+
+function startChatPresence() {
+  const id = state.chat && state.chat.id;
+  if (!id) return;
+  if (state.presentingChatId && state.presentingChatId !== id) stopChatPresence();
+  state.presentingChatId = id;
+  if (state.socket) state.socket.emit('chat:enter', { conversationId: id });
+  api(`/api/conversations/${id}/presence`, { method: 'POST', json: { action: 'enter' } })
+    .then((data) => {
+      if (data.mutual && state.chat && state.chat.id === id) {
+        state.chat.mutual = data.mutual;
+        const el = $('#host-earn');
+        if (el) el.outerHTML = hostCreditBanner(state.chat);
+      }
+    })
+    .catch(() => {});
+  if (state.chatPing) clearInterval(state.chatPing);
+  state.chatPing = setInterval(() => {
+    if (!state.chat || state.chat.id !== id) return;
+    if (state.socket) state.socket.emit('chat:ping', { conversationId: id });
+    api(`/api/conversations/${id}/presence`, { method: 'POST', json: { action: 'ping' } })
+      .then((data) => {
+        if (data.mutual && state.chat && state.chat.id === id) {
+          state.chat.mutual = data.mutual;
+          const el = $('#host-earn');
+          if (el) el.outerHTML = hostCreditBanner(state.chat);
+        }
+      })
+      .catch(() => {});
+  }, 5000);
 }
 
 function formatRemain(ms, window) {
@@ -516,6 +600,7 @@ function renderChat(opts = {}) {
         </div>`}
       </div>
       ${expired ? `<div class="upgrade-banner">Free 24 hours has ended for this chat. Upgrade to keep talking with unlimited people during your paid period.<br><button class="btn" id="go-up" style="margin-top:8px">See plans</button></div>` : ''}
+      ${hostCreditBanner(c)}
       <div id="messages" class="messages">${c.messages.map(renderBubble).join('')}</div>
       <div class="typing" id="typing"></div>
       <div class="composer">
@@ -526,7 +611,11 @@ function renderChat(opts = {}) {
         <input id="img-file" class="hidden-file" type="file" accept="image/*" />
       </div>
     </section>`;
-  $('#back').onclick = () => showHome();
+  $('#back').onclick = () => {
+    stopChatPresence();
+    showHome();
+  };
+  startChatPresence();
   const box = $('#messages');
   box.scrollTop = box.scrollHeight;
   box.onclick = (e) => {
@@ -535,7 +624,7 @@ function renderChat(opts = {}) {
       $('#m-up').onclick = () => { closeModal(); showUpgrade(); };
     }
   };
-  if ($('#go-up')) $('#go-up').onclick = showUpgrade;
+  if ($('#go-up')) $('#go-up').onclick = () => { stopChatPresence(); showUpgrade(); };
   if ($('#block')) $('#block').onclick = async () => {
     if (c.blocked) {
       await api(`/api/users/${c.peer.id}/block`, { method: 'DELETE' });
@@ -544,6 +633,7 @@ function renderChat(opts = {}) {
     } else {
       await api(`/api/users/${c.peer.id}/block`, { method: 'POST' });
       toast('Blocked');
+      stopChatPresence();
       showHome();
     }
   };
@@ -558,6 +648,7 @@ function renderChat(opts = {}) {
         await api(`/api/conversations/${c.id}`, { method: 'DELETE' });
         closeModal();
         toast('Chat deleted for you only');
+        stopChatPresence();
         showHome();
       } catch (e) {
         toast(e.message);
@@ -751,6 +842,14 @@ function showProfile() {
             </div>
           </div>
           <button class="btn block" id="save-income">Save income</button>
+          ${u.isHost ? `
+          <h3>Host earnings</h3>
+          <p><strong>${Number(u.hostEarnings || 0).toLocaleString()} MMK</strong>
+            <span class="small muted"> · ${Number(u.hostCreditAmount || 500).toLocaleString()} per qualifying partner</span></p>
+          <p class="small muted">A qualifying chat is at least 10 minutes together with someone at Lv 1+ (one approved upgrade). Each partner credits once — not per minute.</p>
+          ${(u.hostIncomeLedger || []).length
+            ? `<div class="ledger">${u.hostIncomeLedger.map((row) => `<div class="ledger-row">+${row.amount} · ${escapeHtml(row.partner.username)} · Lv ${row.partner.level} · ${new Date(row.createdAt).toLocaleString()}</div>`).join('')}</div>`
+            : '<p class="small muted">No qualifying partners yet.</p>'}` : ''}
           ${u.hostStatus === 'rejected' || u.hostStatus === 'none' ? `
           <h3>Myanmar NRC</h3>
           <p class="small muted">Front and back. Admin-only after upload.</p>
@@ -837,6 +936,7 @@ function showHelp(inApp = false) {
         <p>Deleting a conversation removes it from <strong>your</strong> history only. The other person still keeps every message. You cannot edit any message after it is sent.</p>
         <h3>Female host verification</h3>
         <p>Female accounts include an income form and must upload Myanmar NRC (front + back) at registration. After admin approval, a blue <strong>host</strong> badge sits beside your level. NRC photos are stored for admin review only.</p>
+        <p>Hosts earn <strong>500</strong> in Income for each upgraded member (Lv 1+) they share a <strong>mutual chat of at least 10 minutes</strong> with. Another qualifying partner adds another 500. Duration is tracked while both of you have the chat open.</p>
       </div>
       ${inApp ? nav('help') : ''}
     </section>`;

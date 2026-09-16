@@ -225,6 +225,12 @@ async function bootDash() {
             Account ID ${a.accountIdHidden ? 'hidden from lounge' : 'visible to lounge'}
             ${a.gender === 'female' ? `<br>Income: ${incomeLine(a)}` : ''}</p>
           ${a.gender === 'female' ? `<h3>NRC verification</h3>${nrcBlock(a)}` : ''}
+          ${data.hostIncome ? `<h3>Host earnings</h3>
+            <p><strong>${Number(data.hostIncome.hostEarnings || 0).toLocaleString()} MMK</strong>
+              <span class="muted"> · ${data.hostIncome.hostCreditAmount} per qualifying Lv 1+ partner after 10 minutes mutual chat</span></p>
+            ${(data.hostIncome.hostIncomeLedger || []).length
+              ? data.hostIncome.hostIncomeLedger.map((row) => `<div class="muted">+${row.amount} · ${esc(row.partner.username)} · Lv ${row.partner.level} · ${new Date(row.createdAt).toLocaleString()}</div>`).join('')
+              : '<p class="muted">No qualifying partners credited yet.</p>'}` : ''}
           ${a.isSpecial || data.badges ? `<div class="field"><label>Role badge</label>
             <select id="dossier-badge">
               <option value="">(none / regular level)</option>

@@ -11,6 +11,13 @@ const { Server } = require('socket.io');
 const { openDb, ensureDir, getSetting, setSetting, getBadges, addBadge, publicUser } = require('./db');
 const { messageFilterError, isAllowedImageMime, isAllowedVoiceMime, isForbiddenVideo } = require('./filters');
 const { quotePlan, allQuotes, addMonths, isPaid, isSpecial, canChatUnlimited, clampMonths } = require('./pricing');
+const {
+  HOST_CREDIT_AMOUNT,
+  HOST_CHAT_MS,
+  markPresence,
+  hostIncomeSummary,
+  mutualSnapshot
+} = require('./hostIncome');
 
 const ROOT = path.join(__dirname, '..');
 const PUBLIC = path.join(ROOT, 'public');
@@ -377,6 +384,7 @@ function startAiWelcome(user) {
     'Please don’t send Myanmar numbers starting with 09, and don’t start a message with @.',
     'You can delete a chat for yourself only — the other person still keeps the history. Sent messages cannot be edited.',
     'Female members fill an income form and upload Myanmar NRC (front + back). After admin approves, a blue host badge sits beside your level.',
+    'Hosts earn 500 in the income section for each upgraded member (Lv 1+) they talk with for at least 10 minutes in a mutual chat — per partner, not per minute.',
     'Forgot your 6-digit PIN? There is no self-serve reset — contact admin and give the phone you registered.'
   ];
   const ins = db.prepare(
@@ -464,6 +472,19 @@ function hideConversationForUser(convId, userId, at = Date.now()) {
 
 function rejectMessageEdit(_req, res) {
   res.status(403).json({ error: 'Messages cannot be edited.' });
+}
+
+function serializeMe(user) {
+  const out = publicUser(user, { includePrivate: true, online: true, viewer: user });
+  Object.assign(out, hostIncomeSummary(db, user.id, publicUser));
+  return out;
+}
+
+function touchPresence(conv, userId, action = 'ping') {
+  if (!conv || !userId) return null;
+  const blocked = isBlocked(conv.user_lo, conv.user_hi);
+  if (blocked) return { totalMs: 0, streakMs: 0, bothPresent: false, credited: [] };
+  return markPresence(db, conv, userId, action, Date.now(), emitToUser);
 }
 
 app.get('/health', (_req, res) => {
@@ -628,7 +649,7 @@ app.post('/api/login', (req, res) => {
     Date.now() + SESSION_MS
   );
   setCookie(res, 'sw_sid', token, SESSION_MS);
-  res.json({ user: publicUser(user, { includePrivate: true, online: true }) });
+  res.json({ user: serializeMe(user) });
 });
 
 app.post('/api/logout', requireUser, (req, res) => {
@@ -640,8 +661,10 @@ app.post('/api/logout', requireUser, (req, res) => {
 
 app.get('/api/me', requireUser, (req, res) => {
   res.json({
-    user: publicUser(req.user, { includePrivate: true, online: true }),
-    siteName: getSetting(db, 'site_name', 'sakarwine')
+    user: serializeMe(req.user),
+    siteName: getSetting(db, 'site_name', 'sakarwine'),
+    hostCreditAmount: HOST_CREDIT_AMOUNT,
+    hostChatMs: HOST_CHAT_MS
   });
 });
 
@@ -661,7 +684,7 @@ app.post('/api/me/liveness', requireUser, (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   const conv = startAiWelcome(user);
   res.json({
-    user: publicUser(user, { includePrivate: true, online: true }),
+    user: serializeMe(user),
     aiConversationId: conv ? conv.id : null,
     genderMatch: estimatedGender === 'unknown' || estimatedGender === user.gender
   });
@@ -682,7 +705,7 @@ app.put('/api/me/income', requireUser, requireActive, (req, res) => {
     'UPDATE users SET occupation = ?, income_monthly = ?, income_source = ? WHERE id = ?'
   ).run(income.occupation, income.monthlyIncome, income.incomeSource, req.user.id);
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
-  res.json({ user: publicUser(user, { includePrivate: true, online: true }) });
+  res.json({ user: serializeMe(user) });
 });
 
 app.post(
@@ -722,7 +745,7 @@ app.post(
        WHERE id = ?`
     ).run(nrcFront.filename, nrcBack.filename, req.user.id);
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
-    res.json({ user: publicUser(user, { includePrivate: true, online: true }) });
+    res.json({ user: serializeMe(user) });
   }
 );
 
@@ -798,9 +821,10 @@ app.get('/api/conversations/:id', requireUser, requireActive, (req, res) => {
     return res.status(404).json({ error: 'Conversation not found.' });
   }
   const peer = db.prepare('SELECT * FROM users WHERE id = ?').get(otherUserId(conv, req.user.id));
-  const messages = listMessagesForViewer(conv.id, req.user);
   const blocked =
     db.prepare('SELECT 1 FROM blocks WHERE blocker_id = ? AND blocked_id = ?').get(req.user.id, peer.id) != null;
+  const tick = blocked ? null : touchPresence(conv, req.user.id, 'ping');
+  const messages = listMessagesForViewer(conv.id, req.user);
   res.json({
     conversation: {
       id: conv.id,
@@ -809,9 +833,30 @@ app.get('/api/conversations/:id', requireUser, requireActive, (req, res) => {
       blocked,
       canDelete: !peer.is_ai,
       messagesEditable: false,
-      hiddenAt: (hiddenFor(conv.id, req.user.id) || {}).hidden_at || null
+      hiddenAt: (hiddenFor(conv.id, req.user.id) || {}).hidden_at || null,
+      mutual: mutualSnapshot(db, conv, req.user, peer)
     },
-    messages
+    messages,
+    credited: tick ? tick.credited : []
+  });
+});
+
+app.post('/api/conversations/:id/presence', requireUser, requireActive, (req, res) => {
+  const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(Number(req.params.id));
+  if (!conv || (conv.user_lo !== req.user.id && conv.user_hi !== req.user.id)) {
+    return res.status(404).json({ error: 'Conversation not found.' });
+  }
+  const peer = db.prepare('SELECT * FROM users WHERE id = ?').get(otherUserId(conv, req.user.id));
+  const action = String(req.body.action || 'ping');
+  if (!['enter', 'ping', 'leave'].includes(action)) {
+    return res.status(400).json({ error: 'Presence action must be enter, ping, or leave.' });
+  }
+  const tick = touchPresence(conv, req.user.id, action);
+  res.json({
+    ok: true,
+    mutual: mutualSnapshot(db, conv, req.user, peer),
+    credited: tick ? tick.credited : [],
+    hostEarnings: hostIncomeSummary(db, req.user.id, publicUser).hostEarnings
   });
 });
 
@@ -893,7 +938,13 @@ app.post(
     const forPeer = serializeMessage(msg, peer);
     emitToUser(peerId, 'message', { conversationId: conv.id, message: forPeer });
     emitToUser(req.user.id, 'message', { conversationId: conv.id, message: forMe });
-    res.json({ message: forMe, window: freeWindow(conv, req.user) });
+    const tick = touchPresence(conv, req.user.id, 'ping');
+    res.json({
+      message: forMe,
+      window: freeWindow(conv, req.user),
+      mutual: mutualSnapshot(db, conv, req.user, peer),
+      credited: tick ? tick.credited : []
+    });
   }
 );
 
@@ -1186,7 +1237,8 @@ app.get('/api/admin/dossier', requireAdmin, (req, res) => {
     upgrades,
     blocked,
     blockedBy,
-    badges: getBadges(db)
+    badges: getBadges(db),
+    hostIncome: hostIncomeSummary(db, user.id, publicUser)
   });
 });
 
@@ -1558,7 +1610,53 @@ io.on('connection', (socket) => {
     emitToUser(peer, 'typing', { conversationId, userId: user.id, typing: Boolean(payload.typing) });
   });
 
+  socket.on('chat:enter', (payload) => {
+    const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(Number(payload && payload.conversationId));
+    if (!conv || (conv.user_lo !== user.id && conv.user_hi !== user.id)) return;
+    socket.data.chatId = conv.id;
+    socket.join(`chat:${conv.id}`);
+    const tick = touchPresence(conv, user.id, 'enter');
+    socket.emit('chat:mutual', {
+      conversationId: conv.id,
+      mutual: mutualSnapshot(
+        db,
+        conv,
+        user,
+        db.prepare('SELECT * FROM users WHERE id = ?').get(otherUserId(conv, user.id))
+      ),
+      credited: tick.credited
+    });
+  });
+
+  socket.on('chat:ping', (payload) => {
+    const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(Number(payload && payload.conversationId));
+    if (!conv || (conv.user_lo !== user.id && conv.user_hi !== user.id)) return;
+    const tick = touchPresence(conv, user.id, 'ping');
+    socket.emit('chat:mutual', {
+      conversationId: conv.id,
+      mutual: mutualSnapshot(
+        db,
+        conv,
+        user,
+        db.prepare('SELECT * FROM users WHERE id = ?').get(otherUserId(conv, user.id))
+      ),
+      credited: tick.credited
+    });
+  });
+
+  socket.on('chat:leave', (payload) => {
+    const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(Number(payload && payload.conversationId));
+    if (!conv || (conv.user_lo !== user.id && conv.user_hi !== user.id)) return;
+    socket.leave(`chat:${conv.id}`);
+    if (socket.data.chatId === conv.id) socket.data.chatId = null;
+    touchPresence(conv, user.id, 'leave');
+  });
+
   socket.on('disconnect', () => {
+    if (socket.data.chatId) {
+      const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(socket.data.chatId);
+      if (conv) touchPresence(conv, user.id, 'leave');
+    }
     removeOnline(user.id, socket.id);
     if (!isOnline(user.id)) {
       socket.broadcast.emit('presence', { userId: user.id, online: false });
@@ -1574,4 +1672,4 @@ function start() {
 
 if (require.main === module) start();
 
-module.exports = { app, server, db, start, DATA_DIR, FREE_CHAT_MS };
+module.exports = { app, server, db, start, DATA_DIR, FREE_CHAT_MS, HOST_CHAT_MS, HOST_CREDIT_AMOUNT };

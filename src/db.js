@@ -144,6 +144,8 @@ function migrate(db) {
   ensureColumn(db, 'users', 'is_host', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'users', 'host_reviewed_at', 'INTEGER');
   db.exec('CREATE INDEX IF NOT EXISTS idx_users_host ON users(host_status)');
+  const { ensureHostIncomeTables } = require('./hostIncome');
+  ensureHostIncomeTables(db);
 }
 
 function ensureColumn(db, table, name, spec) {
