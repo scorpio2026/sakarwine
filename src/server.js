@@ -8,9 +8,9 @@ const express = require('express');
 const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const { Server } = require('socket.io');
-const { openDb, ensureDir, getSetting, setSetting, publicUser } = require('./db');
+const { openDb, ensureDir, getSetting, setSetting, getBadges, addBadge, publicUser } = require('./db');
 const { messageFilterError, isAllowedImageMime, isAllowedVoiceMime, isForbiddenVideo } = require('./filters');
-const { quotePlan, allQuotes, addMonths, isPaid, clampMonths } = require('./pricing');
+const { quotePlan, allQuotes, addMonths, isPaid, isSpecial, canChatUnlimited, clampMonths } = require('./pricing');
 
 const ROOT = path.join(__dirname, '..');
 const PUBLIC = path.join(ROOT, 'public');
@@ -276,16 +276,17 @@ function isBlocked(a, b) {
 }
 
 function freeWindow(conv, user, now = Date.now()) {
-  const paid = isPaid(user, now);
+  const unlimited = canChatUnlimited(user, now);
   const elapsed = now - conv.started_at;
   const remaining = Math.max(0, FREE_CHAT_MS - elapsed);
-  const expired = remaining === 0 && !paid;
+  const expired = remaining === 0 && !unlimited;
   return {
     startedAt: conv.started_at,
     freeMs: FREE_CHAT_MS,
-    remainingMs: paid ? null : remaining,
+    remainingMs: unlimited ? null : remaining,
     expired,
-    paid,
+    paid: isPaid(user, now),
+    special: isSpecial(user),
     canSend: !expired
   };
 }
@@ -326,7 +327,12 @@ function serializeMessage(msg, viewer) {
   const viewerLevel = viewer ? viewer.level : 0;
   const isAdminViewer = viewer && viewer._admin;
   const own = sender && viewer && sender.id === viewer.id;
-  const canSeeImage = !isImage || isAdminViewer || own || viewerLevel >= 3;
+  const canSeeImage =
+    !isImage ||
+    isAdminViewer ||
+    own ||
+    viewerLevel >= 3 ||
+    isSpecial(viewer);
   let mediaUrl = null;
   if (msg.media_path) {
     if (msg.type === 'image') {
@@ -343,7 +349,13 @@ function serializeMessage(msg, viewer) {
     type: msg.type,
     body: msg.body,
     createdAt: msg.created_at,
-    sender: sender ? publicUser(sender, { online: isOnline(sender.id) }) : null,
+    sender: sender
+      ? publicUser(sender, {
+          online: isOnline(sender.id),
+          viewer,
+          includePrivate: Boolean(isAdminViewer)
+        })
+      : null,
     mediaUrl,
     imageLocked: isImage && !canSeeImage
   };
@@ -500,7 +512,7 @@ app.get('/api/users', requireUser, requireActive, (req, res) => {
     .all(req.user.id);
   const users = rows
     .map((row) => {
-      const u = publicUser(row, { online: isOnline(row.id) });
+      const u = publicUser(row, { online: isOnline(row.id), viewer: req.user });
       u.blocked = blocked.includes(row.id);
       return u;
     })
@@ -546,7 +558,7 @@ app.post('/api/conversations/with/:userId', requireUser, requireActive, (req, re
   res.json({
     conversation: {
       id: conv.id,
-      peer: publicUser(target, { online: isOnline(target.id) }),
+      peer: publicUser(target, { online: isOnline(target.id), viewer: req.user }),
       window: freeWindow(conv, req.user)
     }
   });
@@ -567,7 +579,7 @@ app.get('/api/conversations/:id', requireUser, requireActive, (req, res) => {
   res.json({
     conversation: {
       id: conv.id,
-      peer: publicUser(peer, { online: isOnline(peer.id) }),
+      peer: publicUser(peer, { online: isOnline(peer.id), viewer: req.user }),
       window: freeWindow(conv, req.user),
       blocked
     },
@@ -723,7 +735,7 @@ app.get('/api/media/chat/:file', requireUser, (req, res) => {
   const member = conv && (conv.user_lo === req.user.id || conv.user_hi === req.user.id);
   if (!admin && !member) return res.status(403).end();
   const own = msg.sender_id === req.user.id;
-  if (!admin && !own && req.user.level < 3) {
+  if (!admin && !own && req.user.level < 3 && !isSpecial(req.user)) {
     return res.status(403).json({
       error: 'Photos unlock at Level 3 (three approved upgrades).',
       code: 'IMAGE_LOCK'
@@ -794,8 +806,98 @@ app.get('/api/admin/accounts', requireAdmin, (_req, res) => {
   res.json({
     accounts: rows.map((u) =>
       publicUser(u, { online: isOnline(u.id), includePrivate: true })
-    )
+    ),
+    badges: getBadges(db)
   });
+});
+
+app.post('/api/admin/accounts', requireAdmin, multerSingle(uploadProfile, 'photo'), (req, res) => {
+  try {
+    const username = String(req.body.username || '').trim();
+    const password = String(req.body.password || '');
+    const gender = String(req.body.gender || '').trim();
+    const birthYear = Number(req.body.birthYear);
+    const phone = String(req.body.phone || '').trim();
+    let badge = String(req.body.badge || '').trim();
+    if (!/^[A-Za-z0-9_]{3,20}$/.test(username)) {
+      return res.status(400).json({ error: 'Username must be 3–20 letters, numbers, or underscore.' });
+    }
+    if (username.toLowerCase() === 'saka') {
+      return res.status(400).json({ error: 'That username is reserved.' });
+    }
+    if (!/^\d{6}$/.test(password)) {
+      return res.status(400).json({ error: 'Password must be exactly 6 digits.' });
+    }
+    if (!['male', 'female'].includes(gender)) {
+      return res.status(400).json({ error: 'Please choose male or female.' });
+    }
+    const yearNow = new Date().getFullYear();
+    if (!Number.isInteger(birthYear) || birthYear < 1940 || birthYear > yearNow - 16) {
+      return res.status(400).json({ error: 'Check the birth year.' });
+    }
+    if (!/^[0-9+\s\-()]{7,20}$/.test(phone)) {
+      return res.status(400).json({ error: 'Enter a valid phone number.' });
+    }
+    if (!badge) return res.status(400).json({ error: 'Choose a role badge.' });
+    if (badge.length > 24) return res.status(400).json({ error: 'Badge label is too long.' });
+    const taken = db.prepare('SELECT id FROM users WHERE username = ? COLLATE NOCASE').get(username);
+    if (taken) return res.status(409).json({ error: 'That username is already taken.' });
+    addBadge(db, badge);
+    const known = getBadges(db);
+    const matched = known.find((b) => b.toLowerCase() === badge.toLowerCase());
+    badge = matched || badge;
+    const accountId = uniqueAccountId();
+    const hash = bcrypt.hashSync(password, 10);
+    const photo = req.file ? req.file.filename : null;
+    const info = db
+      .prepare(
+        `INSERT INTO users (
+          account_id, username, password_hash, gender, birth_year, phone,
+          photo_path, level, status, is_special, badge, hide_account_id, created_by_admin,
+          tour_completed, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'active', 1, ?, 1, 1, 1, ?)`
+      )
+      .run(accountId, username, hash, gender, birthYear, phone, photo, badge, Date.now());
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
+    res.json({
+      user: publicUser(user, { includePrivate: true, online: false }),
+      badges: getBadges(db)
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Could not create the special account.' });
+  }
+});
+
+app.post('/api/admin/accounts/:id/hide-id', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const user = db.prepare('SELECT * FROM users WHERE id = ? AND is_ai = 0').get(id);
+  if (!user) return res.status(404).json({ error: 'Account not found.' });
+  db.prepare('UPDATE users SET hide_account_id = 1 WHERE id = ?').run(id);
+  res.json({ ok: true, hideAccountId: true });
+});
+
+app.post('/api/admin/accounts/:id/unhide-id', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const user = db.prepare('SELECT * FROM users WHERE id = ? AND is_ai = 0').get(id);
+  if (!user) return res.status(404).json({ error: 'Account not found.' });
+  db.prepare('UPDATE users SET hide_account_id = 0 WHERE id = ?').run(id);
+  res.json({ ok: true, hideAccountId: false });
+});
+
+app.post('/api/admin/accounts/:id/badge', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const user = db.prepare('SELECT * FROM users WHERE id = ? AND is_ai = 0').get(id);
+  if (!user) return res.status(404).json({ error: 'Account not found.' });
+  let badge = String(req.body.badge || '').trim();
+  if (!badge) return res.status(400).json({ error: 'Choose a role badge.' });
+  if (badge.length > 24) return res.status(400).json({ error: 'Badge label is too long.' });
+  addBadge(db, badge);
+  const matched = getBadges(db).find((b) => b.toLowerCase() === badge.toLowerCase());
+  badge = matched || badge;
+  db.prepare('UPDATE users SET badge = ?, is_special = 1 WHERE id = ?').run(badge, id);
+  const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+  res.json({ user: publicUser(updated, { includePrivate: true }) });
 });
 
 app.post('/api/admin/accounts/:id/suspend', requireAdmin, (req, res) => {
@@ -951,7 +1053,8 @@ app.get('/api/admin/settings', requireAdmin, (_req, res) => {
     currency: getSetting(db, 'currency', 'MMK'),
     paymentInstructions: getSetting(db, 'payment_instructions', ''),
     adminContact: getSetting(db, 'admin_contact', ''),
-    quotes: allQuotes(monthly)
+    quotes: allQuotes(monthly),
+    badges: getBadges(db)
   });
 });
 
@@ -967,6 +1070,14 @@ app.put('/api/admin/settings', requireAdmin, (req, res) => {
     setSetting(db, 'payment_instructions', String(req.body.paymentInstructions).slice(0, 2000));
   }
   if (req.body.adminContact != null) setSetting(db, 'admin_contact', String(req.body.adminContact).slice(0, 500));
+  if (Array.isArray(req.body.badges)) {
+    const cleaned = req.body.badges.map((b) => String(b || '').trim()).filter((b) => b && b.length <= 24);
+    const merged = [];
+    for (const label of ['Admin', 'officer', 'sponsor', 'VVIP', ...cleaned]) {
+      if (!merged.some((x) => x.toLowerCase() === label.toLowerCase())) merged.push(label);
+    }
+    setSetting(db, 'badges', JSON.stringify(merged));
+  }
   const monthly = Number(getSetting(db, 'monthly_price', '15000'));
   res.json({
     ok: true,
@@ -975,7 +1086,8 @@ app.put('/api/admin/settings', requireAdmin, (req, res) => {
     currency: getSetting(db, 'currency', 'MMK'),
     paymentInstructions: getSetting(db, 'payment_instructions', ''),
     adminContact: getSetting(db, 'admin_contact', ''),
-    quotes: allQuotes(monthly)
+    quotes: allQuotes(monthly),
+    badges: getBadges(db)
   });
 });
 

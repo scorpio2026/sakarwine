@@ -35,6 +35,10 @@ function migrate(db) {
       paid_until INTEGER,
       status TEXT NOT NULL DEFAULT 'pending_liveness',
       is_ai INTEGER NOT NULL DEFAULT 0,
+      is_special INTEGER NOT NULL DEFAULT 0,
+      badge TEXT,
+      hide_account_id INTEGER NOT NULL DEFAULT 0,
+      created_by_admin INTEGER NOT NULL DEFAULT 0,
       tour_completed INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL
     );
@@ -107,6 +111,16 @@ function migrate(db) {
     CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_upgrades_status ON upgrades(status);
   `);
+  ensureColumn(db, 'users', 'is_special', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(db, 'users', 'badge', 'TEXT');
+  ensureColumn(db, 'users', 'hide_account_id', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(db, 'users', 'created_by_admin', 'INTEGER NOT NULL DEFAULT 0');
+}
+
+function ensureColumn(db, table, name, spec) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (cols.some((c) => c.name === name)) return;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${spec}`);
 }
 
 function seed(db) {
@@ -116,7 +130,8 @@ function seed(db) {
     currency: 'MMK',
     payment_instructions:
       'Transfer the amount due to the sakarwine admin wallet / bank shown here, then upload your receipt.\n\nKBZPay / WavePay / bank transfer — update these details in Admin → Settings.',
-    admin_contact: 'Message the sakarwine admin with the phone number you used at registration. There is no self-serve password reset.'
+    admin_contact: 'Message the sakarwine admin with the phone number you used at registration. There is no self-serve password reset.',
+    badges: JSON.stringify(['Admin', 'officer', 'sponsor', 'VVIP'])
   };
   const insert = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
   for (const [key, value] of Object.entries(defaults)) insert.run(key, value);
@@ -154,17 +169,53 @@ function setSetting(db, key, value) {
   ).run(key, String(value));
 }
 
-function publicUser(row, { online = false, includePrivate = false } = {}) {
+function getBadges(db) {
+  const defaults = ['Admin', 'officer', 'sponsor', 'VVIP'];
+  let extra = [];
+  try {
+    extra = JSON.parse(getSetting(db, 'badges', '[]'));
+  } catch {
+    extra = [];
+  }
+  if (!Array.isArray(extra)) extra = [];
+  const out = [];
+  for (const item of [...defaults, ...extra.map(String)]) {
+    const label = String(item || '').trim();
+    if (!label) continue;
+    if (!out.some((x) => x.toLowerCase() === label.toLowerCase())) out.push(label);
+  }
+  return out;
+}
+
+function addBadge(db, label) {
+  const badges = getBadges(db);
+  const clean = String(label || '').trim();
+  if (!clean) return badges;
+  if (!badges.some((x) => x.toLowerCase() === clean.toLowerCase())) {
+    badges.push(clean);
+    setSetting(db, 'badges', JSON.stringify(badges));
+  }
+  return getBadges(db);
+}
+
+function publicUser(row, { online = false, includePrivate = false, viewer = null } = {}) {
   if (!row) return null;
+  const hide = Boolean(row.hide_account_id);
+  const isSelf = viewer && Number(viewer.id) === Number(row.id);
+  const showAccountId = includePrivate || isSelf || !hide;
   const out = {
     id: row.id,
-    accountId: row.account_id,
+    accountId: showAccountId ? row.account_id : null,
+    accountIdHidden: hide,
     username: row.username,
     gender: row.gender,
     estimatedGender: row.estimated_gender,
     birthYear: row.birth_year,
     photoUrl: row.photo_path ? `/api/media/profile/${path.basename(row.photo_path)}` : null,
     level: row.level,
+    badge: row.badge || null,
+    isSpecial: Boolean(row.is_special),
+    createdByAdmin: Boolean(row.created_by_admin),
     paidUntil: row.paid_until,
     paid: Boolean(row.paid_until && row.paid_until > Date.now()),
     status: row.status,
@@ -184,5 +235,7 @@ module.exports = {
   ensureDir,
   getSetting,
   setSetting,
+  getBadges,
+  addBadge,
   publicUser
 };

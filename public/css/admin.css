@@ -82,3 +82,22 @@ img.thumb { max-width: 220px; border-radius: 12px; }
 .login { max-width: 380px; margin: 12vh auto; }
 .muted { color: rgba(255,244,236,.65); }
 .actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.badge-neon {
+  display: inline-block;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: linear-gradient(90deg, #ff4ecd, #7dfff6, #d4ff4a, #ffb347, #8b5cff, #ff4ecd);
+  background-size: 280% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: neon-run 2.2s linear infinite;
+  filter: drop-shadow(0 0 4px #ff4ecd) drop-shadow(0 0 8px #7dfff6);
+}
+@keyframes neon-run {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+.grid-form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 700px) { .grid-form { grid-template-columns: 1fr; } }

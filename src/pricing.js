@@ -41,8 +41,17 @@ function addMonths(fromMs, months) {
   return d.getTime();
 }
 
+function isSpecial(user) {
+  if (!user) return false;
+  return Boolean(user.isSpecial) || Number(user.is_special) === 1;
+}
+
 function isPaid(user, now = Date.now()) {
   return Boolean(user && user.paid_until && Number(user.paid_until) > now);
+}
+
+function canChatUnlimited(user, now = Date.now()) {
+  return isSpecial(user) || isPaid(user, now);
 }
 
 module.exports = {
@@ -51,5 +60,7 @@ module.exports = {
   quotePlan,
   allQuotes,
   addMonths,
-  isPaid
+  isPaid,
+  isSpecial,
+  canChatUnlimited
 };

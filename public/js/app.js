@@ -72,6 +72,19 @@ function avatarHtml(user, cls = '') {
   return `<img class="avatar ${cls}" alt="" src="${user.photoUrl}" />`;
 }
 
+function roleMark(user) {
+  if (user && user.badge) {
+    return `<span class="badge-neon" data-badge="${escapeHtml(user.badge)}">${escapeHtml(user.badge)}</span>`;
+  }
+  const lv = user && user.level != null ? user.level : 0;
+  return `<span class="badge-lv">Lv ${lv}</span>`;
+}
+
+function statusPill(user) {
+  if (user && user.isSpecial) return roleMark(user);
+  return `<span class="pill">${user && user.paid ? 'Paid' : 'Free 24h'} · Lv ${user.level}</span>`;
+}
+
 function petals() {
   const layer = document.querySelector('.petal-layer');
   layer.innerHTML = '';
@@ -318,7 +331,7 @@ async function loadHome() {
     <div class="user-row" data-id="${u.id}">
       ${avatarHtml(u)}
       <div class="meta">
-        <div class="name">${u.username} ${u.isAi ? '· guide' : ''} <span class="badge-lv">Lv ${u.level}</span></div>
+        <div class="name">${u.username} ${u.isAi ? '· guide' : ''} ${roleMark(u)}</div>
         <div class="sub">${u.online ? 'Online now' : 'Offline'} · ${u.gender}${u.blocked ? ' · blocked' : ''}</div>
       </div>
       <span class="dot ${u.online ? 'on' : ''}"></span>
@@ -338,7 +351,7 @@ async function showHome(opts = {}) {
           <div class="muted small">Hello, ${u.username}</div>
           <h2 id="home-title">${state.settings.siteName}</h2>
         </div>
-        <span class="pill">${u.paid ? 'Paid' : 'Free 24h'} · Lv ${u.level}</span>
+        <span class="pill-slot">${statusPill(u)}</span>
       </div>
       <div id="user-list" class="user-list"></div>
       ${nav('home')}
@@ -400,7 +413,8 @@ async function openChat(userId, opts = {}) {
   }
 }
 
-function formatRemain(ms) {
+function formatRemain(ms, window) {
+  if (window && window.special) return 'Unlimited';
   if (ms == null) return 'Unlimited while paid';
   const h = Math.floor(ms / 3600000);
   const m = Math.floor((ms % 3600000) / 60000);
@@ -417,8 +431,8 @@ function renderChat(opts = {}) {
         <button class="icon-btn" id="back">${ICONS.back}</button>
         ${avatarHtml(c.peer)}
         <div class="meta">
-          <div class="name">${c.peer.username}</div>
-          <div class="sub">${c.peer.online ? 'Online' : 'Offline'} · ${formatRemain(c.window.remainingMs)}</div>
+          <div class="name">${c.peer.username} ${roleMark(c.peer)}</div>
+          <div class="sub">${c.peer.online ? 'Online' : 'Offline'} · ${formatRemain(c.window.remainingMs, c.window)}</div>
         </div>
         ${c.peer.isAi ? '' : `<button class="icon-btn" id="block">${ICONS.block}</button>`}
       </div>
@@ -560,8 +574,12 @@ async function showUpgrade() {
   const mine = await api('/api/upgrade/mine');
   app.innerHTML = `
     <section class="screen">
-      <div class="topbar"><h2>Upgrade</h2><span class="pill">Lv ${state.user.level}</span></div>
+      <div class="topbar"><h2>Upgrade</h2>${statusPill(state.user)}</div>
       <div class="glass-card stack" style="overflow:auto;flex:1">
+        ${state.user.isSpecial ? `
+          <p>This special account already has <strong>unlimited chatting</strong> — no upgrade is required.</p>
+          <p class="small muted">Your lounge badge is ${roleMark(state.user)}.</p>
+        ` : `
         <p class="small muted">Your account ID is required on the transfer. Admin approval starts the paid period immediately. Each approval raises your level by 1. Photos unlock at Level 3.</p>
         <div class="field"><label>Account ID</label><input id="acc" value="${state.user.accountId}" readonly /></div>
         <div class="field"><label>Duration</label>
@@ -576,10 +594,12 @@ async function showUpgrade() {
         <div class="field"><label>Payment screenshot</label><input id="receipt" type="file" accept="image/*" /></div>
         <button class="btn block" id="submit-up">Submit for admin approval</button>
         <div class="small muted">${mine.upgrades.map((u) => `#${u.id} · ${u.months} mo · ${money(u.amount, u.currency)} · ${u.status}`).join('<br>') || 'No submissions yet.'}</div>
+        `}
       </div>
       ${nav('upgrade')}
     </section>`;
   bindNav();
+  if (state.user.isSpecial) return;
   const paint = () => {
     const q = pub.quotes.find((x) => x.months === Number($('#months').value));
     $('#q-amt').textContent = money(q.amount, pub.currency);
@@ -616,9 +636,9 @@ function showProfile() {
         ${avatarHtml(u)}
         <div>
           <div style="font-family:var(--display);font-size:1.6rem">${u.username}</div>
-          <div class="muted">${u.accountId}</div>
+          <div class="muted">${u.accountId || 'Account ID hidden from the lounge'}</div>
         </div>
-        <div class="small">Lv ${u.level} · ${u.gender} · born ${u.birthYear}<br>Phone ${u.phone}<br>${paidLine}</div>
+        <div class="small">${roleMark(u)} · ${u.gender} · born ${u.birthYear}<br>Phone ${u.phone}<br>${u.isSpecial ? 'Unlimited chat · special account' : paidLine}</div>
         <button class="btn secondary block" id="logout">Sign out</button>
       </div>
       ${nav('profile')}

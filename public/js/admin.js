@@ -73,6 +73,7 @@ async function bootDash() {
       ${stats.pendingUpgrades ? `<div class="notice">New payment submissions need review — duration, receipt, account ID, and registered phone are in Upgrades.</div>` : ''}
       <div class="tabs">
         <button data-t="accounts" class="${tab === 'accounts' ? 'on' : ''}">Accounts</button>
+        <button data-t="create" class="${tab === 'create' ? 'on' : ''}">Create special</button>
         <button data-t="chats" class="${tab === 'chats' ? 'on' : ''}">Chats</button>
         <button data-t="upgrades" class="${tab === 'upgrades' ? 'on' : ''}">Upgrades ${stats.pendingUpgrades ? `(${stats.pendingUpgrades})` : ''}</button>
         <button data-t="pricing" class="${tab === 'pricing' ? 'on' : ''}">Pricing</button>
@@ -89,17 +90,22 @@ async function bootDash() {
     const panel = $('#panel');
     if (tab === 'accounts') {
       const { accounts } = await api('/api/admin/accounts');
-      panel.innerHTML = `<table><thead><tr><th>Account</th><th>Phone</th><th>Lv / paid</th><th>Status</th><th></th></tr></thead><tbody>${accounts.map((a) => `
+      panel.innerHTML = `<table><thead><tr><th>Account</th><th>Phone</th><th>Role / paid</th><th>ID visibility</th><th>Status</th><th></th></tr></thead><tbody>${accounts.map((a) => `
         <tr>
-          <td><strong>${a.username}</strong><br><span class="muted">${a.accountId}</span></td>
-          <td>${a.phone}<br><span class="muted">${a.gender} · ${a.birthYear}</span></td>
-          <td>Lv ${a.level}<br>${a.paidUntil ? new Date(a.paidUntil).toLocaleDateString() : '—'}</td>
-          <td><span class="badge ${a.status}">${a.status}</span> ${a.online ? '· online' : ''}</td>
+          <td><strong>${esc(a.username)}</strong><br><span class="muted">${esc(a.accountId)}</span>${a.isSpecial ? `<br><span class="badge-neon">${esc(a.badge || 'special')}</span>` : ''}</td>
+          <td>${esc(a.phone)}<br><span class="muted">${esc(a.gender)} · ${a.birthYear}</span></td>
+          <td>${a.isSpecial ? `Unlimited · ${esc(a.badge || 'special')}` : `Lv ${a.level}<br>${a.paidUntil ? new Date(a.paidUntil).toLocaleDateString() : '—'}`}</td>
+          <td>${a.accountIdHidden ? 'Hidden from lounge' : 'Visible'}<br>
+            ${a.accountIdHidden
+              ? `<button data-act="unhide-id" data-id="${a.id}">Unhide ID</button>`
+              : `<button class="ghost" data-act="hide-id" data-id="${a.id}">Hide ID</button>`}
+          </td>
+          <td><span class="badge ${a.status}">${a.status}</span> ${a.online ? '· online' : ''}${a.createdByAdmin ? '<br><span class="muted">admin-created</span>' : ''}</td>
           <td class="actions">
             ${a.status === 'active' ? `<button class="warn" data-act="suspend" data-id="${a.id}">Suspend</button>` : ''}
             ${a.status === 'suspended' ? `<button data-act="unsuspend" data-id="${a.id}">Unsuspend</button>` : ''}
             ${a.status !== 'closed' ? `<button class="danger" data-act="close" data-id="${a.id}">Close</button>` : ''}
-            <button data-act="reset" data-id="${a.id}" data-phone="${a.phone}">Reset PIN</button>
+            <button data-act="reset" data-id="${a.id}" data-phone="${esc(a.phone)}">Reset PIN</button>
           </td>
         </tr>`).join('')}</tbody></table>`;
       panel.onclick = async (e) => {
@@ -119,6 +125,65 @@ async function bootDash() {
           render();
         } catch (err) {
           alert(err.message);
+        }
+      };
+    } else if (tab === 'create') {
+      const { badges } = await api('/api/admin/accounts');
+      const year = new Date().getFullYear();
+      let years = '';
+      for (let i = year - 18; i >= 1950; i--) years += `<option value="${i}">${i}</option>`;
+      panel.innerHTML = `
+        <h2>Create special account</h2>
+        <p class="muted">These accounts skip the 24-hour / paid upgrade gate (unlimited chatting). Role badges replace the normal level chip in the lounge with a neon glow. Account IDs are hidden from other members until you unhide them.</p>
+        <form id="create-special">
+          <div class="grid-form">
+            <div class="field"><label>Username</label><input name="username" required minlength="3" maxlength="20" /></div>
+            <div class="field"><label>6-digit PIN</label><input name="password" required pattern="\\d{6}" maxlength="6" /></div>
+            <div class="field"><label>Gender</label>
+              <select name="gender"><option value="female">Female</option><option value="male">Male</option></select>
+            </div>
+            <div class="field"><label>Birth year</label><select name="birthYear">${years}</select></div>
+            <div class="field"><label>Phone</label><input name="phone" required /></div>
+            <div class="field"><label>Role badge</label>
+              <select name="badge" id="badge-select">
+                ${badges.map((b) => `<option>${esc(b)}</option>`).join('')}
+                <option value="__custom">Custom…</option>
+              </select>
+            </div>
+          </div>
+          <div class="field" id="custom-badge-wrap" hidden>
+            <label>Custom badge</label>
+            <input id="custom-badge" maxlength="24" placeholder="e.g. ambassador" />
+          </div>
+          <div class="field"><label>Profile photo (optional)</label><input name="photo" type="file" accept="image/*" /></div>
+          <p class="muted">Preview: <span class="badge-neon" id="badge-preview">${esc(badges[0] || 'VVIP')}</span></p>
+          <button type="submit">Create unlimited account</button>
+          <p id="create-msg" class="muted"></p>
+        </form>`;
+      const select = $('#badge-select');
+      const preview = $('#badge-preview');
+      const customWrap = $('#custom-badge-wrap');
+      const custom = $('#custom-badge');
+      const syncPreview = () => {
+        const v = select.value === '__custom' ? (custom.value || 'custom') : select.value;
+        preview.textContent = v;
+        customWrap.hidden = select.value !== '__custom';
+      };
+      select.onchange = syncPreview;
+      custom.oninput = syncPreview;
+      $('#create-special').onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        let badge = fd.get('badge');
+        if (badge === '__custom') badge = custom.value.trim();
+        fd.set('badge', badge);
+        try {
+          const data = await api('/api/admin/accounts', { method: 'POST', body: fd });
+          $('#create-msg').textContent = `Created ${data.user.username} · ${data.user.accountId} · ID hidden · unlimited chat`;
+          e.target.reset();
+          syncPreview();
+        } catch (err) {
+          $('#create-msg').textContent = err.message;
         }
       };
     } else if (tab === 'chats') {

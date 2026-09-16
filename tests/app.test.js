@@ -173,4 +173,66 @@ test('two users chat, filters, image lock, upgrade path', async () => {
   assert.equal(paidStill.res.status, 200);
 });
 
+test('special accounts skip the upgrade gate and hide IDs', async () => {
+  await started;
+  const member = await register('fan' + Date.now().toString().slice(-6), '121212', 'female');
+  const admin = cookieJar();
+  await req('/api/admin/login', {
+    method: 'POST',
+    json: { username: 'admin', password: 'admin123' },
+    jar: admin
+  });
+  const form = new FormData();
+  form.set('username', 'vvip' + Date.now().toString().slice(-5));
+  form.set('password', '999999');
+  form.set('gender', 'female');
+  form.set('birthYear', '1994');
+  form.set('phone', '0999999999');
+  form.set('badge', 'VVIP');
+  const created = await req('/api/admin/accounts', { method: 'POST', form, jar: admin });
+  assert.equal(created.res.status, 200, created.data.error);
+  assert.equal(created.data.user.isSpecial, true);
+  assert.equal(created.data.user.badge, 'VVIP');
+  assert.equal(created.data.user.accountIdHidden, true);
+  assert.ok(created.data.user.accountId);
+
+  const listed = await req('/api/users', { jar: member.jar });
+  const vvip = listed.data.users.find((u) => u.username === created.data.user.username);
+  assert.ok(vvip);
+  assert.equal(vvip.accountId, null);
+  assert.equal(vvip.accountIdHidden, true);
+  assert.equal(vvip.badge, 'VVIP');
+
+  await req(`/api/admin/accounts/${created.data.user.id}/unhide-id`, { method: 'POST', jar: admin });
+  const listed2 = await req('/api/users', { jar: member.jar });
+  const vvip2 = listed2.data.users.find((u) => u.username === created.data.user.username);
+  assert.equal(vvip2.accountId, created.data.user.accountId);
+
+  const vvipJar = cookieJar();
+  await req('/api/login', {
+    method: 'POST',
+    json: { username: created.data.user.username, password: '999999' },
+    jar: vvipJar
+  });
+  const opened = await req(`/api/conversations/with/${member.user.id}`, { method: 'POST', jar: vvipJar });
+  const cid = opened.data.conversation.id;
+  assert.equal(opened.data.conversation.window.special, true);
+  assert.equal(opened.data.conversation.window.canSend, true);
+
+  await req(`/api/admin/conversations/${cid}/expire-free`, { method: 'POST', jar: admin });
+  const still = await req(`/api/conversations/${cid}/messages`, {
+    method: 'POST',
+    json: { body: 'special still chatting' },
+    jar: vvipJar
+  });
+  assert.equal(still.res.status, 200, still.data.error);
+
+  const blockedFree = await req(`/api/conversations/${cid}/messages`, {
+    method: 'POST',
+    json: { body: 'regular after expiry' },
+    jar: member.jar
+  });
+  assert.equal(blockedFree.res.status, 402);
+});
+
 after(() => new Promise((resolve) => server.close(resolve)));
