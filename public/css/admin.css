@@ -101,3 +101,38 @@ img.thumb { max-width: 220px; border-radius: 12px; }
 }
 .grid-form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 @media (max-width: 700px) { .grid-form { grid-template-columns: 1fr; } }
+.lookup {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  margin: 14px 0 4px;
+}
+.lookup input { width: 100%; }
+.lookup-hits {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 8;
+  background: #1a0a12;
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  overflow: hidden;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.lookup-hits .hit {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  color: var(--cream);
+  box-shadow: none;
+  border-radius: 0;
+  border-bottom: 1px solid var(--stroke);
+}
+.lookup-hits .hit:hover { background: rgba(255,244,236,.08); }
+.dossier section { margin: 18px 0; }
+.dossier h3 { font-family: var(--display); margin: 0 0 8px; }

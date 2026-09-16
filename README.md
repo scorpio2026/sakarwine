@@ -58,7 +58,7 @@ Login-protected. Admins can:
 - Open any chat for moderation
 - Review upgrade submissions (duration, receipt, account ID, registered phone) and approve/reject
 - Configure site name, payment instructions, and monthly pricing
-- **Create special accounts** (Admin, officer, sponsor, VVIP, or a custom badge) that get **unlimited chatting** without paying. Their lounge badge uses a neon running glow instead of a level chip. Account IDs for admin-created accounts are **hidden from other members** until an admin unhides them.
+- **Look up any account ID** from the search box: typing surfaces matching IDs, and opening one shows a dossier (profile, chats, upgrades, blocks, moderation, hide/unhide) so you can manage that account in one place.
 
 Pending upgrades show as a dashboard notice / badge.
 

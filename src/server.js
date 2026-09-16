@@ -811,6 +811,116 @@ app.get('/api/admin/accounts', requireAdmin, (_req, res) => {
   });
 });
 
+app.get('/api/admin/search', requireAdmin, (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 1) return res.json({ matches: [] });
+  const safe = q.replace(/[%_]/g, '');
+  const like = `%${safe}%`;
+  const rows = db
+    .prepare(
+      `SELECT * FROM users
+       WHERE is_ai = 0 AND (
+         account_id LIKE ? COLLATE NOCASE
+         OR username LIKE ? COLLATE NOCASE
+         OR phone LIKE ?
+       )
+       ORDER BY CASE WHEN account_id = ? COLLATE NOCASE THEN 0
+                     WHEN account_id LIKE ? COLLATE NOCASE THEN 1
+                     ELSE 2 END, id DESC
+       LIMIT 20`
+    )
+    .all(like, like, like, q, `${safe}%`);
+  res.json({
+    matches: rows.map((u) => publicUser(u, { online: isOnline(u.id), includePrivate: true }))
+  });
+});
+
+function serializeUpgradeRow(u) {
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(u.user_id);
+  return {
+    id: u.id,
+    userId: u.user_id,
+    accountId: u.account_id,
+    months: u.months,
+    amount: u.amount,
+    currency: u.currency,
+    status: u.status,
+    createdAt: u.created_at,
+    reviewedAt: u.reviewed_at,
+    receiptUrl: u.receipt_path ? `/api/media/receipt/${u.receipt_path}` : null,
+    phone: user ? user.phone : null,
+    username: user ? user.username : null,
+    level: user ? user.level : null
+  };
+}
+
+app.get('/api/admin/dossier', requireAdmin, (req, res) => {
+  const q = String(req.query.q || req.query.accountId || '').trim();
+  if (!q) return res.status(400).json({ error: 'Type an account ID.' });
+  let user = db.prepare('SELECT * FROM users WHERE account_id = ? COLLATE NOCASE AND is_ai = 0').get(q);
+  if (!user && /^\d+$/.test(q)) {
+    user = db.prepare('SELECT * FROM users WHERE id = ? AND is_ai = 0').get(Number(q));
+  }
+  if (!user) {
+    const like = `%${q.replace(/[%_]/g, '')}%`;
+    const hits = db
+      .prepare(
+        `SELECT * FROM users WHERE is_ai = 0 AND account_id LIKE ? COLLATE NOCASE
+         ORDER BY id DESC LIMIT 8`
+      )
+      .all(like);
+    if (hits.length === 1) user = hits[0];
+    else {
+      return res.status(404).json({
+        error: hits.length ? 'Several accounts match. Pick one from the list.' : 'No account found for that ID.',
+        matches: hits.map((u) => publicUser(u, { includePrivate: true, online: isOnline(u.id) }))
+      });
+    }
+  }
+  const convos = db
+    .prepare('SELECT * FROM conversations WHERE user_lo = ? OR user_hi = ? ORDER BY id DESC')
+    .all(user.id, user.id)
+    .map((c) => {
+      const peerId = c.user_lo === user.id ? c.user_hi : c.user_lo;
+      const peer = db.prepare('SELECT * FROM users WHERE id = ?').get(peerId);
+      const last = db
+        .prepare('SELECT * FROM messages WHERE conversation_id = ? ORDER BY id DESC LIMIT 1')
+        .get(c.id);
+      const count = db.prepare('SELECT COUNT(*) AS n FROM messages WHERE conversation_id = ?').get(c.id).n;
+      return {
+        id: c.id,
+        startedAt: c.started_at,
+        messageCount: count,
+        peer: publicUser(peer, { includePrivate: true, online: isOnline(peerId) }),
+        lastMessage: last ? { type: last.type, body: last.body, createdAt: last.created_at } : null
+      };
+    });
+  const upgrades = db
+    .prepare('SELECT * FROM upgrades WHERE user_id = ? ORDER BY id DESC')
+    .all(user.id)
+    .map(serializeUpgradeRow);
+  const blocked = db
+    .prepare(
+      `SELECT u.* FROM blocks b JOIN users u ON u.id = b.blocked_id WHERE b.blocker_id = ?`
+    )
+    .all(user.id)
+    .map((u) => publicUser(u, { includePrivate: true }));
+  const blockedBy = db
+    .prepare(
+      `SELECT u.* FROM blocks b JOIN users u ON u.id = b.blocker_id WHERE b.blocked_id = ?`
+    )
+    .all(user.id)
+    .map((u) => publicUser(u, { includePrivate: true }));
+  res.json({
+    user: publicUser(user, { includePrivate: true, online: isOnline(user.id) }),
+    conversations: convos,
+    upgrades,
+    blocked,
+    blockedBy,
+    badges: getBadges(db)
+  });
+});
+
 app.post('/api/admin/accounts', requireAdmin, multerSingle(uploadProfile, 'photo'), (req, res) => {
   try {
     const username = String(req.body.username || '').trim();
@@ -993,24 +1103,7 @@ app.post('/api/admin/conversations/:id/expire-free', requireAdmin, (req, res) =>
 
 app.get('/api/admin/upgrades', requireAdmin, (_req, res) => {
   const rows = db.prepare('SELECT * FROM upgrades ORDER BY id DESC').all();
-  const upgrades = rows.map((u) => {
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(u.user_id);
-    return {
-      id: u.id,
-      accountId: u.account_id,
-      months: u.months,
-      amount: u.amount,
-      currency: u.currency,
-      status: u.status,
-      createdAt: u.created_at,
-      reviewedAt: u.reviewed_at,
-      receiptUrl: u.receipt_path ? `/api/media/receipt/${u.receipt_path}` : null,
-      phone: user ? user.phone : null,
-      username: user ? user.username : null,
-      level: user ? user.level : null
-    };
-  });
-  res.json({ upgrades });
+  res.json({ upgrades: rows.map(serializeUpgradeRow) });
 });
 
 app.post('/api/admin/upgrades/:id/approve', requireAdmin, (req, res) => {

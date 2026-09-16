@@ -3,6 +3,8 @@
 const root = document.getElementById('admin-app');
 let tab = 'accounts';
 let socket;
+let lookupQ = '';
+let focusAccountId = null;
 
 async function api(path, opts = {}) {
   const headers = opts.headers || {};
@@ -12,7 +14,11 @@ async function api(path, opts = {}) {
   }
   const res = await fetch(path, { credentials: 'include', ...opts, headers });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Request failed');
+  if (!res.ok) {
+    const err = new Error(data.error || 'Request failed');
+    err.data = data;
+    throw err;
+  }
   return data;
 }
 
@@ -23,6 +29,8 @@ function money(n, c) {
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+
+const $ = (s, el = document) => el.querySelector(s);
 
 function showLogin() {
   root.innerHTML = `
@@ -44,15 +52,235 @@ function showLogin() {
   };
 }
 
-const $ = (s, el = document) => el.querySelector(s);
+function moderationButtons(a) {
+  return `
+    ${a.accountIdHidden
+      ? `<button data-act="unhide-id" data-id="${a.id}">Unhide ID</button>`
+      : `<button class="ghost" data-act="hide-id" data-id="${a.id}">Hide ID</button>`}
+    ${a.status === 'active' ? `<button class="warn" data-act="suspend" data-id="${a.id}">Suspend</button>` : ''}
+    ${a.status === 'suspended' ? `<button data-act="unsuspend" data-id="${a.id}">Unsuspend</button>` : ''}
+    ${a.status !== 'closed' ? `<button class="danger" data-act="close" data-id="${a.id}">Close</button>` : ''}
+    <button data-act="reset" data-id="${a.id}" data-phone="${esc(a.phone)}">Reset PIN</button>`;
+}
+
+async function runAccountAction(btn) {
+  const id = btn.dataset.id;
+  const act = btn.dataset.act;
+  if (act === 'reset') {
+    const phone = prompt('Confirm registered phone', btn.dataset.phone);
+    const password = prompt('New 6-digit PIN');
+    if (!password) return;
+    await api(`/api/admin/accounts/${id}/reset-password`, { method: 'POST', json: { phone, password } });
+    return;
+  }
+  await api(`/api/admin/accounts/${id}/${act}`, { method: 'POST' });
+}
+
+function upgradeCard(u) {
+  return `
+    <div class="notice">
+      <div class="row">
+        <div>
+          <span class="badge ${u.status}">${esc(u.status)}</span>
+          <strong>${esc(u.accountId)}</strong> · ${esc(u.username)}<br>
+          Phone ${esc(u.phone)} · ${u.months} month(s) · ${money(u.amount, u.currency)} · current Lv ${u.level}
+          <div class="muted">${new Date(u.createdAt).toLocaleString()}</div>
+        </div>
+        ${u.receiptUrl ? `<a href="${u.receiptUrl}" target="_blank"><img class="thumb" src="${u.receiptUrl}" alt="receipt" /></a>` : ''}
+      </div>
+      ${u.status === 'pending' ? `<div class="actions" style="margin-top:8px">
+        <button data-ok="${u.id}">Approve (start paid period now)</button>
+        <button class="danger" data-no="${u.id}">Reject</button>
+      </div>` : ''}
+    </div>`;
+}
 
 async function bootDash() {
   const me = await api('/api/admin/me');
   socket = io({ transports: ['websocket', 'polling'] });
-  socket.on('upgrade:new', () => {
-    if (tab === 'upgrades') render();
-    else render();
-  });
+  socket.on('upgrade:new', () => render());
+
+  async function openDossier(q) {
+    lookupQ = String(q || '').trim();
+    if (!lookupQ) return;
+    focusAccountId = lookupQ;
+    await render();
+  }
+
+  function bindLookup() {
+    const input = $('#lookup');
+    const hits = $('#lookup-hits');
+    let t;
+    const paintHits = (matches) => {
+      if (!matches.length) {
+        hits.hidden = true;
+        hits.innerHTML = '';
+        return;
+      }
+      hits.hidden = false;
+      hits.innerHTML = matches
+        .map(
+          (m) => `<button type="button" class="hit" data-aid="${esc(m.accountId)}">
+            <strong>${esc(m.accountId)}</strong> · ${esc(m.username)}
+            <span class="muted"> · ${esc(m.phone)} · ${m.status}${m.badge ? ` · ${esc(m.badge)}` : ''}</span>
+          </button>`
+        )
+        .join('');
+      hits.querySelectorAll('.hit').forEach((b) => {
+        b.onclick = () => openDossier(b.dataset.aid);
+      });
+    };
+    const search = async () => {
+      lookupQ = input.value.trim();
+      if (lookupQ.length < 2) {
+        hits.hidden = true;
+        return;
+      }
+      try {
+        const data = await api(`/api/admin/search?q=${encodeURIComponent(lookupQ)}`);
+        paintHits(data.matches);
+      } catch {
+        hits.hidden = true;
+      }
+    };
+    input.addEventListener('input', () => {
+      clearTimeout(t);
+      t = setTimeout(search, 180);
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        openDossier(input.value);
+      }
+    });
+    $('#lookup-go').onclick = () => openDossier(input.value);
+  }
+
+  async function paintDossier(panel) {
+    let data;
+    try {
+      data = await api(`/api/admin/dossier?q=${encodeURIComponent(focusAccountId)}`);
+    } catch (err) {
+      const matches = err.data && err.data.matches;
+      panel.innerHTML = `<p>${esc(err.message)}</p>
+        ${(matches || []).map((m) => `<div class="notice" data-open-id="${esc(m.accountId)}" style="cursor:pointer">${esc(m.accountId)} · ${esc(m.username)}</div>`).join('')}
+        <button data-leave>Back</button>`;
+      panel.querySelectorAll('[data-open-id]').forEach((el) => {
+        el.onclick = () => openDossier(el.dataset.openId);
+      });
+      panel.querySelector('[data-leave]').onclick = () => {
+        focusAccountId = null;
+        render();
+      };
+      return;
+    }
+    const a = data.user;
+    focusAccountId = a.accountId;
+    lookupQ = a.accountId;
+    const paidLine = a.paidUntil ? new Date(a.paidUntil).toLocaleString() : 'Not paid';
+    panel.innerHTML = `
+      <div class="row">
+        <button data-leave>← All accounts</button>
+        <h2 style="margin:0">Account ${esc(a.accountId)}</h2>
+      </div>
+      <div class="dossier">
+        <section>
+          <h3>Profile</h3>
+          <p>
+            <strong>${esc(a.username)}</strong>
+            ${a.badge ? `<span class="badge-neon">${esc(a.badge)}</span>` : ''}
+            <span class="badge ${a.status}">${esc(a.status)}</span>
+            ${a.online ? '· online' : ''}
+            ${a.createdByAdmin ? '· admin-created' : ''}
+            ${a.isSpecial ? '· unlimited chat' : ''}
+          </p>
+          ${a.photoUrl ? `<img class="thumb" src="${a.photoUrl}" alt="" />` : ''}
+          <p class="muted">Phone ${esc(a.phone)} · ${esc(a.gender)} · born ${a.birthYear}<br>
+            Level ${a.level} · Paid until ${paidLine}<br>
+            Account ID ${a.accountIdHidden ? 'hidden from lounge' : 'visible to lounge'}</p>
+          ${a.isSpecial || data.badges ? `<div class="field"><label>Role badge</label>
+            <select id="dossier-badge">
+              <option value="">(none / regular level)</option>
+              ${data.badges.map((b) => `<option ${a.badge === b ? 'selected' : ''}>${esc(b)}</option>`).join('')}
+            </select>
+            <button id="save-badge">Save badge</button>
+          </div>` : ''}
+          <div class="actions">${moderationButtons(a)}</div>
+        </section>
+        <section>
+          <h3>Upgrades</h3>
+          ${data.upgrades.length ? data.upgrades.map(upgradeCard).join('') : '<p class="muted">No upgrade submissions.</p>'}
+        </section>
+        <section>
+          <h3>Chats</h3>
+          ${data.conversations.length ? data.conversations.map((c) => `
+            <div class="notice" data-open="${c.id}" style="cursor:pointer">
+              <strong>#${c.id}</strong> with ${esc(c.peer.username)} (${esc(c.peer.accountId)}) · ${c.messageCount} messages
+              <div class="muted">${c.lastMessage ? esc(c.lastMessage.body || c.lastMessage.type) : 'No messages'} · started ${new Date(c.startedAt).toLocaleString()}</div>
+            </div>`).join('') : '<p class="muted">No conversations.</p>'}
+          <div id="dossier-thread"></div>
+        </section>
+        <section>
+          <h3>Blocks</h3>
+          <p class="muted">Blocked by this account: ${data.blocked.length ? data.blocked.map((u) => esc(u.username)).join(', ') : 'none'}</p>
+          <p class="muted">Blocked this account: ${data.blockedBy.length ? data.blockedBy.map((u) => esc(u.username)).join(', ') : 'none'}</p>
+        </section>
+      </div>`;
+    panel.querySelector('[data-leave]').onclick = () => {
+      focusAccountId = null;
+      render();
+    };
+    panel.onclick = async (e) => {
+      const btn = e.target.closest('button[data-act]');
+      const ok = e.target.closest('[data-ok]');
+      const no = e.target.closest('[data-no]');
+      const open = e.target.closest('[data-open]');
+      try {
+        if (btn) {
+          await runAccountAction(btn);
+          await render();
+        } else if (ok) {
+          await api(`/api/admin/upgrades/${ok.dataset.ok}/approve`, { method: 'POST' });
+          await render();
+        } else if (no) {
+          await api(`/api/admin/upgrades/${no.dataset.no}/reject`, { method: 'POST' });
+          await render();
+        } else if (open) {
+          const thread = await api(`/api/admin/conversations/${open.dataset.open}`);
+          const box = $('#dossier-thread');
+          box.innerHTML = `
+            <div class="chat-log">${thread.messages.map((m) => `
+              <div class="msg"><div class="muted">${m.sender ? esc(m.sender.username) : 'system'} · ${new Date(m.createdAt).toLocaleString()}</div>
+              ${m.type === 'image' && m.mediaUrl ? `<img class="thumb" src="${m.mediaUrl}" alt="" />` : ''}
+              ${m.type === 'voice' && m.mediaUrl ? `<audio controls src="${m.mediaUrl}"></audio>` : ''}
+              <div>${esc(m.body || m.type)}</div></div>`).join('')}</div>
+            <button data-expire="${thread.conversation.id}">Expire 24h free window</button>`;
+          box.querySelector('[data-expire]').onclick = async (ev) => {
+            ev.stopPropagation();
+            await api(`/api/admin/conversations/${thread.conversation.id}/expire-free`, { method: 'POST' });
+            alert('Free window expired for this chat.');
+          };
+        }
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+    const saveBadge = $('#save-badge');
+    if (saveBadge) {
+      saveBadge.onclick = async (e) => {
+        e.stopPropagation();
+        const badge = $('#dossier-badge').value;
+        if (!badge) return alert('Pick a badge.');
+        try {
+          await api(`/api/admin/accounts/${a.id}/badge`, { method: 'POST', json: { badge } });
+          await render();
+        } catch (err) {
+          alert(err.message);
+        }
+      };
+    }
+  }
+
   async function render() {
     const stats = await api('/api/admin/stats');
     root.innerHTML = `
@@ -71,13 +299,21 @@ async function bootDash() {
         <div class="stat"><span>Chats</span><b>${stats.conversations}</b></div>
       </div>
       ${stats.pendingUpgrades ? `<div class="notice">New payment submissions need review — duration, receipt, account ID, and registered phone are in Upgrades.</div>` : ''}
+      <div class="lookup">
+        <label class="field" style="margin:0;flex:1">
+          <span>Find by account ID</span>
+          <input id="lookup" value="${esc(lookupQ)}" placeholder="Type SW######## — profile, chats, upgrades, moderation…" autocomplete="off" />
+        </label>
+        <button id="lookup-go">Open dossier</button>
+        <div id="lookup-hits" class="lookup-hits" hidden></div>
+      </div>
       <div class="tabs">
-        <button data-t="accounts" class="${tab === 'accounts' ? 'on' : ''}">Accounts</button>
-        <button data-t="create" class="${tab === 'create' ? 'on' : ''}">Create special</button>
-        <button data-t="chats" class="${tab === 'chats' ? 'on' : ''}">Chats</button>
-        <button data-t="upgrades" class="${tab === 'upgrades' ? 'on' : ''}">Upgrades ${stats.pendingUpgrades ? `(${stats.pendingUpgrades})` : ''}</button>
-        <button data-t="pricing" class="${tab === 'pricing' ? 'on' : ''}">Pricing</button>
-        <button data-t="settings" class="${tab === 'settings' ? 'on' : ''}">Settings</button>
+        <button data-t="accounts" class="${!focusAccountId && tab === 'accounts' ? 'on' : ''}">Accounts</button>
+        <button data-t="create" class="${!focusAccountId && tab === 'create' ? 'on' : ''}">Create special</button>
+        <button data-t="chats" class="${!focusAccountId && tab === 'chats' ? 'on' : ''}">Chats</button>
+        <button data-t="upgrades" class="${!focusAccountId && tab === 'upgrades' ? 'on' : ''}">Upgrades ${stats.pendingUpgrades ? `(${stats.pendingUpgrades})` : ''}</button>
+        <button data-t="pricing" class="${!focusAccountId && tab === 'pricing' ? 'on' : ''}">Pricing</button>
+        <button data-t="settings" class="${!focusAccountId && tab === 'settings' ? 'on' : ''}">Settings</button>
       </div>
       <div class="card" id="panel">Loading…</div>`;
     $('#out').onclick = async () => {
@@ -85,14 +321,25 @@ async function bootDash() {
       showLogin();
     };
     document.querySelectorAll('.tabs [data-t]').forEach((b) => {
-      b.onclick = () => { tab = b.dataset.t; render(); };
+      b.onclick = () => {
+        tab = b.dataset.t;
+        focusAccountId = null;
+        render();
+      };
     });
+    bindLookup();
     const panel = $('#panel');
+    if (focusAccountId) {
+      await paintDossier(panel);
+      return;
+    }
     if (tab === 'accounts') {
       const { accounts } = await api('/api/admin/accounts');
       panel.innerHTML = `<table><thead><tr><th>Account</th><th>Phone</th><th>Role / paid</th><th>ID visibility</th><th>Status</th><th></th></tr></thead><tbody>${accounts.map((a) => `
         <tr>
-          <td><strong>${esc(a.username)}</strong><br><span class="muted">${esc(a.accountId)}</span>${a.isSpecial ? `<br><span class="badge-neon">${esc(a.badge || 'special')}</span>` : ''}</td>
+          <td><strong>${esc(a.username)}</strong><br>
+            <button class="ghost" data-open-id="${esc(a.accountId)}">${esc(a.accountId)}</button>
+            ${a.isSpecial ? `<br><span class="badge-neon">${esc(a.badge || 'special')}</span>` : ''}</td>
           <td>${esc(a.phone)}<br><span class="muted">${esc(a.gender)} · ${a.birthYear}</span></td>
           <td>${a.isSpecial ? `Unlimited · ${esc(a.badge || 'special')}` : `Lv ${a.level}<br>${a.paidUntil ? new Date(a.paidUntil).toLocaleDateString() : '—'}`}</td>
           <td>${a.accountIdHidden ? 'Hidden from lounge' : 'Visible'}<br>
@@ -101,27 +348,18 @@ async function bootDash() {
               : `<button class="ghost" data-act="hide-id" data-id="${a.id}">Hide ID</button>`}
           </td>
           <td><span class="badge ${a.status}">${a.status}</span> ${a.online ? '· online' : ''}${a.createdByAdmin ? '<br><span class="muted">admin-created</span>' : ''}</td>
-          <td class="actions">
-            ${a.status === 'active' ? `<button class="warn" data-act="suspend" data-id="${a.id}">Suspend</button>` : ''}
-            ${a.status === 'suspended' ? `<button data-act="unsuspend" data-id="${a.id}">Unsuspend</button>` : ''}
-            ${a.status !== 'closed' ? `<button class="danger" data-act="close" data-id="${a.id}">Close</button>` : ''}
-            <button data-act="reset" data-id="${a.id}" data-phone="${esc(a.phone)}">Reset PIN</button>
-          </td>
+          <td class="actions">${moderationButtons(a)}</td>
         </tr>`).join('')}</tbody></table>`;
       panel.onclick = async (e) => {
+        const open = e.target.closest('[data-open-id]');
+        if (open) {
+          openDossier(open.dataset.openId);
+          return;
+        }
         const btn = e.target.closest('button[data-act]');
         if (!btn) return;
-        const id = btn.dataset.id;
-        const act = btn.dataset.act;
         try {
-          if (act === 'reset') {
-            const phone = prompt('Confirm registered phone', btn.dataset.phone);
-            const password = prompt('New 6-digit PIN');
-            if (!password) return;
-            await api(`/api/admin/accounts/${id}/reset-password`, { method: 'POST', json: { phone, password } });
-          } else {
-            await api(`/api/admin/accounts/${id}/${act}`, { method: 'POST' });
-          }
+          await runAccountAction(btn);
           render();
         } catch (err) {
           alert(err.message);
@@ -178,10 +416,9 @@ async function bootDash() {
         if (badge === '__custom') badge = custom.value.trim();
         fd.set('badge', badge);
         try {
-          const data = await api('/api/admin/accounts', { method: 'POST', body: fd });
-          $('#create-msg').textContent = `Created ${data.user.username} · ${data.user.accountId} · ID hidden · unlimited chat`;
-          e.target.reset();
-          syncPreview();
+          const created = await api('/api/admin/accounts', { method: 'POST', body: fd });
+          $('#create-msg').textContent = `Created ${created.user.username} · ${created.user.accountId} · ID hidden · unlimited chat`;
+          await openDossier(created.user.accountId);
         } catch (err) {
           $('#create-msg').textContent = err.message;
         }
@@ -190,8 +427,8 @@ async function bootDash() {
       const { conversations } = await api('/api/admin/conversations');
       panel.innerHTML = conversations.map((c) => `
         <div class="notice" style="cursor:pointer" data-open="${c.id}">
-          <strong>#${c.id}</strong> ${c.users.map((u) => `${u.username} (${u.accountId})`).join(' ↔ ')}
-          <div class="muted">${c.lastMessage ? (c.lastMessage.body || c.lastMessage.type) : 'No messages'} · started ${new Date(c.startedAt).toLocaleString()}</div>
+          <strong>#${c.id}</strong> ${c.users.map((u) => `${esc(u.username)} (${esc(u.accountId)})`).join(' ↔ ')}
+          <div class="muted">${c.lastMessage ? esc(c.lastMessage.body || c.lastMessage.type) : 'No messages'} · started ${new Date(c.startedAt).toLocaleString()}</div>
         </div>`).join('') || '<p class="muted">No conversations yet.</p>';
       panel.onclick = async (e) => {
         const n = e.target.closest('[data-open]');
@@ -199,14 +436,17 @@ async function bootDash() {
         const data = await api(`/api/admin/conversations/${n.dataset.open}`);
         panel.innerHTML = `
           <button data-back>← Back</button>
-          <p>${data.conversation.users.map((u) => `${u.username} · ${u.accountId} · ${u.phone}`).join('<br>')}</p>
+          <p>${data.conversation.users.map((u) => `<button class="ghost" data-open-id="${esc(u.accountId)}">${esc(u.username)} · ${esc(u.accountId)}</button> · ${esc(u.phone)}`).join('<br>')}</p>
           <div class="chat-log">${data.messages.map((m) => `
-            <div class="msg"><div class="muted">${m.sender ? m.sender.username : 'system'} · ${new Date(m.createdAt).toLocaleString()}</div>
+            <div class="msg"><div class="muted">${m.sender ? esc(m.sender.username) : 'system'} · ${new Date(m.createdAt).toLocaleString()}</div>
             ${m.type === 'image' && m.mediaUrl ? `<img class="thumb" src="${m.mediaUrl}" />` : ''}
             ${m.type === 'voice' && m.mediaUrl ? `<audio controls src="${m.mediaUrl}"></audio>` : ''}
             <div>${esc(m.body || m.type)}</div></div>`).join('')}</div>
           <button data-expire="${data.conversation.id}">Expire 24h free window (test)</button>`;
         panel.querySelector('[data-back]').onclick = render;
+        panel.querySelectorAll('[data-open-id]').forEach((b) => {
+          b.onclick = () => openDossier(b.dataset.openId);
+        });
         panel.querySelector('[data-expire]').onclick = async () => {
           await api(`/api/admin/conversations/${data.conversation.id}/expire-free`, { method: 'POST' });
           alert('Free window expired for this chat.');
@@ -214,22 +454,7 @@ async function bootDash() {
       };
     } else if (tab === 'upgrades') {
       const { upgrades } = await api('/api/admin/upgrades');
-      panel.innerHTML = upgrades.map((u) => `
-        <div class="notice">
-          <div class="row">
-            <div>
-              <span class="badge ${u.status}">${u.status}</span>
-              <strong>${u.accountId}</strong> · ${u.username}<br>
-              Phone ${u.phone} · ${u.months} month(s) · ${money(u.amount, u.currency)} · current Lv ${u.level}
-              <div class="muted">${new Date(u.createdAt).toLocaleString()}</div>
-            </div>
-            ${u.receiptUrl ? `<a href="${u.receiptUrl}" target="_blank"><img class="thumb" src="${u.receiptUrl}" alt="receipt" /></a>` : ''}
-          </div>
-          ${u.status === 'pending' ? `<div class="actions" style="margin-top:8px">
-            <button data-ok="${u.id}">Approve (start paid period now)</button>
-            <button class="danger" data-no="${u.id}">Reject</button>
-          </div>` : ''}
-        </div>`).join('') || '<p class="muted">No upgrade submissions.</p>';
+      panel.innerHTML = upgrades.map(upgradeCard).join('') || '<p class="muted">No upgrade submissions.</p>';
       panel.onclick = async (e) => {
         const ok = e.target.closest('[data-ok]');
         const no = e.target.closest('[data-no]');
@@ -257,9 +482,9 @@ async function bootDash() {
     } else {
       const s = await api('/api/admin/settings');
       panel.innerHTML = `
-        <div class="field"><label>Site name</label><input id="sn" value="${s.siteName}" /></div>
-        <div class="field"><label>Payment instructions</label><textarea id="pi" rows="5">${s.paymentInstructions}</textarea></div>
-        <div class="field"><label>Admin contact (PIN recovery)</label><textarea id="ac" rows="3">${s.adminContact}</textarea></div>
+        <div class="field"><label>Site name</label><input id="sn" value="${esc(s.siteName)}" /></div>
+        <div class="field"><label>Payment instructions</label><textarea id="pi" rows="5">${esc(s.paymentInstructions)}</textarea></div>
+        <div class="field"><label>Admin contact (PIN recovery)</label><textarea id="ac" rows="3">${esc(s.adminContact)}</textarea></div>
         <button id="saves">Save settings</button>`;
       $('#saves').onclick = async () => {
         await api('/api/admin/settings', {

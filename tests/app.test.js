@@ -235,4 +235,38 @@ test('special accounts skip the upgrade gate and hide IDs', async () => {
   assert.equal(blockedFree.res.status, 402);
 });
 
+test('admin account ID search opens a full dossier', async () => {
+  await started;
+  const member = await register('seek' + Date.now().toString().slice(-6), '343434', 'male');
+  const admin = cookieJar();
+  await req('/api/admin/login', {
+    method: 'POST',
+    json: { username: 'admin', password: 'admin123' },
+    jar: admin
+  });
+  const people = await req('/api/users', { jar: member.jar });
+  const saka = people.data.users.find((u) => u.isAi);
+  const opened = await req(`/api/conversations/with/${saka.id}`, {
+    method: 'POST',
+    jar: member.jar
+  });
+  await req(`/api/conversations/${opened.data.conversation.id}/messages`, {
+    method: 'POST',
+    json: { body: 'hello dossier' },
+    jar: member.jar
+  });
+  const prefix = member.user.accountId.slice(0, 6);
+  const search = await req(`/api/admin/search?q=${prefix}`, { jar: admin });
+  assert.ok(search.data.matches.some((m) => m.accountId === member.user.accountId));
+  const dossier = await req(`/api/admin/dossier?q=${member.user.accountId}`, { jar: admin });
+  assert.equal(dossier.data.user.username, member.user.username);
+  assert.equal(dossier.data.user.phone, member.user.phone);
+  assert.ok(dossier.data.conversations.length >= 1);
+  assert.ok(['active', 'pending_liveness'].includes(dossier.data.user.status));
+  const hide = await req(`/api/admin/accounts/${member.user.id}/hide-id`, { method: 'POST', jar: admin });
+  assert.equal(hide.data.hideAccountId, true);
+  const again = await req(`/api/admin/dossier?q=${member.user.accountId}`, { jar: admin });
+  assert.equal(again.data.user.accountIdHidden, true);
+});
+
 after(() => new Promise((resolve) => server.close(resolve)));
