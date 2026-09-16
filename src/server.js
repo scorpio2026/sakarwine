@@ -623,7 +623,7 @@ app.get('/api/conversations/:id', requireUser, requireActive, (req, res) => {
     },
     messages
   });
-}
+});
 
 app.delete('/api/conversations/:id', requireUser, requireActive, (req, res) => {
   const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(Number(req.params.id));
