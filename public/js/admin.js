@@ -342,11 +342,7 @@ async function bootDash() {
             ${a.isSpecial ? `<br><span class="badge-neon">${esc(a.badge || 'special')}</span>` : ''}</td>
           <td>${esc(a.phone)}<br><span class="muted">${esc(a.gender)} · ${a.birthYear}</span></td>
           <td>${a.isSpecial ? `Unlimited · ${esc(a.badge || 'special')}` : `Lv ${a.level}<br>${a.paidUntil ? new Date(a.paidUntil).toLocaleDateString() : '—'}`}</td>
-          <td>${a.accountIdHidden ? 'Hidden from lounge' : 'Visible'}<br>
-            ${a.accountIdHidden
-              ? `<button data-act="unhide-id" data-id="${a.id}">Unhide ID</button>`
-              : `<button class="ghost" data-act="hide-id" data-id="${a.id}">Hide ID</button>`}
-          </td>
+          <td>${a.accountIdHidden ? 'Hidden from lounge' : 'Visible'}</td>
           <td><span class="badge ${a.status}">${a.status}</span> ${a.online ? '· online' : ''}${a.createdByAdmin ? '<br><span class="muted">admin-created</span>' : ''}</td>
           <td class="actions">${moderationButtons(a)}</td>
         </tr>`).join('')}</tbody></table>`;
