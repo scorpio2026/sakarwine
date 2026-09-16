@@ -28,6 +28,7 @@ ensureDir(path.join(UPLOADS, 'profiles'));
 ensureDir(path.join(UPLOADS, 'chat'));
 ensureDir(path.join(UPLOADS, 'voice'));
 ensureDir(path.join(UPLOADS, 'receipts'));
+ensureDir(path.join(UPLOADS, 'nrc'));
 
 const db = openDb(DATA_DIR);
 const app = express();
@@ -171,6 +172,35 @@ const uploadReceipt = multer({
   }
 });
 
+const uploadRegister = multer({
+  storage: multer.diskStorage({
+    destination: (_req, file, cb) => {
+      const nrc = file.fieldname === 'nrcFront' || file.fieldname === 'nrcBack';
+      cb(null, path.join(UPLOADS, nrc ? 'nrc' : 'profiles'));
+    },
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname || '').slice(0, 8) || mimeExt(file.mimetype);
+      cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`);
+    }
+  }),
+  limits: { fileSize: 6 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (!isAllowedImageMime(file.mimetype)) {
+      return cb(new Error('Photos must be images (NRC and profile).'));
+    }
+    cb(null, true);
+  }
+});
+
+const uploadNrc = multer({
+  storage: storageFor('nrc'),
+  limits: { fileSize: 6 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (!isAllowedImageMime(file.mimetype)) return cb(new Error('NRC photos must be images.'));
+    cb(null, true);
+  }
+});
+
 function multerSingle(uploader, field) {
   return (req, res, next) => {
     uploader.single(field)(req, res, (err) => {
@@ -178,6 +208,42 @@ function multerSingle(uploader, field) {
       res.status(400).json({ error: err.message || 'Upload failed.' });
     });
   };
+}
+
+function multerFields(uploader, fields) {
+  return (req, res, next) => {
+    uploader.fields(fields)(req, res, (err) => {
+      if (!err) return next();
+      res.status(400).json({ error: err.message || 'Upload failed.' });
+    });
+  };
+}
+
+function firstFile(req, name) {
+  const bag = req.files && req.files[name];
+  return bag && bag[0] ? bag[0] : null;
+}
+
+function unlinkQuiet(file) {
+  if (file && file.path) fs.unlink(file.path, () => {});
+}
+
+const INCOME_SOURCES = ['salary', 'business', 'family', 'other'];
+
+function parseIncome(body) {
+  const occupation = String(body.occupation || '').trim();
+  const monthlyIncome = Number(String(body.monthlyIncome || '').replace(/[, ]/g, ''));
+  const incomeSource = String(body.incomeSource || '').trim().toLowerCase();
+  if (occupation.length < 2 || occupation.length > 80) {
+    return { error: 'Enter your occupation or work (2–80 characters).' };
+  }
+  if (!Number.isFinite(monthlyIncome) || monthlyIncome < 0 || monthlyIncome > 999999999) {
+    return { error: 'Enter your monthly income in MMK.' };
+  }
+  if (!INCOME_SOURCES.includes(incomeSource)) {
+    return { error: 'Choose where your income comes from.' };
+  }
+  return { occupation, monthlyIncome: Math.round(monthlyIncome), incomeSource };
 }
 
 app.disable('x-powered-by');
@@ -310,6 +376,7 @@ function startAiWelcome(user) {
     'Photos stay softly locked until you reach Level 3 (three approved upgrades). Tap a locked photo to read why.',
     'Please don’t send Myanmar numbers starting with 09, and don’t start a message with @.',
     'You can delete a chat for yourself only — the other person still keeps the history. Sent messages cannot be edited.',
+    'Female members fill an income form and upload Myanmar NRC (front + back). After admin approves, a blue host badge sits beside your level.',
     'Forgot your 6-digit PIN? There is no self-serve reset — contact admin and give the phone you registered.'
   ];
   const ins = db.prepare(
@@ -415,33 +482,86 @@ app.get('/api/public-settings', (_req, res) => {
   });
 });
 
-app.post('/api/register', multerSingle(uploadProfile, 'photo'), (req, res) => {
+app.post(
+  '/api/register',
+  multerFields(uploadRegister, [
+    { name: 'photo', maxCount: 1 },
+    { name: 'nrcFront', maxCount: 1 },
+    { name: 'nrcBack', maxCount: 1 }
+  ]),
+  (req, res) => {
   try {
     const username = String(req.body.username || '').trim();
     const password = String(req.body.password || '');
     const gender = String(req.body.gender || '').trim();
     const birthYear = Number(req.body.birthYear);
     const phone = String(req.body.phone || '').trim();
+    const photo = firstFile(req, 'photo');
+    const nrcFront = firstFile(req, 'nrcFront');
+    const nrcBack = firstFile(req, 'nrcBack');
+    const dropUploads = () => {
+      unlinkQuiet(photo);
+      unlinkQuiet(nrcFront);
+      unlinkQuiet(nrcBack);
+    };
     if (!/^[A-Za-z0-9_]{3,20}$/.test(username)) {
+      dropUploads();
       return res.status(400).json({ error: 'Username must be 3–20 letters, numbers, or underscore.' });
     }
     if (!/^\d{6}$/.test(password)) {
+      dropUploads();
       return res.status(400).json({ error: 'Password must be exactly 6 digits.' });
     }
     if (!['male', 'female'].includes(gender)) {
+      dropUploads();
       return res.status(400).json({ error: 'Please choose male or female.' });
     }
     const yearNow = new Date().getFullYear();
     if (!Number.isInteger(birthYear) || birthYear < 1940 || birthYear > yearNow - 18) {
+      dropUploads();
       return res.status(400).json({ error: 'You must be at least 18. Check your birth year.' });
     }
     if (!/^[0-9+\s\-()]{7,20}$/.test(phone)) {
+      dropUploads();
       return res.status(400).json({ error: 'Enter a valid phone number.' });
     }
-    if (!req.file) return res.status(400).json({ error: 'Profile photo is required.' });
+    if (!photo) {
+      dropUploads();
+      return res.status(400).json({ error: 'Profile photo is required.' });
+    }
+    let occupation = null;
+    let incomeMonthly = null;
+    let incomeSource = null;
+    let hostStatus = 'none';
+    let nrcFrontName = null;
+    let nrcBackName = null;
+    if (gender === 'female') {
+      const income = parseIncome(req.body);
+      if (income.error) {
+        dropUploads();
+        return res.status(400).json({ error: income.error });
+      }
+      if (!nrcFront || !nrcBack) {
+        dropUploads();
+        return res.status(400).json({ error: 'Female accounts must upload Myanmar NRC front and back photos.' });
+      }
+      occupation = income.occupation;
+      incomeMonthly = income.monthlyIncome;
+      incomeSource = income.incomeSource;
+      hostStatus = 'pending';
+      nrcFrontName = nrcFront.filename;
+      nrcBackName = nrcBack.filename;
+    } else {
+      unlinkQuiet(nrcFront);
+      unlinkQuiet(nrcBack);
+    }
     const taken = db.prepare('SELECT id FROM users WHERE username = ? COLLATE NOCASE').get(username);
-    if (taken) return res.status(409).json({ error: 'That username is already taken.' });
+    if (taken) {
+      dropUploads();
+      return res.status(409).json({ error: 'That username is already taken.' });
+    }
     if (username.toLowerCase() === 'saka') {
+      dropUploads();
       return res.status(400).json({ error: 'That username is reserved.' });
     }
     const accountId = uniqueAccountId();
@@ -450,10 +570,26 @@ app.post('/api/register', multerSingle(uploadProfile, 'photo'), (req, res) => {
       .prepare(
         `INSERT INTO users (
           account_id, username, password_hash, gender, birth_year, phone,
-          photo_path, level, status, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'pending_liveness', ?)`
+          photo_path, level, status, occupation, income_monthly, income_source,
+          nrc_front_path, nrc_back_path, host_status, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'pending_liveness', ?, ?, ?, ?, ?, ?, ?)`
       )
-      .run(accountId, username, hash, gender, birthYear, phone, req.file.filename, Date.now());
+      .run(
+        accountId,
+        username,
+        hash,
+        gender,
+        birthYear,
+        phone,
+        photo.filename,
+        occupation,
+        incomeMonthly,
+        incomeSource,
+        nrcFrontName,
+        nrcBackName,
+        hostStatus,
+        Date.now()
+      );
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
     const token = signToken();
     db.prepare('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)').run(
@@ -535,6 +671,60 @@ app.post('/api/me/tour-complete', requireUser, requireActive, (req, res) => {
   db.prepare('UPDATE users SET tour_completed = 1 WHERE id = ?').run(req.user.id);
   res.json({ ok: true });
 });
+
+app.put('/api/me/income', requireUser, requireActive, (req, res) => {
+  if (req.user.gender !== 'female') {
+    return res.status(400).json({ error: 'Income form is for female profiles.' });
+  }
+  const income = parseIncome(req.body);
+  if (income.error) return res.status(400).json({ error: income.error });
+  db.prepare(
+    'UPDATE users SET occupation = ?, income_monthly = ?, income_source = ? WHERE id = ?'
+  ).run(income.occupation, income.monthlyIncome, income.incomeSource, req.user.id);
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  res.json({ user: publicUser(user, { includePrivate: true, online: true }) });
+});
+
+app.post(
+  '/api/me/nrc',
+  requireUser,
+  requireActive,
+  multerFields(uploadNrc, [
+    { name: 'nrcFront', maxCount: 1 },
+    { name: 'nrcBack', maxCount: 1 }
+  ]),
+  (req, res) => {
+    if (req.user.gender !== 'female') {
+      unlinkQuiet(firstFile(req, 'nrcFront'));
+      unlinkQuiet(firstFile(req, 'nrcBack'));
+      return res.status(400).json({ error: 'NRC verification is for female accounts.' });
+    }
+    if (req.user.host_status === 'approved') {
+      unlinkQuiet(firstFile(req, 'nrcFront'));
+      unlinkQuiet(firstFile(req, 'nrcBack'));
+      return res.status(409).json({ error: 'Your host verification is already approved.' });
+    }
+    const nrcFront = firstFile(req, 'nrcFront');
+    const nrcBack = firstFile(req, 'nrcBack');
+    if (!nrcFront || !nrcBack) {
+      unlinkQuiet(nrcFront);
+      unlinkQuiet(nrcBack);
+      return res.status(400).json({ error: 'Upload Myanmar NRC front and back photos.' });
+    }
+    if (req.user.nrc_front_path) {
+      unlinkQuiet({ path: path.join(UPLOADS, 'nrc', path.basename(req.user.nrc_front_path)) });
+    }
+    if (req.user.nrc_back_path) {
+      unlinkQuiet({ path: path.join(UPLOADS, 'nrc', path.basename(req.user.nrc_back_path)) });
+    }
+    db.prepare(
+      `UPDATE users SET nrc_front_path = ?, nrc_back_path = ?, host_status = 'pending', is_host = 0
+       WHERE id = ?`
+    ).run(nrcFront.filename, nrcBack.filename, req.user.id);
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+    res.json({ user: publicUser(user, { includePrivate: true, online: true }) });
+  }
+);
 
 app.get('/api/users', requireUser, requireActive, (req, res) => {
   const blocked = db
@@ -773,10 +963,14 @@ app.get('/api/upgrade/mine', requireUser, requireActive, (req, res) => {
   res.json({ upgrades: rows, user: publicUser(req.user, { includePrivate: true }) });
 });
 
-function sendUpload(res, subdir, filename) {
+function sendUpload(res, subdir, filename, { noStore = false } = {}) {
   const safe = path.basename(filename);
   const full = path.join(UPLOADS, subdir, safe);
   if (!fs.existsSync(full)) return res.status(404).end();
+  if (noStore) {
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+  }
   res.sendFile(full);
 }
 
@@ -813,6 +1007,15 @@ app.get('/api/media/voice/:file', requireUser, (req, res) => {
 
 app.get('/api/media/receipt/:file', requireAdmin, (req, res) => sendUpload(res, 'receipts', req.params.file));
 
+app.get('/api/admin/accounts/:id/nrc/:side', requireAdmin, (req, res) => {
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(req.params.id));
+  if (!user) return res.status(404).json({ error: 'Account not found.' });
+  const side = String(req.params.side || '');
+  const file = side === 'front' ? user.nrc_front_path : side === 'back' ? user.nrc_back_path : null;
+  if (!file) return res.status(404).json({ error: 'NRC photo not on file.' });
+  sendUpload(res, 'nrc', file, { noStore: true });
+});
+
 app.post('/api/admin/login', (req, res) => {
   const username = String(req.body.username || '');
   const password = String(req.body.password || '');
@@ -841,10 +1044,12 @@ app.post('/api/admin/logout', requireAdmin, (req, res) => {
 app.get('/api/admin/me', (req, res) => {
   if (!currentAdmin(req)) return res.status(401).json({ error: 'Admin login required.' });
   const pending = db.prepare("SELECT COUNT(*) AS n FROM upgrades WHERE status = 'pending'").get().n;
+  const pendingHosts = db.prepare("SELECT COUNT(*) AS n FROM users WHERE host_status = 'pending' AND is_ai = 0").get().n;
   res.json({
     ok: true,
     username: ADMIN_USERNAME,
     pendingUpgrades: pending,
+    pendingHosts,
     siteName: getSetting(db, 'site_name', 'sakarwine')
   });
 });
@@ -853,8 +1058,16 @@ app.get('/api/admin/stats', requireAdmin, (_req, res) => {
   const users = db.prepare("SELECT COUNT(*) AS n FROM users WHERE is_ai = 0").get().n;
   const active = db.prepare("SELECT COUNT(*) AS n FROM users WHERE status = 'active' AND is_ai = 0").get().n;
   const pending = db.prepare("SELECT COUNT(*) AS n FROM upgrades WHERE status = 'pending'").get().n;
+  const pendingHosts = db.prepare("SELECT COUNT(*) AS n FROM users WHERE host_status = 'pending' AND is_ai = 0").get().n;
   const chats = db.prepare('SELECT COUNT(*) AS n FROM conversations').get().n;
-  res.json({ users, active, pendingUpgrades: pending, conversations: chats, online: online.size });
+  res.json({
+    users,
+    active,
+    pendingUpgrades: pending,
+    pendingHosts,
+    conversations: chats,
+    online: online.size
+  });
 });
 
 app.get('/api/admin/accounts', requireAdmin, (_req, res) => {
@@ -968,7 +1181,7 @@ app.get('/api/admin/dossier', requireAdmin, (req, res) => {
     .all(user.id)
     .map((u) => publicUser(u, { includePrivate: true }));
   res.json({
-    user: publicUser(user, { includePrivate: true, online: isOnline(user.id) }),
+    user: publicUser(user, { includePrivate: true, includeNrc: true, online: isOnline(user.id) }),
     conversations: convos,
     upgrades,
     blocked,
@@ -1108,6 +1321,54 @@ app.post('/api/admin/accounts/:id/reset-password', requireAdmin, (req, res) => {
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(bcrypt.hashSync(password, 10), id);
   db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
   res.json({ ok: true });
+});
+
+app.get('/api/admin/hosts', requireAdmin, (_req, res) => {
+  const rows = db
+    .prepare(
+      `SELECT * FROM users
+       WHERE is_ai = 0 AND gender = 'female' AND host_status IN ('pending', 'approved', 'rejected')
+       ORDER BY CASE host_status WHEN 'pending' THEN 0 WHEN 'rejected' THEN 1 ELSE 2 END, id DESC`
+    )
+    .all();
+  res.json({
+    hosts: rows.map((u) => publicUser(u, { includePrivate: true, includeNrc: true, online: isOnline(u.id) }))
+  });
+});
+
+app.post('/api/admin/accounts/:id/host-approve', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const user = db.prepare('SELECT * FROM users WHERE id = ? AND is_ai = 0').get(id);
+  if (!user) return res.status(404).json({ error: 'Account not found.' });
+  if (user.gender !== 'female') return res.status(400).json({ error: 'Host verification is for female accounts.' });
+  if (!user.nrc_front_path || !user.nrc_back_path) {
+    return res.status(400).json({ error: 'NRC front and back photos are required before approval.' });
+  }
+  db.prepare(
+    "UPDATE users SET host_status = 'approved', is_host = 1, host_reviewed_at = ? WHERE id = ?"
+  ).run(Date.now(), id);
+  const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+  emitToUser(id, 'host:approved', { isHost: true });
+  res.json({
+    ok: true,
+    user: publicUser(updated, { includePrivate: true, includeNrc: true, online: isOnline(id) })
+  });
+});
+
+app.post('/api/admin/accounts/:id/host-reject', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const user = db.prepare('SELECT * FROM users WHERE id = ? AND is_ai = 0').get(id);
+  if (!user) return res.status(404).json({ error: 'Account not found.' });
+  if (user.gender !== 'female') return res.status(400).json({ error: 'Host verification is for female accounts.' });
+  db.prepare(
+    "UPDATE users SET host_status = 'rejected', is_host = 0, host_reviewed_at = ? WHERE id = ?"
+  ).run(Date.now(), id);
+  const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+  emitToUser(id, 'host:rejected', { isHost: false });
+  res.json({
+    ok: true,
+    user: publicUser(updated, { includePrivate: true, includeNrc: true, online: isOnline(id) })
+  });
 });
 
 app.get('/api/admin/conversations', requireAdmin, (_req, res) => {

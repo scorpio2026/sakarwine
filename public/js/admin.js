@@ -76,6 +76,30 @@ async function runAccountAction(btn) {
   await api(`/api/admin/accounts/${id}/${act}`, { method: 'POST' });
 }
 
+function hostMark(a) {
+  return a.isHost ? ' <span class="badge-neon badge-host" data-badge="host">host</span>' : '';
+}
+
+function incomeLine(a) {
+  if (a.gender !== 'female') return '';
+  const src = { salary: 'Salary', business: 'Business', family: 'Family support', other: 'Other' }[a.incomeSource] || a.incomeSource || '—';
+  return `${esc(a.occupation || '—')} · ${Number(a.monthlyIncome || 0).toLocaleString()} MMK · ${esc(src)}`;
+}
+
+function nrcBlock(a) {
+  if (a.gender !== 'female') return '';
+  return `
+    <div class="nrc-pair">
+      ${a.nrcFrontUrl ? `<a href="${a.nrcFrontUrl}" target="_blank" rel="noopener"><img class="thumb nrc-thumb" src="${a.nrcFrontUrl}" alt="NRC front" /></a>` : '<span class="muted">No NRC front</span>'}
+      ${a.nrcBackUrl ? `<a href="${a.nrcBackUrl}" target="_blank" rel="noopener"><img class="thumb nrc-thumb" src="${a.nrcBackUrl}" alt="NRC back" /></a>` : '<span class="muted">No NRC back</span>'}
+    </div>
+    <p class="muted">Host status: ${esc(a.hostStatus || 'none')}${a.isHost ? ' · verified host' : ''}</p>
+    ${a.hostStatus === 'pending' || a.hostStatus === 'rejected' || (a.hostStatus === 'approved' && !a.isHost) ? `<div class="actions">
+      <button data-host-ok="${a.id}">Approve host</button>
+      <button class="danger" data-host-no="${a.id}">Reject</button>
+    </div>` : a.hostStatus === 'approved' ? `<div class="actions"><button class="danger" data-host-no="${a.id}">Revoke host</button></div>` : ''}`;
+}
+
 function upgradeCard(u) {
   return `
     <div class="notice">
@@ -189,6 +213,7 @@ async function bootDash() {
           <p>
             <strong>${esc(a.username)}</strong>
             ${a.badge ? `<span class="badge-neon">${esc(a.badge)}</span>` : ''}
+            ${hostMark(a)}
             <span class="badge ${a.status}">${esc(a.status)}</span>
             ${a.online ? '· online' : ''}
             ${a.createdByAdmin ? '· admin-created' : ''}
@@ -197,7 +222,9 @@ async function bootDash() {
           ${a.photoUrl ? `<img class="thumb" src="${a.photoUrl}" alt="" />` : ''}
           <p class="muted">Phone ${esc(a.phone)} · ${esc(a.gender)} · born ${a.birthYear}<br>
             Level ${a.level} · Paid until ${paidLine}<br>
-            Account ID ${a.accountIdHidden ? 'hidden from lounge' : 'visible to lounge'}</p>
+            Account ID ${a.accountIdHidden ? 'hidden from lounge' : 'visible to lounge'}
+            ${a.gender === 'female' ? `<br>Income: ${incomeLine(a)}` : ''}</p>
+          ${a.gender === 'female' ? `<h3>NRC verification</h3>${nrcBlock(a)}` : ''}
           ${a.isSpecial || data.badges ? `<div class="field"><label>Role badge</label>
             <select id="dossier-badge">
               <option value="">(none / regular level)</option>
@@ -234,6 +261,8 @@ async function bootDash() {
       const btn = e.target.closest('button[data-act]');
       const ok = e.target.closest('[data-ok]');
       const no = e.target.closest('[data-no]');
+      const hostOk = e.target.closest('[data-host-ok]');
+      const hostNo = e.target.closest('[data-host-no]');
       const open = e.target.closest('[data-open]');
       try {
         if (btn) {
@@ -244,6 +273,12 @@ async function bootDash() {
           await render();
         } else if (no) {
           await api(`/api/admin/upgrades/${no.dataset.no}/reject`, { method: 'POST' });
+          await render();
+        } else if (hostOk) {
+          await api(`/api/admin/accounts/${hostOk.dataset.hostOk}/host-approve`, { method: 'POST' });
+          await render();
+        } else if (hostNo) {
+          await api(`/api/admin/accounts/${hostNo.dataset.hostNo}/host-reject`, { method: 'POST' });
           await render();
         } else if (open) {
           const thread = await api(`/api/admin/conversations/${open.dataset.open}`);
@@ -296,9 +331,11 @@ async function bootDash() {
         <div class="stat"><span>Active</span><b>${stats.active}</b></div>
         <div class="stat"><span>Online</span><b>${stats.online}</b></div>
         <div class="stat"><span>Pending upgrades</span><b>${stats.pendingUpgrades}</b></div>
+        <div class="stat"><span>Pending hosts</span><b>${stats.pendingHosts || 0}</b></div>
         <div class="stat"><span>Chats</span><b>${stats.conversations}</b></div>
       </div>
       ${stats.pendingUpgrades ? `<div class="notice">New payment submissions need review — duration, receipt, account ID, and registered phone are in Upgrades.</div>` : ''}
+      ${stats.pendingHosts ? `<div class="notice">Female NRC verifications need review in Hosts — income form plus NRC front/back (admin-only).</div>` : ''}
       <div class="lookup">
         <label class="field" style="margin:0;flex:1">
           <span>Find by account ID</span>
@@ -312,6 +349,7 @@ async function bootDash() {
         <button data-t="create" class="${!focusAccountId && tab === 'create' ? 'on' : ''}">Create special</button>
         <button data-t="chats" class="${!focusAccountId && tab === 'chats' ? 'on' : ''}">Chats</button>
         <button data-t="upgrades" class="${!focusAccountId && tab === 'upgrades' ? 'on' : ''}">Upgrades ${stats.pendingUpgrades ? `(${stats.pendingUpgrades})` : ''}</button>
+        <button data-t="hosts" class="${!focusAccountId && tab === 'hosts' ? 'on' : ''}">Hosts ${stats.pendingHosts ? `(${stats.pendingHosts})` : ''}</button>
         <button data-t="pricing" class="${!focusAccountId && tab === 'pricing' ? 'on' : ''}">Pricing</button>
         <button data-t="settings" class="${!focusAccountId && tab === 'settings' ? 'on' : ''}">Settings</button>
       </div>
@@ -339,7 +377,7 @@ async function bootDash() {
         <tr>
           <td><strong>${esc(a.username)}</strong><br>
             <button class="ghost" data-open-id="${esc(a.accountId)}">${esc(a.accountId)}</button>
-            ${a.isSpecial ? `<br><span class="badge-neon">${esc(a.badge || 'special')}</span>` : ''}</td>
+            ${a.isSpecial ? `<br><span class="badge-neon">${esc(a.badge || 'special')}</span>` : ''}${a.isHost ? `<br><span class="badge-neon badge-host" data-badge="host">host</span>` : ''}${a.hostStatus === 'pending' ? '<br><span class="muted">NRC pending</span>' : ''}</td>
           <td>${esc(a.phone)}<br><span class="muted">${esc(a.gender)} · ${a.birthYear}</span></td>
           <td>${a.isSpecial ? `Unlimited · ${esc(a.badge || 'special')}` : `Lv ${a.level}<br>${a.paidUntil ? new Date(a.paidUntil).toLocaleDateString() : '—'}`}</td>
           <td>${a.accountIdHidden ? 'Hidden from lounge' : 'Visible'}</td>
@@ -457,6 +495,43 @@ async function bootDash() {
         try {
           if (ok) await api(`/api/admin/upgrades/${ok.dataset.ok}/approve`, { method: 'POST' });
           if (no) await api(`/api/admin/upgrades/${no.dataset.no}/reject`, { method: 'POST' });
+          if (ok || no) render();
+        } catch (err) {
+          alert(err.message);
+        }
+      };
+    } else if (tab === 'hosts') {
+      const { hosts } = await api('/api/admin/hosts');
+      panel.innerHTML = hosts.length
+        ? hosts
+            .map(
+              (a) => `
+        <div class="notice">
+          <div class="row">
+            <div>
+              <span class="badge ${a.hostStatus}">${esc(a.hostStatus)}</span>
+              ${hostMark(a)}
+              <strong>${esc(a.username)}</strong>
+              <button class="ghost" data-open-id="${esc(a.accountId)}">${esc(a.accountId)}</button><br>
+              Phone ${esc(a.phone)} · ${incomeLine(a)}
+            </div>
+          </div>
+          ${nrcBlock(a)}
+        </div>`
+            )
+            .join('')
+        : '<p class="muted">No female host verifications yet.</p>';
+      panel.onclick = async (e) => {
+        const open = e.target.closest('[data-open-id]');
+        const ok = e.target.closest('[data-host-ok]');
+        const no = e.target.closest('[data-host-no]');
+        try {
+          if (open) {
+            openDossier(open.dataset.openId);
+            return;
+          }
+          if (ok) await api(`/api/admin/accounts/${ok.dataset.hostOk}/host-approve`, { method: 'POST' });
+          if (no) await api(`/api/admin/accounts/${no.dataset.hostNo}/host-reject`, { method: 'POST' });
           if (ok || no) render();
         } catch (err) {
           alert(err.message);

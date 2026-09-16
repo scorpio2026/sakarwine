@@ -477,6 +477,11 @@ body {
   background-image: linear-gradient(90deg, #c77dff, #ff4ecd, #ffe566, #c77dff);
   filter: drop-shadow(0 0 6px #c77dff) drop-shadow(0 0 12px #ff4ecd);
 }
+.badge-neon[data-badge="host"],
+.badge-neon.badge-host {
+  background-image: linear-gradient(90deg, #3d7eff, #7ec8ff, #4da6ff, #9adcff, #3d7eff);
+  filter: drop-shadow(0 0 6px #3d7eff) drop-shadow(0 0 12px #7ec8ff);
+}
 @keyframes neon-run {
   0% { background-position: 0% 50%; }
   100% { background-position: 100% 50%; }

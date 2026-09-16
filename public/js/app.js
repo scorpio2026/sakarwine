@@ -74,11 +74,17 @@ function avatarHtml(user, cls = '') {
 }
 
 function roleMark(user) {
+  let core = '';
   if (user && user.badge) {
-    return `<span class="badge-neon" data-badge="${escapeHtml(user.badge)}">${escapeHtml(user.badge)}</span>`;
+    core = `<span class="badge-neon" data-badge="${escapeHtml(user.badge)}">${escapeHtml(user.badge)}</span>`;
+  } else {
+    const lv = user && user.level != null ? user.level : 0;
+    core = `<span class="badge-lv">Lv ${lv}</span>`;
   }
-  const lv = user && user.level != null ? user.level : 0;
-  return `<span class="badge-lv">Lv ${lv}</span>`;
+  if (user && user.isHost) {
+    core += ` <span class="badge-neon badge-host" data-badge="host">host</span>`;
+  }
+  return core;
 }
 
 function statusPill(user) {
@@ -131,6 +137,19 @@ function connectSocket() {
   socket.on('upgrade:approved', (payload) => {
     toast(`Upgrade approved · you’re now Lv ${payload.level}`);
     refreshMe();
+  });
+  socket.on('host:approved', () => {
+    toast('Host verification approved');
+    refreshMe().then(() => {
+      if (state.view === 'home') loadHome();
+      if (state.view === 'profile') showProfile();
+    });
+  });
+  socket.on('host:rejected', () => {
+    toast('Host verification was not approved. You can re-upload NRC from Me.');
+    refreshMe().then(() => {
+      if (state.view === 'profile') showProfile();
+    });
   });
   socket.on('account:status', () => {
     toast('Your account status changed.');
@@ -237,6 +256,36 @@ function showRegister() {
           </div>
         </div>
         <div class="field"><label>Phone number</label><input name="phone" required inputmode="tel" /></div>
+        <div id="female-extra">
+          <h3>Income</h3>
+          <p class="small muted">Required for female accounts. Admin reviews this with your NRC.</p>
+          <div class="field"><label>Occupation / work</label><input name="occupation" minlength="2" maxlength="80" /></div>
+          <div class="row-2">
+            <div class="field"><label>Monthly income (MMK)</label><input name="monthlyIncome" inputmode="numeric" /></div>
+            <div class="field"><label>Income source</label>
+              <select name="incomeSource">
+                <option value="salary">Salary</option>
+                <option value="business">Business</option>
+                <option value="family">Family support</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+          </div>
+          <h3>Myanmar NRC</h3>
+          <p class="small muted">Front and back photos of your national ID. Only the sakarwine admin can open these files.</p>
+          <div class="row-2">
+            <label class="photo-pick">
+              <input class="hidden-file" type="file" name="nrcFront" accept="image/*" />
+              <div id="nrc-front-preview" class="avatar ai">🪪</div>
+              <span class="small muted">NRC front</span>
+            </label>
+            <label class="photo-pick">
+              <input class="hidden-file" type="file" name="nrcBack" accept="image/*" />
+              <div id="nrc-back-preview" class="avatar ai">🪪</div>
+              <span class="small muted">NRC back</span>
+            </label>
+          </div>
+        </div>
         <button class="btn block" type="submit">Continue to face scan</button>
       </form>
     </section>`;
@@ -248,6 +297,31 @@ function showRegister() {
     const url = URL.createObjectURL(f);
     $('#photo-preview').outerHTML = `<img id="photo-preview" class="avatar" src="${url}" alt="" />`;
   };
+  const bindNrcPreview = (name, previewId) => {
+    const input = $(`input[name=${name}]`);
+    if (!input) return;
+    input.onchange = () => {
+      const f = input.files[0];
+      if (!f) return;
+      const url = URL.createObjectURL(f);
+      $(`#${previewId}`).outerHTML = `<img id="${previewId}" class="avatar" src="${url}" alt="" />`;
+    };
+  };
+  bindNrcPreview('nrcFront', 'nrc-front-preview');
+  bindNrcPreview('nrcBack', 'nrc-back-preview');
+  const genderSel = $('select[name=gender]');
+  const extra = $('#female-extra');
+  const syncFemale = () => {
+    const female = genderSel.value === 'female';
+    extra.hidden = !female;
+    extra.querySelectorAll('input, select').forEach((el) => {
+      if (el.name === 'occupation' || el.name === 'monthlyIncome' || el.name === 'incomeSource' || el.name === 'nrcFront' || el.name === 'nrcBack') {
+        el.required = female;
+      }
+    });
+  };
+  genderSel.onchange = syncFemale;
+  syncFemale();
   $('#reg').onsubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
@@ -647,10 +721,45 @@ async function showUpgrade() {
   };
 }
 
+function incomeSourceLabel(v) {
+  return { salary: 'Salary', business: 'Business', family: 'Family support', other: 'Other' }[v] || v || '—';
+}
+
+function hostStatusLine(u) {
+  if (u.gender !== 'female') return '';
+  if (u.isHost) return 'Verified host';
+  if (u.hostStatus === 'pending') return 'NRC submitted — waiting for admin';
+  if (u.hostStatus === 'rejected') return 'Host verification was not approved. Re-upload NRC below.';
+  return 'Complete NRC verification to earn a host badge.';
+}
+
 function showProfile() {
   state.view = 'profile';
   const u = state.user;
   const paidLine = u.paidUntil ? `Paid until ${new Date(u.paidUntil).toLocaleString()}` : 'Not paid yet';
+  const femaleForm = u.gender === 'female' ? `
+        <div class="glass-card stack" style="margin-top:12px;text-align:left">
+          <h3 style="margin:0">Income</h3>
+          <p class="small muted">${escapeHtml(hostStatusLine(u))}</p>
+          <div class="field"><label>Occupation / work</label><input id="inc-occ" value="${escapeHtml(u.occupation || '')}" minlength="2" maxlength="80" /></div>
+          <div class="row-2">
+            <div class="field"><label>Monthly income (MMK)</label><input id="inc-amt" inputmode="numeric" value="${u.monthlyIncome != null ? escapeHtml(String(u.monthlyIncome)) : ''}" /></div>
+            <div class="field"><label>Income source</label>
+              <select id="inc-src">
+                ${['salary', 'business', 'family', 'other'].map((s) => `<option value="${s}" ${u.incomeSource === s ? 'selected' : ''}>${incomeSourceLabel(s)}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <button class="btn block" id="save-income">Save income</button>
+          ${u.hostStatus === 'rejected' || u.hostStatus === 'none' ? `
+          <h3>Myanmar NRC</h3>
+          <p class="small muted">Front and back. Admin-only after upload.</p>
+          <div class="row-2">
+            <label class="photo-pick"><input class="hidden-file" id="nrc-front" type="file" accept="image/*" /><span class="small muted">NRC front</span></label>
+            <label class="photo-pick"><input class="hidden-file" id="nrc-back" type="file" accept="image/*" /><span class="small muted">NRC back</span></label>
+          </div>
+          <button class="btn secondary block" id="save-nrc">Submit NRC</button>` : ''}
+        </div>` : '';
   app.innerHTML = `
     <section class="screen">
       <div class="topbar"><h2>You</h2></div>
@@ -660,9 +769,10 @@ function showProfile() {
           <div style="font-family:var(--display);font-size:1.6rem">${u.username}</div>
           <div class="muted">${u.accountId || 'Account ID hidden from the lounge'}</div>
         </div>
-        <div class="small">${roleMark(u)} · ${u.gender} · born ${u.birthYear}<br>Phone ${u.phone}<br>${u.isSpecial ? 'Unlimited chat · special account' : paidLine}</div>
+        <div class="small">${roleMark(u)} · ${u.gender} · born ${u.birthYear}<br>Phone ${u.phone}<br>${u.isSpecial ? 'Unlimited chat · special account' : paidLine}${u.gender === 'female' && u.occupation ? `<br>${escapeHtml(u.occupation)} · ${Number(u.monthlyIncome || 0).toLocaleString()} MMK` : ''}</div>
         <button class="btn secondary block" id="logout">Sign out</button>
       </div>
+      ${femaleForm}
       ${nav('profile')}
     </section>`;
   bindNav();
@@ -672,6 +782,43 @@ function showProfile() {
     if (state.socket) state.socket.disconnect();
     showWelcome();
   };
+  if ($('#save-income')) {
+    $('#save-income').onclick = async () => {
+      try {
+        const data = await api('/api/me/income', {
+          method: 'PUT',
+          json: {
+            occupation: $('#inc-occ').value,
+            monthlyIncome: $('#inc-amt').value,
+            incomeSource: $('#inc-src').value
+          }
+        });
+        state.user = data.user;
+        toast('Income saved');
+        showProfile();
+      } catch (e) {
+        toast(e.message);
+      }
+    };
+  }
+  if ($('#save-nrc')) {
+    $('#save-nrc').onclick = async () => {
+      const front = $('#nrc-front').files[0];
+      const back = $('#nrc-back').files[0];
+      if (!front || !back) return toast('Upload NRC front and back');
+      const fd = new FormData();
+      fd.append('nrcFront', front);
+      fd.append('nrcBack', back);
+      try {
+        const data = await api('/api/me/nrc', { method: 'POST', body: fd });
+        state.user = data.user;
+        toast('NRC submitted for admin review');
+        showProfile();
+      } catch (e) {
+        toast(e.message);
+      }
+    };
+  }
 }
 
 function showHelp(inApp = false) {
@@ -688,6 +835,8 @@ function showHelp(inApp = false) {
         <p class="small muted">${escapeHtml(state.settings.adminContact || '')}</p>
         <h3>Chat history</h3>
         <p>Deleting a conversation removes it from <strong>your</strong> history only. The other person still keeps every message. You cannot edit any message after it is sent.</p>
+        <h3>Female host verification</h3>
+        <p>Female accounts include an income form and must upload Myanmar NRC (front + back) at registration. After admin approval, a blue <strong>host</strong> badge sits beside your level. NRC photos are stored for admin review only.</p>
       </div>
       ${inApp ? nav('help') : ''}
     </section>`;

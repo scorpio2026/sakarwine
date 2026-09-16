@@ -95,6 +95,11 @@ img.thumb { max-width: 220px; border-radius: 12px; }
   animation: neon-run 2.2s linear infinite;
   filter: drop-shadow(0 0 4px #ff4ecd) drop-shadow(0 0 8px #7dfff6);
 }
+.badge-neon[data-badge="host"],
+.badge-neon.badge-host {
+  background-image: linear-gradient(90deg, #3d7eff, #7ec8ff, #4da6ff, #9adcff, #3d7eff);
+  filter: drop-shadow(0 0 6px #3d7eff) drop-shadow(0 0 12px #7ec8ff);
+}
 @keyframes neon-run {
   0% { background-position: 0% 50%; }
   100% { background-position: 100% 50%; }
@@ -134,5 +139,7 @@ img.thumb { max-width: 220px; border-radius: 12px; }
   border-bottom: 1px solid var(--stroke);
 }
 .lookup-hits .hit:hover { background: rgba(255,244,236,.08); }
+.nrc-pair { display: flex; gap: 10px; flex-wrap: wrap; margin: 8px 0; }
+.nrc-thumb { width: 160px; height: 100px; object-fit: cover; border-radius: 10px; border: 1px solid var(--stroke); }
 .dossier section { margin: 18px 0; }
 .dossier h3 { font-family: var(--display); margin: 0 0 8px; }

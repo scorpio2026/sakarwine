@@ -33,6 +33,7 @@ Copy `.env.example` into your shell or Render dashboard. The app reads standard 
 ## What users get
 
 - Register with username, **exactly 6-digit PIN**, profile photo, male/female, birth year, and phone. A unique `SW########` account ID is assigned.
+- **Female accounts** include an **income form** (occupation, monthly income in MMK, source) and must upload **Myanmar NRC front + back** at registration. Admin approves that verification. After approval, a blue neon **host** label sits beside the level (or special) badge. NRC images are stored on disk and served only to `/admin` (no public or member URLs).
 - Face-scan liveness: turn your head left, then right. On-device camera tracking (skin-pixel centroid) estimates gender. **Limitation:** this is a pragmatic heuristic, not a biometric identity product — lighting, camera angle, makeup, and skin tone strongly affect results.
 - After the scan, **Saka** (the AI guide account) opens a chat and a coach-mark tour explains people, photos, and voice notes.
 - Home lists every active member, **online first**, then offline.
@@ -60,7 +61,8 @@ Login-protected. Admins can:
 - Open any chat for moderation
 - Review upgrade submissions (duration, receipt, account ID, registered phone) and approve/reject
 - Configure site name, payment instructions, and monthly pricing
-- **Look up any account ID** from the search box: typing surfaces matching IDs, and opening one shows a dossier (profile, chats, upgrades, blocks, moderation, hide/unhide) so you can manage that account in one place.
+- **Look up any account ID** from the search box: typing surfaces matching IDs, and opening one shows a dossier (profile, chats, upgrades, blocks, NRC/income for female hosts, hide/unhide) so you can manage that account in one place.
+- Review **female host / NRC** submissions (income + ID photos) and approve/reject. Approval grants the blue host badge.
 
 Pending upgrades show as a dashboard notice / badge.
 

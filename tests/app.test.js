@@ -64,6 +64,13 @@ async function register(name, pin, gender = 'female') {
   form.set('birthYear', '1998');
   form.set('phone', '091111111');
   form.set('photo', new Blob([PNG], { type: 'image/png' }), 'p.png');
+  if (gender === 'female') {
+    form.set('occupation', 'Lounge host');
+    form.set('monthlyIncome', '450000');
+    form.set('incomeSource', 'salary');
+    form.set('nrcFront', new Blob([PNG], { type: 'image/png' }), 'front.png');
+    form.set('nrcBack', new Blob([PNG], { type: 'image/png' }), 'back.png');
+  }
   const { data } = await req('/api/register', { method: 'POST', form, jar });
   assert.ok(data.user, data.error);
   await req('/api/me/liveness', {
@@ -350,6 +357,96 @@ test('chat history is per-user delete and messages cannot be edited', async () =
     jar: a.jar
   });
   assert.equal(delSaka.res.status, 400);
+});
+
+test('female accounts need NRC, admin-only ID photos, and host badge after approval', async () => {
+  await started;
+  const jar = cookieJar();
+  const missing = new FormData();
+  missing.set('username', 'noface' + Date.now().toString().slice(-5));
+  missing.set('password', '121212');
+  missing.set('gender', 'female');
+  missing.set('birthYear', '1998');
+  missing.set('phone', '091111111');
+  missing.set('photo', new Blob([PNG], { type: 'image/png' }), 'p.png');
+  missing.set('occupation', 'Host');
+  missing.set('monthlyIncome', '200000');
+  missing.set('incomeSource', 'salary');
+  const denied = await req('/api/register', { method: 'POST', form: missing, jar });
+  assert.equal(denied.res.status, 400);
+  assert.match(denied.data.error, /NRC/i);
+
+  const female = await register('hosty' + Date.now().toString().slice(-5), '343434', 'female');
+  assert.equal(female.user.gender, 'female');
+  assert.equal(female.user.isHost, false);
+  assert.equal(female.user.hostStatus, 'pending');
+  assert.equal(female.user.occupation, 'Lounge host');
+  assert.equal(female.user.monthlyIncome, 450000);
+  assert.equal(female.user.nrcFrontUrl, undefined);
+
+  const listed = await req('/api/users', { jar: female.jar });
+  const peer = listed.data.users[0];
+  assert.equal(peer.nrcFrontUrl, undefined);
+  assert.ok(!('nrcFrontUrl' in peer) || peer.nrcFrontUrl == null);
+
+  const male = await register('lad' + Date.now().toString().slice(-6), '565656', 'male');
+  assert.equal(male.user.hostStatus, 'none');
+  assert.equal(male.user.isHost, false);
+
+  const nrcAsUser = await fetch(base + `/api/admin/accounts/${female.user.id}/nrc/front`, {
+    headers: { cookie: female.jar.header() }
+  });
+  assert.equal(nrcAsUser.status, 401);
+
+  const admin = cookieJar();
+  await req('/api/admin/login', {
+    method: 'POST',
+    json: { username: 'admin', password: 'admin123' },
+    jar: admin
+  });
+  const nrcAdmin = await fetch(base + `/api/admin/accounts/${female.user.id}/nrc/front`, {
+    headers: { cookie: admin.header() }
+  });
+  assert.equal(nrcAdmin.status, 200);
+  assert.match(String(nrcAdmin.headers.get('content-type') || ''), /image|octet|png/i);
+  assert.match(String(nrcAdmin.headers.get('cache-control') || ''), /no-store/);
+
+  const back = await fetch(base + `/api/admin/accounts/${female.user.id}/nrc/back`, {
+    headers: { cookie: admin.header() }
+  });
+  assert.equal(back.status, 200);
+
+  const dossier = await req(`/api/admin/dossier?q=${female.user.accountId}`, { jar: admin });
+  assert.ok(dossier.data.user.nrcFrontUrl);
+  assert.ok(dossier.data.user.nrcBackUrl);
+  assert.equal(dossier.data.user.hostStatus, 'pending');
+
+  const approved = await req(`/api/admin/accounts/${female.user.id}/host-approve`, {
+    method: 'POST',
+    jar: admin
+  });
+  assert.equal(approved.res.status, 200, approved.data.error);
+  assert.equal(approved.data.user.isHost, true);
+  assert.equal(approved.data.user.hostStatus, 'approved');
+
+  const me = await req('/api/me', { jar: female.jar });
+  assert.equal(me.data.user.isHost, true);
+  assert.equal(me.data.user.nrcFrontUrl, undefined);
+
+  const asMale = await req('/api/users', { jar: male.jar });
+  const host = asMale.data.users.find((u) => u.username === female.user.username);
+  assert.ok(host);
+  assert.equal(host.isHost, true);
+  assert.equal(host.nrcFrontUrl, undefined);
+  assert.equal(host.occupation, undefined);
+
+  const income = await req('/api/me/income', {
+    method: 'PUT',
+    json: { occupation: 'Singer', monthlyIncome: '800000', incomeSource: 'business' },
+    jar: female.jar
+  });
+  assert.equal(income.res.status, 200);
+  assert.equal(income.data.user.occupation, 'Singer');
 });
 
 after(() => new Promise((resolve) => server.close(resolve)));

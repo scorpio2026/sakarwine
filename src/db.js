@@ -40,6 +40,14 @@ function migrate(db) {
       hide_account_id INTEGER NOT NULL DEFAULT 0,
       created_by_admin INTEGER NOT NULL DEFAULT 0,
       tour_completed INTEGER NOT NULL DEFAULT 0,
+      occupation TEXT,
+      income_monthly INTEGER,
+      income_source TEXT,
+      nrc_front_path TEXT,
+      nrc_back_path TEXT,
+      host_status TEXT NOT NULL DEFAULT 'none',
+      is_host INTEGER NOT NULL DEFAULT 0,
+      host_reviewed_at INTEGER,
       created_at INTEGER NOT NULL
     );
 
@@ -121,12 +129,21 @@ function migrate(db) {
     CREATE INDEX IF NOT EXISTS idx_hides_user ON conversation_hides(user_id, conversation_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_upgrades_status ON upgrades(status);
+    CREATE INDEX IF NOT EXISTS idx_users_host ON users(host_status);
   `);
   ensureColumn(db, 'users', 'is_special', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'users', 'badge', 'TEXT');
   ensureColumn(db, 'users', 'hide_account_id', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'users', 'created_by_admin', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'conversation_hides', 'hidden_after_id', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(db, 'users', 'occupation', 'TEXT');
+  ensureColumn(db, 'users', 'income_monthly', 'INTEGER');
+  ensureColumn(db, 'users', 'income_source', 'TEXT');
+  ensureColumn(db, 'users', 'nrc_front_path', 'TEXT');
+  ensureColumn(db, 'users', 'nrc_back_path', 'TEXT');
+  ensureColumn(db, 'users', 'host_status', "TEXT NOT NULL DEFAULT 'none'");
+  ensureColumn(db, 'users', 'is_host', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(db, 'users', 'host_reviewed_at', 'INTEGER');
 }
 
 function ensureColumn(db, table, name, spec) {
@@ -210,11 +227,12 @@ function addBadge(db, label) {
   return getBadges(db);
 }
 
-function publicUser(row, { online = false, includePrivate = false, viewer = null } = {}) {
+function publicUser(row, { online = false, includePrivate = false, viewer = null, includeNrc = false } = {}) {
   if (!row) return null;
   const hide = Boolean(row.hide_account_id);
   const isSelf = viewer && Number(viewer.id) === Number(row.id);
   const showAccountId = includePrivate || isSelf || !hide;
+  const isHost = Boolean(row.is_host);
   const out = {
     id: row.id,
     accountId: showAccountId ? row.account_id : null,
@@ -227,6 +245,7 @@ function publicUser(row, { online = false, includePrivate = false, viewer = null
     level: row.level,
     badge: row.badge || null,
     isSpecial: Boolean(row.is_special),
+    isHost,
     createdByAdmin: Boolean(row.created_by_admin),
     paidUntil: row.paid_until,
     paid: Boolean(row.paid_until && row.paid_until > Date.now()),
@@ -238,6 +257,14 @@ function publicUser(row, { online = false, includePrivate = false, viewer = null
   };
   if (includePrivate) {
     out.phone = row.phone;
+    out.hostStatus = row.host_status || 'none';
+    out.occupation = row.occupation || null;
+    out.monthlyIncome = row.income_monthly != null ? row.income_monthly : null;
+    out.incomeSource = row.income_source || null;
+  }
+  if (includeNrc) {
+    out.nrcFrontUrl = row.nrc_front_path ? `/api/admin/accounts/${row.id}/nrc/front` : null;
+    out.nrcBackUrl = row.nrc_back_path ? `/api/admin/accounts/${row.id}/nrc/back` : null;
   }
   return out;
 }
