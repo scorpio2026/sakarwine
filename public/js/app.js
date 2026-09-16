@@ -121,6 +121,8 @@ function connectSocket() {
         box.insertAdjacentHTML('beforeend', renderBubble(message));
         box.scrollTop = box.scrollHeight;
       }
+    } else if (!message.sender) {
+      toast(message.body || 'New system message');
     } else if (message.sender && message.sender.id !== state.user.id) {
       toast(`New message from ${message.sender.username}`);
     }
@@ -169,6 +171,15 @@ function connectSocket() {
       const el = $('#host-earn');
       if (el) el.outerHTML = hostCreditBanner(state.chat);
     }
+  });
+  socket.on('payout:done', () => {
+    toast('ငွေဝင်ပါပြီ');
+    refreshMe().then(() => {
+      if (state.view === 'profile') showProfile();
+    });
+  });
+  socket.on('broadcast', () => {
+    refreshMe();
   });
   socket.on('account:status', () => {
     toast('Your account status changed.');
@@ -416,6 +427,37 @@ function bindNav() {
   });
 }
 
+function startAdBanner() {
+  if (state.adTimer) {
+    clearInterval(state.adTimer);
+    state.adTimer = null;
+  }
+  const box = $('#ad-banner');
+  if (!box) return;
+  api('/api/ads')
+    .then(({ ads, rotateMs }) => {
+      if (!ads || !ads.length) {
+        box.hidden = true;
+        box.innerHTML = '';
+        return;
+      }
+      box.hidden = false;
+      let i = 0;
+      const paint = () => {
+        const ad = ads[i % ads.length];
+        box.innerHTML = `<img src="${ad.imageUrl}" alt="ad" />`;
+        i += 1;
+      };
+      paint();
+      if (ads.length > 1) {
+        state.adTimer = setInterval(paint, rotateMs || 5000);
+      }
+    })
+    .catch(() => {
+      box.hidden = true;
+    });
+}
+
 async function loadHome() {
   const { users } = await api('/api/users');
   state.users = users;
@@ -447,10 +489,12 @@ async function showHome(opts = {}) {
         </div>
         <span class="pill-slot">${statusPill(u)}</span>
       </div>
+      <div id="ad-banner" class="ad-banner" hidden></div>
       <div id="user-list" class="user-list"></div>
       ${nav('home')}
     </section>`;
   bindNav();
+  startAdBanner();
   await loadHome();
   if (opts.tour && !u.tourCompleted) {
     const ai = state.users.find((x) => x.isAi);
@@ -480,10 +524,13 @@ function renderBubble(m) {
     inner = `<img src="${m.mediaUrl}" alt="photo" />`;
   } else if (m.type === 'voice' && m.mediaUrl) {
     inner = `<audio controls src="${m.mediaUrl}"></audio>`;
+  } else if (m.type === 'system' || !m.sender) {
+    inner = `<span class="sys-note">${escapeHtml(m.body || '')}</span>`;
   } else {
     inner = escapeHtml(m.body || '');
   }
-  return `<div class="${cls}" contenteditable="false">${inner}</div>`;
+  const extra = m.type === 'system' || !m.sender ? ' system' : '';
+  return `<div class="${cls}${extra}" contenteditable="false">${inner}</div>`;
 }
 
 function escapeHtml(s) {
@@ -523,10 +570,16 @@ function hostCreditBanner(c) {
   if (m.credited) {
     return `<div class="host-earn" id="host-earn">+${m.creditAmount} credited for this partner</div>`;
   }
-  if (!m.partnerQualifies) {
-    return `<div class="host-earn dim" id="host-earn">Host credit needs a partner at Lv 1+ (one approved upgrade).</div>`;
+  if (m.hostOpened) {
+    return `<div class="host-earn dim" id="host-earn">This chat does not earn income — they need to come talk to you.</div>`;
   }
-  return `<div class="host-earn" id="host-earn">Mutual chat ${formatChatMs(m.totalMs)} / ${formatChatMs(m.neededMs)} toward +${m.creditAmount} with this member</div>`;
+  if (!m.partnerQualifies) {
+    return `<div class="host-earn dim" id="host-earn">Host credit needs a visitor at Lv 1+ (one approved upgrade).</div>`;
+  }
+  if (m.voided) {
+    return `<div class="host-earn dim" id="host-earn">This session was voided (block). It does not earn income.</div>`;
+  }
+  return `<div class="host-earn" id="host-earn">Continuous chat ${formatChatMs(m.streakMs || m.totalMs)} / ${formatChatMs(m.neededMs)} toward +${m.creditAmount}. Stay online — leaving or blocking resets the session.</div>`;
 }
 
 function stopChatPresence() {
@@ -574,6 +627,7 @@ function startChatPresence() {
 }
 
 function formatRemain(ms, window) {
+  if (window && window.hostVisitorChat) return 'Unlimited with this visitor';
   if (window && window.special) return 'Unlimited';
   if (ms == null) return 'Unlimited while paid';
   const h = Math.floor(ms / 3600000);
@@ -824,32 +878,56 @@ function hostStatusLine(u) {
   return 'Complete NRC verification to earn a host badge.';
 }
 
+function incomeDemoBlock(u) {
+  const src = u.incomeDemoVideoUrl || '/demo/income-host.mp4';
+  return `
+    <div class="income-demo">
+      <h3>How host income works</h3>
+      <p class="small muted">Sample walkthrough — this is not a chat video message. Chat still cannot send video.</p>
+      <div class="chat-demo" aria-hidden="true">
+        <div class="chat-demo-head">koKo · Lv 1 visits you</div>
+        <div class="bubble them">Hi, can we talk?</div>
+        <div class="bubble me">Yes — stay here 10 minutes.</div>
+        <div class="host-earn">+500 credited for this partner</div>
+      </div>
+      <video class="income-video" controls playsinline preload="metadata" src="${escapeHtml(src)}"></video>
+    </div>`;
+}
+
 function showProfile() {
   state.view = 'profile';
   const u = state.user;
   const paidLine = u.paidUntil ? `Paid until ${new Date(u.paidUntil).toLocaleString()}` : 'Not paid yet';
+  const formLocked = u.gender === 'female' && !u.canEditIncome;
   const femaleForm = u.gender === 'female' ? `
         <div class="glass-card stack" style="margin-top:12px;text-align:left">
           <h3 style="margin:0">Income</h3>
           <p class="small muted">${escapeHtml(hostStatusLine(u))}</p>
-          <div class="field"><label>Occupation / work</label><input id="inc-occ" value="${escapeHtml(u.occupation || '')}" minlength="2" maxlength="80" /></div>
+          ${incomeDemoBlock(u)}
+          ${formLocked ? `<p class="small muted">Upgrade at least once (Lv 1+) to edit the income form.</p>` : ''}
+          <div class="field"><label>Occupation / work</label><input id="inc-occ" ${formLocked ? 'disabled' : ''} value="${escapeHtml(u.occupation || '')}" minlength="2" maxlength="80" /></div>
           <div class="row-2">
-            <div class="field"><label>Monthly income (MMK)</label><input id="inc-amt" inputmode="numeric" value="${u.monthlyIncome != null ? escapeHtml(String(u.monthlyIncome)) : ''}" /></div>
+            <div class="field"><label>Monthly income (MMK)</label><input id="inc-amt" ${formLocked ? 'disabled' : ''} inputmode="numeric" value="${u.monthlyIncome != null ? escapeHtml(String(u.monthlyIncome)) : ''}" /></div>
             <div class="field"><label>Income source</label>
-              <select id="inc-src">
+              <select id="inc-src" ${formLocked ? 'disabled' : ''}>
                 ${['salary', 'business', 'family', 'other'].map((s) => `<option value="${s}" ${u.incomeSource === s ? 'selected' : ''}>${incomeSourceLabel(s)}</option>`).join('')}
               </select>
             </div>
           </div>
-          <button class="btn block" id="save-income">Save income</button>
+          <button class="btn block" id="save-income" ${formLocked ? 'disabled' : ''}>Save income</button>
           ${u.isHost ? `
           <h3>Host earnings</h3>
-          <p><strong>${Number(u.hostEarnings || 0).toLocaleString()} MMK</strong>
-            <span class="small muted"> · ${Number(u.hostCreditAmount || 500).toLocaleString()} per qualifying partner</span></p>
-          <p class="small muted">A qualifying chat is at least 10 minutes together with someone at Lv 1+ (one approved upgrade). Each partner credits once — not per minute.</p>
+          <p><strong>${Number(u.hostBalance != null ? u.hostBalance : u.hostEarnings || 0).toLocaleString()} MMK</strong> available
+            <span class="small muted"> · earned ${Number(u.hostEarnings || 0).toLocaleString()} · ${Number(u.hostCreditAmount || 500).toLocaleString()} per qualifying visitor</span></p>
+          <p class="small muted">An upgraded member (Lv 1+) must come talk to you. Stay in a continuous mutual chat for 10 minutes. You open the chat → no credit. Offline or block before 10 minutes voids that session. Each visitor credits once.</p>
           ${(u.hostIncomeLedger || []).length
             ? `<div class="ledger">${u.hostIncomeLedger.map((row) => `<div class="ledger-row">+${row.amount} · ${escapeHtml(row.partner.username)} · Lv ${row.partner.level} · ${new Date(row.createdAt).toLocaleString()}</div>`).join('')}</div>`
-            : '<p class="small muted">No qualifying partners yet.</p>'}` : ''}
+            : '<p class="small muted">No qualifying visitors yet.</p>'}
+          <button class="btn ${u.canWithdraw ? '' : 'secondary'} block" id="withdraw" ${u.canWithdraw ? '' : 'disabled'}>Withdraw</button>
+          ${!u.canWithdraw ? `<p class="small muted">Withdraw lights up at ${(u.hostWithdrawMin || 100000).toLocaleString()} MMK.</p>` : ''}
+          ${(u.hostPayouts || []).length
+            ? `<div class="ledger">${u.hostPayouts.map((p) => `<div class="ledger-row">${p.status} · −${p.amount} · ${p.method === 'kbz' ? 'KBZ Pay' : 'Wave'} · ${escapeHtml(p.payeeName)}</div>`).join('')}</div>`
+            : ''}` : ''}
           ${u.hostStatus === 'rejected' || u.hostStatus === 'none' ? `
           <h3>Myanmar NRC</h3>
           <p class="small muted">Front and back. Admin-only after upload.</p>
@@ -900,6 +978,33 @@ function showProfile() {
       }
     };
   }
+  if ($('#withdraw') && !$('#withdraw').disabled) {
+    $('#withdraw').onclick = () => {
+      modal(`
+        <h3 style="margin-top:0">Withdraw ${Number(u.hostBalance || 0).toLocaleString()} MMK</h3>
+        <p class="small muted">Balance is held immediately. Admin marks Done after the transfer.</p>
+        <div class="field"><label>Wallet</label>
+          <select id="wd-method"><option value="kbz">KBZ Pay</option><option value="wave">Wave</option></select>
+        </div>
+        <div class="field"><label>Name</label><input id="wd-name" /></div>
+        <div class="field"><label>Phone</label><input id="wd-phone" inputmode="tel" /></div>
+        <button class="btn block" id="wd-go">Submit payout</button>`);
+      $('#wd-go').onclick = async () => {
+        try {
+          const data = await api('/api/me/withdraw', {
+            method: 'POST',
+            json: { method: $('#wd-method').value, name: $('#wd-name').value, phone: $('#wd-phone').value }
+          });
+          state.user = data.user;
+          closeModal();
+          toast('Payout submitted. Balance is on hold.');
+          showProfile();
+        } catch (e) {
+          toast(e.message);
+        }
+      };
+    };
+  }
   if ($('#save-nrc')) {
     $('#save-nrc').onclick = async () => {
       const front = $('#nrc-front').files[0];
@@ -936,7 +1041,7 @@ function showHelp(inApp = false) {
         <p>Deleting a conversation removes it from <strong>your</strong> history only. The other person still keeps every message. You cannot edit any message after it is sent.</p>
         <h3>Female host verification</h3>
         <p>Female accounts include an income form and must upload Myanmar NRC (front + back) at registration. After admin approval, a blue <strong>host</strong> badge sits beside your level. NRC photos are stored for admin review only.</p>
-        <p>Hosts earn <strong>500</strong> in Income for each upgraded member (Lv 1+) they share a <strong>mutual chat of at least 10 minutes</strong> with. Another qualifying partner adds another 500. Duration is tracked while both of you have the chat open.</p>
+        <p>Hosts earn <strong>500</strong> only when an upgraded member (Lv 1+) <strong>comes to talk</strong> and you stay in a <strong>continuous 10-minute</strong> mutual chat. Chats you start do not count. Each visitor credits once. Going offline or blocking before 10 minutes voids that session. Withdraw opens at 100,000 via KBZ Pay or Wave. Hosts may keep talking without the 24-hour gate to members who visited them. Editing the income form needs Lv 1+.</p>
       </div>
       ${inApp ? nav('help') : ''}
     </section>`;

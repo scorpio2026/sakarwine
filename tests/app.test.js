@@ -7,11 +7,15 @@ process.env.FREE_CHAT_MS = '60000';
 process.env.HOST_CHAT_MS = '80';
 process.env.HOST_CREDIT_AMOUNT = '500';
 process.env.HOST_PRESENCE_GRACE_MS = '5000';
+process.env.HOST_WITHDRAW_MIN = '1000';
+process.env.OFFLINE_PURGE_MS = String(30 * 24 * 60 * 60 * 1000);
 process.env.SESSION_SECRET = 'test-secret';
+process.env.NODE_ENV = 'test';
 
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { server } = require('../src/server');
+const { server, db } = require('../src/server');
+const { purgeStaleAccounts } = require('../src/platform');
 
 const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
@@ -478,6 +482,18 @@ test('female accounts need NRC, admin-only ID photos, and host badge after appro
   assert.equal(host.nrcFrontUrl, undefined);
   assert.equal(host.occupation, undefined);
 
+  const locked = await req('/api/me/income', {
+    method: 'PUT',
+    json: { occupation: 'Singer', monthlyIncome: '800000', incomeSource: 'business', level: 99, isHost: true },
+    jar: female.jar
+  });
+  assert.equal(locked.res.status, 403);
+  assert.match(locked.data.error, /Lv 1/i);
+  const stillLv = await req('/api/me', { jar: female.jar });
+  assert.equal(stillLv.data.user.level, 0);
+  assert.equal(stillLv.data.user.canEditIncome, false);
+
+  await giveUpgrade(admin, female);
   const income = await req('/api/me/income', {
     method: 'PUT',
     json: { occupation: 'Singer', monthlyIncome: '800000', incomeSource: 'business' },
@@ -485,6 +501,7 @@ test('female accounts need NRC, admin-only ID photos, and host badge after appro
   });
   assert.equal(income.res.status, 200);
   assert.equal(income.data.user.occupation, 'Singer');
+  assert.equal(income.data.user.canEditIncome, true);
 });
 
 test('hosts earn 500 per qualifying Lv1+ partner after 10 minutes of mutual chat', async () => {
@@ -494,16 +511,23 @@ test('hosts earn 500 per qualifying Lv1+ partner after 10 minutes of mutual chat
   const paid = await register('payer' + Date.now().toString().slice(-5), '888888', 'male');
   const free = await register('broke' + Date.now().toString().slice(-5), '999999', 'male');
   const paid2 = await register('payer' + Date.now().toString().slice(-4), '666666', 'male');
+  const invited = await register('inv' + Date.now().toString().slice(-5), '232323', 'male');
 
   const okHost = await req(`/api/admin/accounts/${host.user.id}/host-approve`, { method: 'POST', jar: admin });
   assert.equal(okHost.data.user.isHost, true);
   await giveUpgrade(admin, paid);
   await giveUpgrade(admin, paid2);
+  await giveUpgrade(admin, invited);
 
-  const withPaid = await req(`/api/conversations/with/${paid.user.id}`, { method: 'POST', jar: host.jar });
+  const hostStarted = await req(`/api/conversations/with/${invited.user.id}`, { method: 'POST', jar: host.jar });
+  const hostTick = await sitTogether(hostStarted.data.conversation.id, host.jar, invited.jar, 120);
+  assert.equal(hostTick.data.mutual.hostOpened, true);
+  assert.equal(hostTick.data.hostEarnings, 0);
+
+  const withPaid = await req(`/api/conversations/with/${host.user.id}`, { method: 'POST', jar: paid.jar });
   const cid1 = withPaid.data.conversation.id;
   const tick = await sitTogether(cid1, host.jar, paid.jar, 120);
-  assert.ok(tick.data.mutual.totalMs >= 80, JSON.stringify(tick.data.mutual));
+  assert.ok((tick.data.mutual.streakMs || tick.data.mutual.totalMs) >= 80, JSON.stringify(tick.data.mutual));
   assert.equal(tick.data.hostEarnings, 500);
   assert.equal(tick.data.mutual.credited, true);
 
@@ -517,13 +541,13 @@ test('hosts earn 500 per qualifying Lv1+ partner after 10 minutes of mutual chat
   const again = await sitTogether(cid1, host.jar, paid.jar, 120);
   assert.equal(again.data.hostEarnings, 500);
 
-  const withFree = await req(`/api/conversations/with/${free.user.id}`, { method: 'POST', jar: host.jar });
+  const withFree = await req(`/api/conversations/with/${host.user.id}`, { method: 'POST', jar: free.jar });
   const freeTick = await sitTogether(withFree.data.conversation.id, host.jar, free.jar, 120);
   assert.equal(freeTick.data.mutual.partnerQualifies, false);
   const still = await req('/api/me', { jar: host.jar });
   assert.equal(still.data.user.hostEarnings, 500);
 
-  const withPaid2 = await req(`/api/conversations/with/${paid2.user.id}`, { method: 'POST', jar: host.jar });
+  const withPaid2 = await req(`/api/conversations/with/${host.user.id}`, { method: 'POST', jar: paid2.jar });
   const tick2 = await sitTogether(withPaid2.data.conversation.id, host.jar, paid2.jar, 120);
   assert.equal(tick2.data.hostEarnings, 1000);
   const me2 = await req('/api/me', { jar: host.jar });
@@ -552,11 +576,120 @@ test('hosts earn 500 per qualifying Lv1+ partner after 10 minutes of mutual chat
   assert.equal(dossier.data.hostIncome.hostIncomeLedger.length, 2);
 
   const notHost = await register('plain' + Date.now().toString().slice(-5), '555555', 'female');
-  const withPaid3 = await req(`/api/conversations/with/${paid.user.id}`, { method: 'POST', jar: notHost.jar });
+  const withPaid3 = await req(`/api/conversations/with/${notHost.user.id}`, { method: 'POST', jar: paid.jar });
   await sitTogether(withPaid3.data.conversation.id, notHost.jar, paid.jar, 120);
   const plainMe = await req('/api/me', { jar: notHost.jar });
   assert.equal(plainMe.data.user.isHost, false);
   assert.equal(plainMe.data.user.hostEarnings, 0);
+
+  const ready = await req('/api/me', { jar: host.jar });
+  assert.equal(ready.data.user.hostBalance, 1000);
+  assert.equal(ready.data.user.canWithdraw, true);
+  const tooSoon = await req('/api/me/withdraw', {
+    method: 'POST',
+    json: { method: 'kbz', name: 'May', phone: '091234567', amount: 999999 },
+    jar: host.jar
+  });
+  assert.equal(tooSoon.res.status, 200, tooSoon.data.error);
+  assert.equal(tooSoon.data.payout.amount, 1000);
+  const held = await req('/api/me', { jar: host.jar });
+  assert.equal(held.data.user.hostBalance, 0);
+  assert.equal(held.data.user.hostEarnings, 1000);
+
+  const done = await req(`/api/admin/payouts/${tooSoon.data.payout.id}/done`, { method: 'POST', jar: admin });
+  assert.equal(done.res.status, 200);
+  const guide = await req(`/api/conversations/with/${saka.id}`, { method: 'POST', jar: host.jar });
+  const thread = await req(`/api/conversations/${guide.data.conversation.id}`, { jar: host.jar });
+  assert.ok(thread.data.messages.some((m) => m.type === 'system' && /ငွေဝင်ပါပြီ/.test(m.body || '')));
+});
+
+test('offline or block before 10 minutes voids host credit', async () => {
+  await started;
+  const admin = await loginAdmin();
+  const host = await register('voidh' + Date.now().toString().slice(-5), '777777', 'female');
+  const paid = await register('voidp' + Date.now().toString().slice(-5), '888888', 'male');
+  await req(`/api/admin/accounts/${host.user.id}/host-approve`, { method: 'POST', jar: admin });
+  await giveUpgrade(admin, paid);
+  const opened = await req(`/api/conversations/with/${host.user.id}`, { method: 'POST', jar: paid.jar });
+  const cid = opened.data.conversation.id;
+  await req(`/api/conversations/${cid}/presence`, { method: 'POST', json: { action: 'enter' }, jar: host.jar });
+  await req(`/api/conversations/${cid}/presence`, { method: 'POST', json: { action: 'enter' }, jar: paid.jar });
+  await new Promise((r) => setTimeout(r, 40));
+  await req(`/api/conversations/${cid}/presence`, { method: 'POST', json: { action: 'leave' }, jar: paid.jar });
+  await new Promise((r) => setTimeout(r, 80));
+  const afterLeave = await sitTogether(cid, host.jar, paid.jar, 40);
+  assert.ok((afterLeave.data.mutual.streakMs || 0) < 80);
+  const me = await req('/api/me', { jar: host.jar });
+  assert.equal(me.data.user.hostEarnings, 0);
+
+  const host2 = await register('voidb' + Date.now().toString().slice(-5), '121212', 'female');
+  await req(`/api/admin/accounts/${host2.user.id}/host-approve`, { method: 'POST', jar: admin });
+  const opened2 = await req(`/api/conversations/with/${host2.user.id}`, { method: 'POST', jar: paid.jar });
+  const cid2 = opened2.data.conversation.id;
+  await req(`/api/conversations/${cid2}/presence`, { method: 'POST', json: { action: 'enter' }, jar: host2.jar });
+  await req(`/api/conversations/${cid2}/presence`, { method: 'POST', json: { action: 'enter' }, jar: paid.jar });
+  await req(`/api/users/${host2.user.id}/block`, { method: 'POST', jar: paid.jar });
+  await new Promise((r) => setTimeout(r, 100));
+  const blockedTick = await req(`/api/conversations/${cid2}/presence`, {
+    method: 'POST',
+    json: { action: 'ping' },
+    jar: host2.jar
+  });
+  assert.equal(blockedTick.data.hostEarnings, 0);
+});
+
+test('hosts keep chatting visitors after 24h; ads, broadcast, and stale purge', async () => {
+  await started;
+  const admin = await loginAdmin();
+  const host = await register('freh' + Date.now().toString().slice(-5), '232323', 'female');
+  const visitor = await register('vis' + Date.now().toString().slice(-5), '454545', 'male');
+  await req(`/api/admin/accounts/${host.user.id}/host-approve`, { method: 'POST', jar: admin });
+  const opened = await req(`/api/conversations/with/${host.user.id}`, { method: 'POST', jar: visitor.jar });
+  const cid = opened.data.conversation.id;
+  await req(`/api/admin/conversations/${cid}/expire-free`, { method: 'POST', jar: admin });
+  const hostSend = await req(`/api/conversations/${cid}/messages`, {
+    method: 'POST',
+    json: { body: 'still here for you' },
+    jar: host.jar
+  });
+  assert.equal(hostSend.res.status, 200, hostSend.data.error);
+  const visitorSend = await req(`/api/conversations/${cid}/messages`, {
+    method: 'POST',
+    json: { body: 'need to pay' },
+    jar: visitor.jar
+  });
+  assert.equal(visitorSend.res.status, 402);
+
+  const banner = new FormData();
+  banner.set('image', new Blob([PNG], { type: 'image/png' }), 'ad.png');
+  const ad = await req('/api/admin/ads', { method: 'POST', form: banner, jar: admin });
+  assert.equal(ad.res.status, 200, ad.data.error);
+  const ads = await req('/api/ads', { jar: host.jar });
+  assert.equal(ads.data.ads.length, 1);
+
+  const blast = await req('/api/admin/broadcast', {
+    method: 'POST',
+    json: { body: 'Lounge note for everyone' },
+    jar: admin
+  });
+  assert.equal(blast.res.status, 200, blast.data.error);
+  assert.ok(blast.data.sent >= 2);
+
+  const stale = db.prepare('SELECT * FROM users WHERE id = ?').get(visitor.user.id);
+  db.prepare('UPDATE users SET last_seen = ? WHERE id = ?').run(Date.now() - 40 * 24 * 60 * 60 * 1000, stale.id);
+  const closed = purgeStaleAccounts(db, null);
+  assert.ok(closed.some((c) => c.id === stale.id));
+  const gone = db.prepare('SELECT * FROM users WHERE id = ?').get(stale.id);
+  assert.equal(gone.status, 'closed');
+
+  const escalate = await req('/api/me', { jar: host.jar });
+  assert.equal(escalate.data.user.level, 0);
+  const csrf = await fetch(base + '/api/me/income', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', cookie: host.jar.header(), origin: 'https://evil.example' },
+    body: JSON.stringify({ occupation: 'Nope', monthlyIncome: 1, incomeSource: 'salary' })
+  });
+  assert.equal(csrf.status, 403);
 });
 
 after(() => new Promise((resolve) => server.close(resolve)));

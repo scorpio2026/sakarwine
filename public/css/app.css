@@ -497,6 +497,47 @@ body {
   color: #cfe8ff;
 }
 .host-earn.dim { opacity: .75; }
+.ad-banner {
+  margin: 0 0 10px;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(224,192,138,.28);
+  min-height: 72px;
+  background: rgba(255,244,236,.06);
+}
+.ad-banner img {
+  display: block;
+  width: 100%;
+  height: 92px;
+  object-fit: cover;
+}
+.income-demo { margin: 8px 0 12px; }
+.chat-demo {
+  border-radius: 16px;
+  padding: 10px;
+  margin: 8px 0;
+  background: rgba(8,4,10,.45);
+  border: 1px solid rgba(255,244,236,.12);
+  display: grid;
+  gap: 8px;
+}
+.chat-demo-head { font-size: .75rem; opacity: .7; }
+.chat-demo .bubble { max-width: 86%; }
+.income-video {
+  width: 100%;
+  border-radius: 14px;
+  margin-top: 8px;
+  background: #12080e;
+  max-height: 220px;
+}
+.bubble.system {
+  align-self: center;
+  background: rgba(61,126,255,.16);
+  color: #d8ecff;
+  text-align: center;
+  max-width: 92%;
+}
+.sys-note { font-size: .86rem; }
 .ledger { display: grid; gap: 6px; }
 .ledger-row {
   font-size: 0.82rem;

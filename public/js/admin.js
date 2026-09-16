@@ -226,11 +226,14 @@ async function bootDash() {
             ${a.gender === 'female' ? `<br>Income: ${incomeLine(a)}` : ''}</p>
           ${a.gender === 'female' ? `<h3>NRC verification</h3>${nrcBlock(a)}` : ''}
           ${data.hostIncome ? `<h3>Host earnings</h3>
-            <p><strong>${Number(data.hostIncome.hostEarnings || 0).toLocaleString()} MMK</strong>
-              <span class="muted"> · ${data.hostIncome.hostCreditAmount} per qualifying Lv 1+ partner after 10 minutes mutual chat</span></p>
+            <p><strong>${Number(data.hostIncome.hostBalance != null ? data.hostIncome.hostBalance : data.hostIncome.hostEarnings || 0).toLocaleString()} MMK</strong> available
+              <span class="muted"> · earned ${Number(data.hostIncome.hostEarnings || 0).toLocaleString()} · ${data.hostIncome.hostCreditAmount} per Lv 1+ visitor after a continuous 10-minute chat they started</span></p>
             ${(data.hostIncome.hostIncomeLedger || []).length
               ? data.hostIncome.hostIncomeLedger.map((row) => `<div class="muted">+${row.amount} · ${esc(row.partner.username)} · Lv ${row.partner.level} · ${new Date(row.createdAt).toLocaleString()}</div>`).join('')
-              : '<p class="muted">No qualifying partners credited yet.</p>'}` : ''}
+              : '<p class="muted">No qualifying visitors credited yet.</p>'}
+            ${(data.hostIncome.hostPayouts || []).length
+              ? `<h3>Payouts</h3>${data.hostIncome.hostPayouts.map((p) => `<div class="muted">${esc(p.status)} · −${p.amount} · ${p.method === 'kbz' ? 'KBZ Pay' : 'Wave'} · ${esc(p.payeeName)} · ${esc(p.payeePhone)}</div>`).join('')}`
+              : ''}` : ''}
           ${a.isSpecial || data.badges ? `<div class="field"><label>Role badge</label>
             <select id="dossier-badge">
               <option value="">(none / regular level)</option>
@@ -338,10 +341,12 @@ async function bootDash() {
         <div class="stat"><span>Online</span><b>${stats.online}</b></div>
         <div class="stat"><span>Pending upgrades</span><b>${stats.pendingUpgrades}</b></div>
         <div class="stat"><span>Pending hosts</span><b>${stats.pendingHosts || 0}</b></div>
+        <div class="stat"><span>Payouts</span><b>${stats.pendingPayouts || 0}</b></div>
         <div class="stat"><span>Chats</span><b>${stats.conversations}</b></div>
       </div>
       ${stats.pendingUpgrades ? `<div class="notice">New payment submissions need review — duration, receipt, account ID, and registered phone are in Upgrades.</div>` : ''}
       ${stats.pendingHosts ? `<div class="notice">Female NRC verifications need review in Hosts — income form plus NRC front/back (admin-only).</div>` : ''}
+      ${stats.pendingPayouts ? `<div class="notice">${stats.pendingPayouts} host payout(s) waiting — transfer then press Done to send ငွေဝင်ပါပြီ.</div>` : ''}
       <div class="lookup">
         <label class="field" style="margin:0;flex:1">
           <span>Find by account ID</span>
@@ -356,6 +361,9 @@ async function bootDash() {
         <button data-t="chats" class="${!focusAccountId && tab === 'chats' ? 'on' : ''}">Chats</button>
         <button data-t="upgrades" class="${!focusAccountId && tab === 'upgrades' ? 'on' : ''}">Upgrades ${stats.pendingUpgrades ? `(${stats.pendingUpgrades})` : ''}</button>
         <button data-t="hosts" class="${!focusAccountId && tab === 'hosts' ? 'on' : ''}">Hosts ${stats.pendingHosts ? `(${stats.pendingHosts})` : ''}</button>
+        <button data-t="payouts" class="${!focusAccountId && tab === 'payouts' ? 'on' : ''}">Payouts ${stats.pendingPayouts ? `(${stats.pendingPayouts})` : ''}</button>
+        <button data-t="broadcast" class="${!focusAccountId && tab === 'broadcast' ? 'on' : ''}">Broadcast</button>
+        <button data-t="ads" class="${!focusAccountId && tab === 'ads' ? 'on' : ''}">Ads</button>
         <button data-t="pricing" class="${!focusAccountId && tab === 'pricing' ? 'on' : ''}">Pricing</button>
         <button data-t="settings" class="${!focusAccountId && tab === 'settings' ? 'on' : ''}">Settings</button>
       </div>
@@ -543,6 +551,85 @@ async function bootDash() {
           alert(err.message);
         }
       };
+    } else if (tab === 'payouts') {
+      const { payouts } = await api('/api/admin/payouts');
+      panel.innerHTML = payouts.length
+        ? payouts.map((p) => `
+        <div class="notice">
+          <span class="badge ${p.status}">${esc(p.status)}</span>
+          <strong>${esc(p.host && p.host.username)}</strong>
+          <button class="ghost" data-open-id="${esc(p.host && p.host.accountId)}">${esc(p.host && p.host.accountId)}</button><br>
+          −${Number(p.amount).toLocaleString()} MMK · ${p.method === 'kbz' ? 'KBZ Pay' : 'Wave'}<br>
+          ${esc(p.payeeName)} · ${esc(p.payeePhone)}
+          <div class="muted">${new Date(p.createdAt).toLocaleString()}</div>
+          ${p.status === 'pending' ? `<div class="actions" style="margin-top:8px"><button data-pay-done="${p.id}">Done (money sent)</button></div>` : ''}
+        </div>`).join('')
+        : '<p class="muted">No payout requests yet.</p>';
+      panel.onclick = async (e) => {
+        const open = e.target.closest('[data-open-id]');
+        const done = e.target.closest('[data-pay-done]');
+        try {
+          if (open) return openDossier(open.dataset.openId);
+          if (done) {
+            await api(`/api/admin/payouts/${done.dataset.payDone}/done`, { method: 'POST' });
+            render();
+          }
+        } catch (err) {
+          alert(err.message);
+        }
+      };
+    } else if (tab === 'broadcast') {
+      panel.innerHTML = `
+        <h2>Broadcast</h2>
+        <p class="muted">Send one system message and/or image to every active member. Chat video is still not allowed.</p>
+        <div class="field"><label>System message</label><textarea id="bc-body" rows="4" placeholder="Optional text"></textarea></div>
+        <div class="field"><label>Image (optional)</label><input id="bc-img" type="file" accept="image/*" /></div>
+        <button id="bc-go">Send to everyone</button>
+        <p id="bc-msg" class="muted"></p>`;
+      $('#bc-go').onclick = async () => {
+        const fd = new FormData();
+        fd.append('body', $('#bc-body').value);
+        const file = $('#bc-img').files[0];
+        if (file) fd.append('image', file);
+        try {
+          const data = await api('/api/admin/broadcast', { method: 'POST', body: fd });
+          $('#bc-msg').textContent = `Sent to ${data.sent} members.`;
+        } catch (err) {
+          $('#bc-msg').textContent = err.message;
+        }
+      };
+    } else if (tab === 'ads') {
+      const { ads } = await api('/api/admin/ads');
+      panel.innerHTML = `
+        <h2>Home ads</h2>
+        <p class="muted">Shown above the people list. Multiple banners rotate every 5 seconds.</p>
+        <div class="field"><label>New banner image</label><input id="ad-file" type="file" accept="image/*" /></div>
+        <button id="ad-add">Add banner</button>
+        <div id="ad-list" style="margin-top:16px;display:grid;gap:10px">
+          ${ads.length ? ads.map((a) => `<div class="notice row"><img class="thumb" src="${a.imageUrl}" alt="" /><button class="danger" data-ad-del="${a.id}">Remove</button></div>`).join('') : '<p class="muted">No banners yet.</p>'}
+        </div>`;
+      $('#ad-add').onclick = async () => {
+        const file = $('#ad-file').files[0];
+        if (!file) return alert('Choose an image');
+        const fd = new FormData();
+        fd.append('image', file);
+        try {
+          await api('/api/admin/ads', { method: 'POST', body: fd });
+          render();
+        } catch (err) {
+          alert(err.message);
+        }
+      };
+      panel.onclick = async (e) => {
+        const del = e.target.closest('[data-ad-del]');
+        if (!del) return;
+        try {
+          await api(`/api/admin/ads/${del.dataset.adDel}`, { method: 'DELETE' });
+          render();
+        } catch (err) {
+          alert(err.message);
+        }
+      };
     } else if (tab === 'pricing') {
       const s = await api('/api/admin/settings');
       panel.innerHTML = `
@@ -562,6 +649,8 @@ async function bootDash() {
         <div class="field"><label>Site name</label><input id="sn" value="${esc(s.siteName)}" /></div>
         <div class="field"><label>Payment instructions</label><textarea id="pi" rows="5">${esc(s.paymentInstructions)}</textarea></div>
         <div class="field"><label>Admin contact (PIN recovery)</label><textarea id="ac" rows="3">${esc(s.adminContact)}</textarea></div>
+        <div class="field"><label>Income demo video URL</label><input id="dv" value="${esc(s.incomeDemoVideoUrl || '/demo/income-host.mp4')}" /></div>
+        <p class="muted">Shown on the host income form as a chat-style sample. Default ships with the app. Use a site path or https URL.</p>
         <button id="saves">Save settings</button>`;
       $('#saves').onclick = async () => {
         await api('/api/admin/settings', {
@@ -569,7 +658,8 @@ async function bootDash() {
           json: {
             siteName: $('#sn').value,
             paymentInstructions: $('#pi').value,
-            adminContact: $('#ac').value
+            adminContact: $('#ac').value,
+            incomeDemoVideoUrl: $('#dv').value
           }
         });
         alert('Saved');

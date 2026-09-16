@@ -48,6 +48,7 @@ function migrate(db) {
       host_status TEXT NOT NULL DEFAULT 'none',
       is_host INTEGER NOT NULL DEFAULT 0,
       host_reviewed_at INTEGER,
+      last_seen INTEGER,
       created_at INTEGER NOT NULL
     );
 
@@ -56,6 +57,7 @@ function migrate(db) {
       user_lo INTEGER NOT NULL,
       user_hi INTEGER NOT NULL,
       started_at INTEGER NOT NULL,
+      opened_by INTEGER,
       UNIQUE(user_lo, user_hi),
       FOREIGN KEY (user_lo) REFERENCES users(id),
       FOREIGN KEY (user_hi) REFERENCES users(id)
@@ -143,9 +145,15 @@ function migrate(db) {
   ensureColumn(db, 'users', 'host_status', "TEXT NOT NULL DEFAULT 'none'");
   ensureColumn(db, 'users', 'is_host', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'users', 'host_reviewed_at', 'INTEGER');
+  ensureColumn(db, 'users', 'last_seen', 'INTEGER');
+  ensureColumn(db, 'conversations', 'opened_by', 'INTEGER');
   db.exec('CREATE INDEX IF NOT EXISTS idx_users_host ON users(host_status)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_users_last_seen ON users(last_seen)');
   const { ensureHostIncomeTables } = require('./hostIncome');
   ensureHostIncomeTables(db);
+  ensureColumn(db, 'conversation_mutual', 'voided', 'INTEGER NOT NULL DEFAULT 0');
+  const { ensurePlatformTables } = require('./platform');
+  ensurePlatformTables(db);
 }
 
 function ensureColumn(db, table, name, spec) {
@@ -162,7 +170,8 @@ function seed(db) {
     payment_instructions:
       'Transfer the amount due to the sakarwine admin wallet / bank shown here, then upload your receipt.\n\nKBZPay / WavePay / bank transfer — update these details in Admin → Settings.',
     admin_contact: 'Message the sakarwine admin with the phone number you used at registration. There is no self-serve password reset.',
-    badges: JSON.stringify(['Admin', 'officer', 'sponsor', 'VVIP'])
+    badges: JSON.stringify(['Admin', 'officer', 'sponsor', 'VVIP']),
+    income_demo_video_url: '/demo/income-host.mp4'
   };
   const insert = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
   for (const [key, value] of Object.entries(defaults)) insert.run(key, value);

@@ -14,10 +14,23 @@ const { quotePlan, allQuotes, addMonths, isPaid, isSpecial, canChatUnlimited, cl
 const {
   HOST_CREDIT_AMOUNT,
   HOST_CHAT_MS,
+  HOST_WITHDRAW_MIN,
   markPresence,
   hostIncomeSummary,
-  mutualSnapshot
+  mutualSnapshot,
+  voidSession,
+  requestPayout,
+  listPayouts
 } = require('./hostIncome');
+const { rateLimit, securityHeaders, csrfGuard, rejectClientPrivilege } = require('./security');
+const {
+  AD_ROTATE_MS,
+  OFFLINE_PURGE_MS,
+  listAds,
+  addAd,
+  deleteAd,
+  purgeStaleAccounts
+} = require('./platform');
 
 const ROOT = path.join(__dirname, '..');
 const PUBLIC = path.join(ROOT, 'public');
@@ -36,6 +49,8 @@ ensureDir(path.join(UPLOADS, 'chat'));
 ensureDir(path.join(UPLOADS, 'voice'));
 ensureDir(path.join(UPLOADS, 'receipts'));
 ensureDir(path.join(UPLOADS, 'nrc'));
+ensureDir(path.join(UPLOADS, 'ads'));
+ensureDir(path.join(UPLOADS, 'broadcast'));
 
 const db = openDb(DATA_DIR);
 const app = express();
@@ -208,6 +223,26 @@ const uploadNrc = multer({
   }
 });
 
+const uploadAd = multer({
+  storage: storageFor('ads'),
+  limits: { fileSize: 4 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (!isAllowedImageMime(file.mimetype)) return cb(new Error('Banner must be an image.'));
+    cb(null, true);
+  }
+});
+
+const uploadBroadcast = multer({
+  storage: storageFor('chat'),
+  limits: { fileSize: 6 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype && !isAllowedImageMime(file.mimetype)) {
+      return cb(new Error('Broadcast image must be an image file.'));
+    }
+    cb(null, true);
+  }
+});
+
 function multerSingle(uploader, field) {
   return (req, res, next) => {
     uploader.single(field)(req, res, (err) => {
@@ -254,6 +289,8 @@ function parseIncome(body) {
 }
 
 app.disable('x-powered-by');
+app.use(securityHeaders);
+app.use(csrfGuard);
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false }));
 app.use(express.static(PUBLIC));
@@ -282,6 +319,8 @@ function requireUser(req, res, next) {
   if (user.status === 'suspended') {
     return res.status(403).json({ error: 'This account is temporarily suspended. Contact admin.' });
   }
+  rejectClientPrivilege(req.body);
+  db.prepare('UPDATE users SET last_seen = ? WHERE id = ?').run(Date.now(), user.id);
   req.user = user;
   next();
 }
@@ -323,13 +362,13 @@ function pairIds(a, b) {
   return a < b ? [a, b] : [b, a];
 }
 
-function getOrCreateConversation(userA, userB) {
+function getOrCreateConversation(userA, userB, openedBy) {
   const [lo, hi] = pairIds(userA, userB);
   let conv = db.prepare('SELECT * FROM conversations WHERE user_lo = ? AND user_hi = ?').get(lo, hi);
   if (!conv) {
     const info = db
-      .prepare('INSERT INTO conversations (user_lo, user_hi, started_at) VALUES (?, ?, ?)')
-      .run(lo, hi, Date.now());
+      .prepare('INSERT INTO conversations (user_lo, user_hi, started_at, opened_by) VALUES (?, ?, ?, ?)')
+      .run(lo, hi, Date.now(), openedBy || userA);
     conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(info.lastInsertRowid);
   }
   return conv;
@@ -348,8 +387,15 @@ function isBlocked(a, b) {
   return Boolean(row);
 }
 
+function hostRepliesToVisitor(conv, user) {
+  if (!user || !user.is_host || !conv) return false;
+  const opener = Number(conv.opened_by);
+  return opener && opener !== Number(user.id);
+}
+
 function freeWindow(conv, user, now = Date.now()) {
-  const unlimited = canChatUnlimited(user, now);
+  const hostFree = hostRepliesToVisitor(conv, user);
+  const unlimited = canChatUnlimited(user, now) || hostFree;
   const elapsed = now - conv.started_at;
   const remaining = Math.max(0, FREE_CHAT_MS - elapsed);
   const expired = remaining === 0 && !unlimited;
@@ -360,6 +406,7 @@ function freeWindow(conv, user, now = Date.now()) {
     expired,
     paid: isPaid(user, now),
     special: isSpecial(user),
+    hostVisitorChat: hostFree,
     canSend: !expired
   };
 }
@@ -384,7 +431,8 @@ function startAiWelcome(user) {
     'Please don’t send Myanmar numbers starting with 09, and don’t start a message with @.',
     'You can delete a chat for yourself only — the other person still keeps the history. Sent messages cannot be edited.',
     'Female members fill an income form and upload Myanmar NRC (front + back). After admin approves, a blue host badge sits beside your level.',
-    'Hosts earn 500 in the income section for each upgraded member (Lv 1+) they talk with for at least 10 minutes in a mutual chat — per partner, not per minute.',
+    'Hosts earn 500 when an upgraded member (Lv 1+) comes to talk and you stay in a continuous mutual chat for at least 10 minutes. Chats you start do not count. Each visitor credits once. Going offline or blocking before 10 minutes voids that session.',
+    'Host income withdraws at 100,000 via KBZ Pay or Wave. Admin confirms transfer with a system note.',
     'Forgot your 6-digit PIN? There is no self-serve reset — contact admin and give the phone you registered.'
   ];
   const ins = db.prepare(
@@ -393,6 +441,22 @@ function startAiWelcome(user) {
   const now = Date.now();
   lines.forEach((body, i) => ins.run(conv.id, ai.id, 'text', body, now + i));
   return conv;
+}
+
+function insertSystemMessage(userId, body, mediaPath = null) {
+  const ai = aiUser();
+  if (!ai) return null;
+  const conv = getOrCreateConversation(userId, ai.id, ai.id);
+  const type = mediaPath ? 'image' : 'system';
+  const info = db
+    .prepare(
+      'INSERT INTO messages (conversation_id, sender_id, type, body, media_path, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+    )
+    .run(conv.id, null, type, body || null, mediaPath, Date.now());
+  const msg = db.prepare('SELECT * FROM messages WHERE id = ?').get(info.lastInsertRowid);
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+  emitToUser(userId, 'message', { conversationId: conv.id, message: serializeMessage(msg, user) });
+  return msg;
 }
 
 function serializeMessage(msg, viewer) {
@@ -408,7 +472,8 @@ function serializeMessage(msg, viewer) {
     isAdminViewer ||
     own ||
     viewerLevel >= 3 ||
-    isSpecial(viewer);
+    isSpecial(viewer) ||
+    msg.sender_id == null;
   let mediaUrl = null;
   if (msg.media_path) {
     if (msg.type === 'image') {
@@ -477,13 +542,18 @@ function rejectMessageEdit(_req, res) {
 function serializeMe(user) {
   const out = publicUser(user, { includePrivate: true, online: true, viewer: user });
   Object.assign(out, hostIncomeSummary(db, user.id, publicUser));
+  out.canEditIncome = user.gender === 'female' && Number(user.level || 0) >= 1;
+  out.incomeDemoVideoUrl = getSetting(db, 'income_demo_video_url', '/demo/income-host.mp4');
   return out;
 }
 
 function touchPresence(conv, userId, action = 'ping') {
   if (!conv || !userId) return null;
   const blocked = isBlocked(conv.user_lo, conv.user_hi);
-  if (blocked) return { totalMs: 0, streakMs: 0, bothPresent: false, credited: [] };
+  if (blocked) {
+    voidSession(db, conv);
+    return { totalMs: 0, streakMs: 0, bothPresent: false, credited: [], voided: true };
+  }
   return markPresence(db, conv, userId, action, Date.now(), emitToUser);
 }
 
@@ -499,12 +569,15 @@ app.get('/api/public-settings', (_req, res) => {
     monthlyPrice: Number(getSetting(db, 'monthly_price', '15000')),
     paymentInstructions: getSetting(db, 'payment_instructions', ''),
     adminContact: getSetting(db, 'admin_contact', ''),
-    quotes: allQuotes(Number(getSetting(db, 'monthly_price', '15000')))
+    quotes: allQuotes(Number(getSetting(db, 'monthly_price', '15000'))),
+    incomeDemoVideoUrl: getSetting(db, 'income_demo_video_url', '/demo/income-host.mp4'),
+    adRotateMs: AD_ROTATE_MS
   });
 });
 
 app.post(
   '/api/register',
+  rateLimit({ windowMs: 10 * 60 * 1000, max: 15, name: 'register' }),
   multerFields(uploadRegister, [
     { name: 'photo', maxCount: 1 },
     { name: 'nrcFront', maxCount: 1 },
@@ -512,6 +585,7 @@ app.post(
   ]),
   (req, res) => {
   try {
+    rejectClientPrivilege(req.body);
     const username = String(req.body.username || '').trim();
     const password = String(req.body.password || '');
     const gender = String(req.body.gender || '').trim();
@@ -627,7 +701,7 @@ app.post(
   }
 });
 
-app.post('/api/login', (req, res) => {
+app.post('/api/login', rateLimit({ windowMs: 60 * 1000, max: 20, name: 'login' }), (req, res) => {
   const username = String(req.body.username || '').trim();
   const password = String(req.body.password || '');
   const user = db.prepare('SELECT * FROM users WHERE username = ? COLLATE NOCASE').get(username);
@@ -699,6 +773,12 @@ app.put('/api/me/income', requireUser, requireActive, (req, res) => {
   if (req.user.gender !== 'female') {
     return res.status(400).json({ error: 'Income form is for female profiles.' });
   }
+  if (Number(req.user.level || 0) < 1) {
+    return res.status(403).json({
+      error: 'Upgrade at least once (Lv 1+) to use the income form.',
+      code: 'INCOME_LEVEL'
+    });
+  }
   const income = parseIncome(req.body);
   if (income.error) return res.status(400).json({ error: income.error });
   db.prepare(
@@ -707,6 +787,24 @@ app.put('/api/me/income', requireUser, requireActive, (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   res.json({ user: serializeMe(user) });
 });
+
+app.post(
+  '/api/me/withdraw',
+  requireUser,
+  requireActive,
+  rateLimit({ windowMs: 60 * 1000, max: 8, name: 'withdraw' }),
+  (req, res) => {
+    const result = requestPayout(db, req.user, {
+      method: req.body.method,
+      name: req.body.name,
+      phone: req.body.phone
+    });
+    if (result.error) return res.status(result.status || 400).json({ error: result.error });
+    io.to('admins').emit('payout:new', { id: result.payout.id, hostId: req.user.id });
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+    res.json({ ok: true, payout: result.payout, user: serializeMe(user) });
+  }
+);
 
 app.post(
   '/api/me/nrc',
@@ -749,6 +847,17 @@ app.post(
   }
 );
 
+app.get('/api/ads', requireUser, requireActive, (_req, res) => {
+  res.json({ ads: listAds(db), rotateMs: AD_ROTATE_MS });
+});
+
+app.get('/api/ads/:id/image', (req, res) => {
+  if (!currentUser(req) && !currentAdmin(req)) return res.status(401).end();
+  const row = db.prepare('SELECT * FROM ad_banners WHERE id = ?').get(Number(req.params.id));
+  if (!row) return res.status(404).end();
+  sendUpload(res, 'ads', row.image_path);
+});
+
 app.get('/api/users', requireUser, requireActive, (req, res) => {
   const blocked = db
     .prepare('SELECT blocked_id FROM blocks WHERE blocker_id = ?')
@@ -784,6 +893,10 @@ app.post('/api/users/:id/block', requireUser, requireActive, (req, res) => {
     target.id,
     Date.now()
   );
+  const conv = db
+    .prepare('SELECT * FROM conversations WHERE (user_lo = ? AND user_hi = ?) OR (user_lo = ? AND user_hi = ?)')
+    .get(req.user.id, target.id, target.id, req.user.id);
+  if (conv) voidSession(db, conv);
   res.json({ ok: true });
 });
 
@@ -805,7 +918,7 @@ app.post('/api/conversations/with/:userId', requireUser, requireActive, (req, re
   if (theyBlocked) {
     return res.status(403).json({ error: 'This chat is blocked.' });
   }
-  const conv = getOrCreateConversation(req.user.id, target.id);
+  const conv = getOrCreateConversation(req.user.id, target.id, req.user.id);
   res.json({
     conversation: {
       id: conv.id,
@@ -1035,7 +1148,7 @@ app.get('/api/media/chat/:file', requireUser, (req, res) => {
   const admin = currentAdmin(req);
   const member = conv && (conv.user_lo === req.user.id || conv.user_hi === req.user.id);
   if (!admin && !member) return res.status(403).end();
-  const own = msg.sender_id === req.user.id;
+  const own = msg.sender_id === req.user.id || msg.sender_id == null;
   if (!admin && !own && req.user.level < 3 && !isSpecial(req.user)) {
     return res.status(403).json({
       error: 'Photos unlock at Level 3 (three approved upgrades).',
@@ -1067,7 +1180,7 @@ app.get('/api/admin/accounts/:id/nrc/:side', requireAdmin, (req, res) => {
   sendUpload(res, 'nrc', file, { noStore: true });
 });
 
-app.post('/api/admin/login', (req, res) => {
+app.post('/api/admin/login', rateLimit({ windowMs: 60 * 1000, max: 12, name: 'admin-login' }), (req, res) => {
   const username = String(req.body.username || '');
   const password = String(req.body.password || '');
   const userOk = username === ADMIN_USERNAME;
@@ -1096,11 +1209,13 @@ app.get('/api/admin/me', (req, res) => {
   if (!currentAdmin(req)) return res.status(401).json({ error: 'Admin login required.' });
   const pending = db.prepare("SELECT COUNT(*) AS n FROM upgrades WHERE status = 'pending'").get().n;
   const pendingHosts = db.prepare("SELECT COUNT(*) AS n FROM users WHERE host_status = 'pending' AND is_ai = 0").get().n;
+  const pendingPayouts = db.prepare("SELECT COUNT(*) AS n FROM host_payouts WHERE status = 'pending'").get().n;
   res.json({
     ok: true,
     username: ADMIN_USERNAME,
     pendingUpgrades: pending,
     pendingHosts,
+    pendingPayouts,
     siteName: getSetting(db, 'site_name', 'sakarwine')
   });
 });
@@ -1110,12 +1225,14 @@ app.get('/api/admin/stats', requireAdmin, (_req, res) => {
   const active = db.prepare("SELECT COUNT(*) AS n FROM users WHERE status = 'active' AND is_ai = 0").get().n;
   const pending = db.prepare("SELECT COUNT(*) AS n FROM upgrades WHERE status = 'pending'").get().n;
   const pendingHosts = db.prepare("SELECT COUNT(*) AS n FROM users WHERE host_status = 'pending' AND is_ai = 0").get().n;
+  const pendingPayouts = db.prepare("SELECT COUNT(*) AS n FROM host_payouts WHERE status = 'pending'").get().n;
   const chats = db.prepare('SELECT COUNT(*) AS n FROM conversations').get().n;
   res.json({
     users,
     active,
     pendingUpgrades: pending,
     pendingHosts,
+    pendingPayouts,
     conversations: chats,
     online: online.size
   });
@@ -1238,7 +1355,8 @@ app.get('/api/admin/dossier', requireAdmin, (req, res) => {
     blocked,
     blockedBy,
     badges: getBadges(db),
-    hostIncome: hostIncomeSummary(db, user.id, publicUser)
+    hostIncome: hostIncomeSummary(db, user.id, publicUser),
+    payouts: listPayouts(db, publicUser).filter((p) => p.host && p.host.id === user.id)
   });
 });
 
@@ -1507,6 +1625,61 @@ app.post('/api/admin/upgrades/:id/reject', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/api/admin/payouts', requireAdmin, (_req, res) => {
+  res.json({ payouts: listPayouts(db, publicUser) });
+});
+
+app.post('/api/admin/payouts/:id/done', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const row = db.prepare('SELECT * FROM host_payouts WHERE id = ?').get(id);
+  if (!row) return res.status(404).json({ error: 'Payout not found.' });
+  if (row.status === 'done') return res.status(400).json({ error: 'Already marked done.' });
+  db.prepare("UPDATE host_payouts SET status = 'done', reviewed_at = ? WHERE id = ?").run(Date.now(), id);
+  insertSystemMessage(row.host_id, 'ငွေဝင်ပါပြီ');
+  emitToUser(row.host_id, 'payout:done', { id: row.id, amount: row.amount });
+  res.json({ ok: true });
+});
+
+app.post(
+  '/api/admin/broadcast',
+  requireAdmin,
+  rateLimit({ windowMs: 60 * 1000, max: 10, name: 'broadcast' }),
+  multerSingle(uploadBroadcast, 'image'),
+  (req, res) => {
+    const body = String(req.body.body || '').trim();
+    const image = req.file ? req.file.filename : null;
+    if (!body && !image) return res.status(400).json({ error: 'Write a system message or attach an image.' });
+    if (body && body.length > 2000) return res.status(400).json({ error: 'Message is too long.' });
+    const info = db
+      .prepare('INSERT INTO broadcasts (body, media_path, created_at) VALUES (?, ?, ?)')
+      .run(body || null, image, Date.now());
+    const users = db.prepare("SELECT id FROM users WHERE is_ai = 0 AND status = 'active'").all();
+    let sent = 0;
+    for (const u of users) {
+      insertSystemMessage(u.id, body || null, image);
+      sent += 1;
+    }
+    io.emit('broadcast', { body: body || null, hasImage: Boolean(image) });
+    res.json({ ok: true, id: info.lastInsertRowid, sent });
+  }
+);
+
+app.get('/api/admin/ads', requireAdmin, (_req, res) => {
+  res.json({ ads: listAds(db), rotateMs: AD_ROTATE_MS });
+});
+
+app.post('/api/admin/ads', requireAdmin, multerSingle(uploadAd, 'image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Upload a banner image.' });
+  const row = addAd(db, req.file.filename);
+  res.json({ ok: true, ad: { id: row.id, imageUrl: `/api/ads/${row.id}/image` } });
+});
+
+app.delete('/api/admin/ads/:id', requireAdmin, (req, res) => {
+  const row = deleteAd(db, Number(req.params.id), UPLOADS);
+  if (!row) return res.status(404).json({ error: 'Banner not found.' });
+  res.json({ ok: true });
+});
+
 app.get('/api/admin/settings', requireAdmin, (_req, res) => {
   const monthly = Number(getSetting(db, 'monthly_price', '15000'));
   res.json({
@@ -1515,6 +1688,7 @@ app.get('/api/admin/settings', requireAdmin, (_req, res) => {
     currency: getSetting(db, 'currency', 'MMK'),
     paymentInstructions: getSetting(db, 'payment_instructions', ''),
     adminContact: getSetting(db, 'admin_contact', ''),
+    incomeDemoVideoUrl: getSetting(db, 'income_demo_video_url', '/demo/income-host.mp4'),
     quotes: allQuotes(monthly),
     badges: getBadges(db)
   });
@@ -1532,6 +1706,13 @@ app.put('/api/admin/settings', requireAdmin, (req, res) => {
     setSetting(db, 'payment_instructions', String(req.body.paymentInstructions).slice(0, 2000));
   }
   if (req.body.adminContact != null) setSetting(db, 'admin_contact', String(req.body.adminContact).slice(0, 500));
+  if (req.body.incomeDemoVideoUrl != null) {
+    const url = String(req.body.incomeDemoVideoUrl).trim().slice(0, 400);
+    if (url && !/^(\/|https:\/\/)/i.test(url)) {
+      return res.status(400).json({ error: 'Demo video must be a site path or https URL.' });
+    }
+    setSetting(db, 'income_demo_video_url', url || '/demo/income-host.mp4');
+  }
   if (Array.isArray(req.body.badges)) {
     const cleaned = req.body.badges.map((b) => String(b || '').trim()).filter((b) => b && b.length <= 24);
     const merged = [];
@@ -1548,6 +1729,7 @@ app.put('/api/admin/settings', requireAdmin, (req, res) => {
     currency: getSetting(db, 'currency', 'MMK'),
     paymentInstructions: getSetting(db, 'payment_instructions', ''),
     adminContact: getSetting(db, 'admin_contact', ''),
+    incomeDemoVideoUrl: getSetting(db, 'income_demo_video_url', '/demo/income-host.mp4'),
     quotes: allQuotes(monthly),
     badges: getBadges(db)
   });
@@ -1600,6 +1782,7 @@ io.on('connection', (socket) => {
   const user = socket.data.user;
   socket.join(`user:${user.id}`);
   addOnline(user.id, socket.id);
+  db.prepare('UPDATE users SET last_seen = ? WHERE id = ?').run(Date.now(), user.id);
   socket.broadcast.emit('presence', { userId: user.id, online: true });
 
   socket.on('typing', (payload) => {
@@ -1668,8 +1851,29 @@ function start() {
   server.listen(PORT, HOST, () => {
     console.log(`sakarwine listening on http://${HOST}:${PORT}`);
   });
+  const runPurge = () => {
+    try {
+      const closed = purgeStaleAccounts(db, UPLOADS);
+      if (closed.length) console.log(`Purged ${closed.length} stale account(s)`);
+    } catch (err) {
+      console.error('offline purge failed', err);
+    }
+  };
+  runPurge();
+  setInterval(runPurge, Math.min(OFFLINE_PURGE_MS, 15 * 60 * 1000)).unref();
 }
 
 if (require.main === module) start();
 
-module.exports = { app, server, db, start, DATA_DIR, FREE_CHAT_MS, HOST_CHAT_MS, HOST_CREDIT_AMOUNT };
+module.exports = {
+  app,
+  server,
+  db,
+  start,
+  DATA_DIR,
+  FREE_CHAT_MS,
+  HOST_CHAT_MS,
+  HOST_CREDIT_AMOUNT,
+  HOST_WITHDRAW_MIN,
+  OFFLINE_PURGE_MS
+};

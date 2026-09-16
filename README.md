@@ -27,8 +27,10 @@ Copy `.env.example` into your shell or Render dashboard. The app reads standard 
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | `/admin` login |
 | `SITE_NAME` | Public brand (also editable in admin) |
 | `FREE_CHAT_MS` | Free window per conversation (default 24 hours) |
-| `HOST_CHAT_MS` | Mutual chat duration required for host credit (default 10 minutes) |
-| `HOST_CREDIT_AMOUNT` | Credit per qualifying partner (default 500) |
+| `HOST_CHAT_MS` | Continuous mutual chat required for host credit (default 10 minutes) |
+| `HOST_CREDIT_AMOUNT` | Credit per qualifying visitor (default 500) |
+| `HOST_WITHDRAW_MIN` | Balance that enables Withdraw (default 100000) |
+| `OFFLINE_PURGE_MS` | Auto-close accounts with no activity this long (default 30 days) |
 
 `npm test` runs filter, pricing, and API flow checks.
 
@@ -36,10 +38,11 @@ Copy `.env.example` into your shell or Render dashboard. The app reads standard 
 
 - Register with username, **exactly 6-digit PIN**, profile photo, male/female, birth year, and phone. A unique `SW########` account ID is assigned.
 - **Female accounts** include an **income form** (occupation, monthly income in MMK, source) and must upload **Myanmar NRC front + back** at registration. Admin approves that verification. After approval, a blue neon **host** label sits beside the level (or special) badge. NRC images are stored on disk and served only to `/admin` (no public or member URLs).
-- **Host income:** a verified host earns **500** (shown in her Income section) for each partner who has **at least one approved upgrade (Lv ≥ 1)** after they share a **mutual chat of at least 10 minutes** (both have the thread open; duration is tracked). A new qualifying partner adds another 500 — per partner, not per minute. The AI guide Saka does not count.
+- **Host income:** a verified host earns **500** once per upgraded visitor (Lv ≥ 1) who **comes to talk** and stays in a **continuous mutual chat of at least 10 minutes**. Chats the host starts do not qualify. Going **offline** or **blocking** before 10 minutes voids that session. A different qualifying visitor adds another 500 — never per minute, never twice from the same account. Saka does not count. Withdraw lights up at **100,000**; she chooses **KBZ Pay** or **Wave** (name + phone). Balance is deducted immediately; admin **Done** sends the system note `ငွေဝင်ပါပြီ`. Hosts may keep messaging visitors who came to them without the 24-hour gate. Editing the income form after register requires **Lv ≥ 1**. The income section includes a chat-style demo video (admin can replace the URL).
 - Face-scan liveness: turn your head left, then right. On-device camera tracking (skin-pixel centroid) estimates gender. **Limitation:** this is a pragmatic heuristic, not a biometric identity product — lighting, camera angle, makeup, and skin tone strongly affect results.
 - After the scan, **Saka** (the AI guide account) opens a chat and a coach-mark tour explains people, photos, and voice notes.
-- Home lists every active member, **online first**, then offline.
+- Home lists every active member, **online first**, then offline. An **ads banner** sits above the list (admin-managed; multiple images rotate every 5 seconds).
+- Accounts with **no activity for 30 days** are auto-closed and stripped of personal data (chat history for the other person is kept).
 - Each new conversation has **exactly 24 hours of free chatting**. After that, unpaid people in that chat see an upgrade prompt. Paid members may chat with unlimited people for the paid duration.
 - Block anyone you don’t want. Images and voice notes are allowed; **video is not**.
 - Filters: no Myanmar numbers starting with `09`; messages cannot start with `@`.
@@ -66,6 +69,7 @@ Login-protected. Admins can:
 - Configure site name, payment instructions, and monthly pricing
 - **Look up any account ID** from the search box: typing surfaces matching IDs, and opening one shows a dossier (profile, chats, upgrades, blocks, NRC/income for female hosts, hide/unhide) so you can manage that account in one place.
 - Review **female host / NRC** submissions (income + ID photos) and approve/reject. Approval grants the blue host badge.
+- Review **host payouts**, mark Done after transfer, **broadcast** a system message/image to everyone, and manage **home ad banners**.
 
 Pending upgrades show as a dashboard notice / badge.
 
@@ -85,4 +89,8 @@ Health check: `GET /health`.
 
 ## Data
 
-SQLite file: `$DATA_DIR/sakarwine.sqlite`. Uploads (profiles, chat photos, voice, receipts) live under `$DATA_DIR/uploads`. On Render, that directory is the disk mount.
+SQLite file: `$DATA_DIR/sakarwine.sqlite`. Uploads (profiles, chat photos, voice, receipts, NRC, ads) live under `$DATA_DIR/uploads`. NRC is admin-only. On Render, that directory is the disk mount.
+
+## Security
+
+Balances, levels, host credits, payouts, and admin rights are **server-authoritative**. The client cannot send a level, badge, host flag, or payout amount that the server will trust. Sessions are httpOnly cookies (`SameSite=Lax`). PINs are bcrypt-hashed. Admin routes require an admin session. Host income is credited only from server-side presence duration — never from a client-reported “10 minutes”. Sensitive routes are rate-limited; mutating requests with a foreign `Origin` are rejected. Parameterized SQL is used throughout.
