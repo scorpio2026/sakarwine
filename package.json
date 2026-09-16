@@ -1,0 +1,21 @@
+{
+  "name": "sakarwine",
+  "version": "1.0.0",
+  "description": "sakarwine — a premium real-time chatting web app",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test tests/*.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.10.0",
+    "express": "^4.21.2",
+    "multer": "^2.4.0",
+    "socket.io": "^4.8.1"
+  }
+}

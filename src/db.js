@@ -1,0 +1,188 @@
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+const Database = require('better-sqlite3');
+
+function ensureDir(dir) {
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+function openDb(dataDir) {
+  ensureDir(dataDir);
+  const dbPath = path.join(dataDir, 'sakarwine.sqlite');
+  const db = new Database(dbPath);
+  db.pragma('journal_mode = WAL');
+  db.pragma('foreign_keys = ON');
+  migrate(db);
+  seed(db);
+  return db;
+}
+
+function migrate(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      account_id TEXT NOT NULL UNIQUE,
+      username TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      gender TEXT NOT NULL,
+      estimated_gender TEXT,
+      birth_year INTEGER,
+      phone TEXT NOT NULL,
+      photo_path TEXT,
+      level INTEGER NOT NULL DEFAULT 0,
+      paid_until INTEGER,
+      status TEXT NOT NULL DEFAULT 'pending_liveness',
+      is_ai INTEGER NOT NULL DEFAULT 0,
+      tour_completed INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS conversations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_lo INTEGER NOT NULL,
+      user_hi INTEGER NOT NULL,
+      started_at INTEGER NOT NULL,
+      UNIQUE(user_lo, user_hi),
+      FOREIGN KEY (user_lo) REFERENCES users(id),
+      FOREIGN KEY (user_hi) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      conversation_id INTEGER NOT NULL,
+      sender_id INTEGER,
+      type TEXT NOT NULL,
+      body TEXT,
+      media_path TEXT,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+      FOREIGN KEY (sender_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS blocks (
+      blocker_id INTEGER NOT NULL,
+      blocked_id INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (blocker_id, blocked_id),
+      FOREIGN KEY (blocker_id) REFERENCES users(id),
+      FOREIGN KEY (blocked_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS upgrades (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      account_id TEXT NOT NULL,
+      months INTEGER NOT NULL,
+      amount INTEGER NOT NULL,
+      currency TEXT NOT NULL DEFAULT 'MMK',
+      receipt_path TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at INTEGER NOT NULL,
+      reviewed_at INTEGER,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      token TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS admin_sessions (
+      token TEXT PRIMARY KEY,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_messages_convo ON messages(conversation_id, id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_upgrades_status ON upgrades(status);
+  `);
+}
+
+function seed(db) {
+  const defaults = {
+    site_name: process.env.SITE_NAME || 'sakarwine',
+    monthly_price: '15000',
+    currency: 'MMK',
+    payment_instructions:
+      'Transfer the amount due to the sakarwine admin wallet / bank shown here, then upload your receipt.\n\nKBZPay / WavePay / bank transfer — update these details in Admin → Settings.',
+    admin_contact: 'Message the sakarwine admin with the phone number you used at registration. There is no self-serve password reset.'
+  };
+  const insert = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
+  for (const [key, value] of Object.entries(defaults)) insert.run(key, value);
+
+  const ai = db.prepare('SELECT id FROM users WHERE is_ai = 1').get();
+  if (!ai) {
+    db.prepare(
+      `INSERT INTO users (
+        account_id, username, password_hash, gender, birth_year, phone,
+        photo_path, level, status, is_ai, tour_completed, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?)`
+    ).run(
+      'SW00000001',
+      'Saka',
+      'ai-account',
+      'female',
+      1998,
+      'admin',
+      null,
+      9,
+      'active',
+      Date.now()
+    );
+  }
+}
+
+function getSetting(db, key, fallback = '') {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+  return row ? row.value : fallback;
+}
+
+function setSetting(db, key, value) {
+  db.prepare(
+    'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+  ).run(key, String(value));
+}
+
+function publicUser(row, { online = false, includePrivate = false } = {}) {
+  if (!row) return null;
+  const out = {
+    id: row.id,
+    accountId: row.account_id,
+    username: row.username,
+    gender: row.gender,
+    estimatedGender: row.estimated_gender,
+    birthYear: row.birth_year,
+    photoUrl: row.photo_path ? `/api/media/profile/${path.basename(row.photo_path)}` : null,
+    level: row.level,
+    paidUntil: row.paid_until,
+    paid: Boolean(row.paid_until && row.paid_until > Date.now()),
+    status: row.status,
+    isAi: Boolean(row.is_ai),
+    tourCompleted: Boolean(row.tour_completed),
+    online,
+    createdAt: row.created_at
+  };
+  if (includePrivate) {
+    out.phone = row.phone;
+  }
+  return out;
+}
+
+module.exports = {
+  openDb,
+  ensureDir,
+  getSetting,
+  setSetting,
+  publicUser
+};

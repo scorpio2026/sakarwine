@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: sakarwine
+    runtime: node
+    plan: starter
+    region: singapore
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /opt/render/project/src/data
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SITE_NAME
+        value: sakarwine
+      - key: FREE_CHAT_MS
+        value: "86400000"
+    disk:
+      name: sakarwine-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1
