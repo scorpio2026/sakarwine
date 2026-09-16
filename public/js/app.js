@@ -454,8 +454,11 @@ function renderChat(opts = {}) {
       showHome();
     }
   };
+  let sending = false;
   const sendText = async () => {
     const body = $('#text').value;
+    if (sending || !body.trim()) return;
+    sending = true;
     try {
       const data = await api(`/api/conversations/${c.id}/messages`, {
         method: 'POST',
@@ -469,6 +472,8 @@ function renderChat(opts = {}) {
     } catch (e) {
       if (e.code === 'UPGRADE') showUpgrade();
       toast(e.message);
+    } finally {
+      sending = false;
     }
   };
   $('#send').onclick = sendText;
@@ -603,7 +608,7 @@ async function showUpgrade() {
 function showProfile() {
   state.view = 'profile';
   const u = state.user;
-  const paid = u.paidUntil ? new Date(u.paidUntil).toLocaleString() : 'Not paid';
+  const paidLine = u.paidUntil ? `Paid until ${new Date(u.paidUntil).toLocaleString()}` : 'Not paid yet';
   app.innerHTML = `
     <section class="screen">
       <div class="topbar"><h2>You</h2></div>
@@ -613,7 +618,7 @@ function showProfile() {
           <div style="font-family:var(--display);font-size:1.6rem">${u.username}</div>
           <div class="muted">${u.accountId}</div>
         </div>
-        <div class="small">Lv ${u.level} · ${u.gender} · born ${u.birthYear}<br>Phone ${u.phone}<br>Paid until ${paid}</div>
+        <div class="small">Lv ${u.level} · ${u.gender} · born ${u.birthYear}<br>Phone ${u.phone}<br>${paidLine}</div>
         <button class="btn secondary block" id="logout">Sign out</button>
       </div>
       ${nav('profile')}

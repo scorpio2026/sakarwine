@@ -1,7 +1,7 @@
 'use strict';
 
 const root = document.getElementById('admin-app');
-let tab = 'upgrades';
+let tab = 'accounts';
 let socket;
 
 async function api(path, opts = {}) {
