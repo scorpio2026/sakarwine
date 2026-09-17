@@ -182,6 +182,20 @@ function hostMark(a) {
   return a.isHost ? ` <span class="badge-neon badge-host" data-badge="host">${t('host')}</span>` : '';
 }
 
+function accountIdChip(a) {
+  return `<button type="button" class="account-id-chip ${a.paidActive ? 'paid-active' : ''}" data-open-id="${esc(a.accountId)}">${esc(a.accountId)}</button>`;
+}
+
+function accountIdGroup(kind, title, rows) {
+  const body = rows.length
+    ? `<div class="account-id-list">${rows.map(accountIdChip).join('')}</div>`
+    : `<p class="muted account-id-empty">${esc(t('accountListEmpty'))}</p>`;
+  return `<section class="account-id-section" data-account-group="${esc(kind)}">
+    <h2 class="account-id-heading">${esc(title)} <span class="account-id-count">${rows.length}</span></h2>
+    ${body}
+  </section>`;
+}
+
 function moneyPending(stats) {
   return (Number(stats.pendingUpgrades) || 0) + (Number(stats.pendingHosts) || 0) + (Number(stats.pendingPayouts) || 0);
 }
@@ -633,9 +647,9 @@ async function bootDash() {
     }
     if (tab === 'accounts') {
       const { accounts } = await api('/api/admin/accounts');
-      panel.innerHTML = `<div class="account-id-list">${accounts.map((a) => `
-        <button type="button" class="account-id-chip ${a.paidActive ? 'paid-active' : ''}" data-open-id="${esc(a.accountId)}">${esc(a.accountId)}</button>`).join('')}
-      </div>`;
+      const hosts = accounts.filter((a) => a.isHost);
+      const users = accounts.filter((a) => !a.isHost);
+      panel.innerHTML = `${accountIdGroup('hosts', t('tabHosts'), hosts)}${accountIdGroup('users', t('tabUsers'), users)}`;
       panel.onclick = (e) => {
         const open = e.target.closest('[data-open-id]');
         if (open) openDossier(open.dataset.openId);

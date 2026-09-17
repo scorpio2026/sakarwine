@@ -271,6 +271,32 @@ th {
   text-transform: uppercase;
 }
 tr.paid-active td { background: var(--paid-glow); }
+.account-id-section {
+  margin: 0 0 22px;
+}
+.account-id-section:last-child {
+  margin-bottom: 0;
+}
+.account-id-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sw-muted);
+}
+.account-id-count {
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: var(--neon-cyan);
+  text-shadow: 0 0 12px rgba(34, 211, 238, 0.35);
+}
+.account-id-empty {
+  margin: 0;
+}
 .account-id-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
