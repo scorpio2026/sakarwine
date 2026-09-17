@@ -87,7 +87,15 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   assert.equal(js.includes('formatChatMs'), false);
   assert.match(js, /id="host-code"/);
   assert.match(js, /t\('optional'\)/);
-  assert.match(js, /hostCredited[\s\S]*amount:\s*6000/);
+  assert.match(js, /function incomeDemoBlock/);
+  assert.match(js, /t\('howHostWorks'\)/);
+  assert.match(js, /t\('hostIncomeHelp'\)/);
+  assert.match(js, /t\('hostIncomeExample'\)/);
+  assert.equal(js.includes('sampleChatOnly'), false);
+  assert.equal(js.includes('visitedSample'), false);
+  assert.equal(js.includes('demoHi'), false);
+  assert.equal(js.includes('chat-demo'), false);
+  assert.equal(js.includes('hostCredited'), false);
   assert.match(js, /hostCode && !\/\^\\d\{8\}\$\/\.test\(hostCode\)/);
   assert.match(js, /id="edit-bio"/);
   assert.match(js, /profile-bio/);
@@ -100,6 +108,9 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   assert.match(js, /id="host-apply-send"/);
   assert.equal(js.includes('inc-occ'), false);
   assert.equal(js.includes('/api/me/income'), false);
+  assert.equal(js.includes("t('occupation')"), false);
+  assert.equal(js.includes("t('monthlyIncome')"), false);
+  assert.equal(js.includes("t('incomeSource')"), false);
   I18n.setLang('en');
   assert.equal(I18n.t('hostApplyHelp').includes('income form'), false);
   assert.equal(I18n.t('femaleHostBody').includes('income form'), false);
@@ -118,12 +129,21 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   assert.match(I18n.t('hostCodeHelp'), /500 ×/);
   assert.match(I18n.t('hostRules'), /2 months → 1000/);
   assert.match(I18n.t('hostRules'), /12 months → 6000/);
+  assert.match(I18n.t('hostIncomeHelp'), /optionally/i);
+  assert.match(I18n.t('hostIncomeHelp'), /500 ×/);
+  assert.equal(I18n.t('hostIncomeHelp').includes('chat time'), false);
+  assert.equal(I18n.t('hostIncomeHelp').includes('visited'), false);
+  assert.match(I18n.t('hostIncomeExample'), /12/);
+  assert.match(I18n.t('hostIncomeExample'), /6000/);
   assert.match(I18n.t('hostCredited', { amount: 6000, months: 12 }), /6000/);
   assert.match(I18n.t('hostCredited', { amount: 6000, months: 12 }), /12/);
   assert.equal(I18n.t('errHostCode'), 'Enter a valid host code.');
   assert.equal(I18n.t('bio'), 'Bio');
   assert.match(I18n.t('bioHelp'), /280/);
   I18n.setLang('my');
+  assert.equal(I18n.t('howHostWorks'), 'Host ဝင်ငွေ ဘယ်လိုရသလဲ');
+  assert.match(I18n.t('hostIncomeHelp'), /ကုဒ်/);
+  assert.match(I18n.t('hostIncomeExample'), /၆၀၀၀/);
   assert.equal(I18n.t('errBioRestricted'), 'ကန့်သတ်စာလုံးများ မရပါ။');
 });
 

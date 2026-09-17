@@ -1288,8 +1288,7 @@ test('new accounts get dual-language rules in Saka chat; host income is female-o
   assert.match(femaleText, /12 → \+6000/);
   assert.match(femaleText, /၂ လ → \+၁၀၀၀/);
   assert.match(femaleText, /၁၂ လ → \+၆၀၀၀/);
-  assert.match(femaleText, /Chat time no longer pays/);
-  assert.match(femaleText, /စကားပြောချိန်ဖြင့် \+၅၀၀ မရတော့ပါ/);
+  assert.equal(/Chat time no longer pays|စကားပြောချိန်ဖြင့် \+၅၀၀ မရတော့ပါ/i.test(femaleText), false);
   assert.match(femaleText, /100,000/);
   await req('/api/me/liveness', {
     method: 'POST',

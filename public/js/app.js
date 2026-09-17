@@ -1853,27 +1853,12 @@ function hostStatusLine(u) {
   return t('hostNone');
 }
 
-function incomeDemoBlock(u) {
-  const src = u.incomeDemoVideoUrl || '/demo/income-host.mp4';
+function incomeDemoBlock() {
   return `
     <div class="income-demo">
       <h3>${t('howHostWorks')}</h3>
-      <p class="small muted">${t('sampleChatOnly')}</p>
-      <div class="chat-demo" role="img" aria-label="${t('howHostWorks')}">
-        <div class="chat-demo-head">
-          <span class="badge-lv">Lv 1</span> koKo <span class="muted">${t('visitedSample')}</span>
-        </div>
-        <div class="chat-demo-thread">
-          <div class="bubble them">${t('demoHi')}</div>
-          <div class="bubble me">${t('demoStay')}</div>
-          <div class="bubble them chat-demo-clip">
-            <video class="income-video" controls playsinline preload="metadata" src="${escapeHtml(src)}"></video>
-            <span class="small muted">${t('demoWalkthrough')}</span>
-          </div>
-          <div class="host-earn">${t('hostCredited', { amount: 6000, months: 12 })}</div>
-        </div>
-        <div class="chat-demo-bar muted small">${t('demoComposer')}</div>
-      </div>
+      <p>${t('hostIncomeHelp')}</p>
+      <p class="host-earn">${t('hostIncomeExample')}</p>
     </div>`;
 }
 
@@ -2007,7 +1992,7 @@ function showHostApply() {
           <p class="small muted">${escapeHtml(hostStatusLine(u))}</p>
           <p class="small muted">${t('hostApplyHelp')}</p>
           ${u.hostCode ? `<p><span class="small muted">${t('hostCode')}</span><br><strong>${escapeHtml(u.hostCode)}</strong></p>` : ''}
-          ${incomeDemoBlock(u)}
+          ${incomeDemoBlock()}
           ${u.hostStatus === 'pending' ? `<p class="small muted">${t('hostPending')}</p>` : ''}
           ${canApply ? `
           <h3>${t('idDocTitle')}</h3>

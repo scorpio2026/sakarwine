@@ -1332,6 +1332,8 @@ body {
   object-fit: cover;
 }
 .income-demo { margin: 8px 0 12px; }
+.income-demo p { margin: 0 0 8px; font-size: .92rem; line-height: 1.45; }
+.income-demo .host-earn { margin: 0; font-weight: 650; }
 .chat-demo {
   border-radius: 18px;
   margin: 8px 0;
