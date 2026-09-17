@@ -8,6 +8,8 @@ const OTHER_TABS = ['accounts', 'chats', 'pin-recovery', 'broadcast', 'ads', 'pr
 let socket;
 let lookupQ = '';
 let focusAccountId = null;
+let broadcastMode = 'all';
+let broadcastTargets = [];
 
 async function api(path, opts = {}) {
   const headers = opts.headers || {};
@@ -892,20 +894,159 @@ async function bootDash() {
       panel.innerHTML = `
         <h2>${t('broadcastTitle')}</h2>
         <p class="muted">${t('broadcastHelp')}</p>
+        <div class="field">
+          <label>${t('broadcastAudience')}</label>
+          <div class="row" style="gap:16px;flex-wrap:wrap">
+            <label><input type="radio" name="bc-mode" value="all" ${broadcastMode === 'all' ? 'checked' : ''} /> ${t('broadcastToAll')}</label>
+            <label><input type="radio" name="bc-mode" value="ids" ${broadcastMode === 'ids' ? 'checked' : ''} /> ${t('broadcastToIds')}</label>
+          </div>
+        </div>
+        <div id="bc-ids-wrap" ${broadcastMode === 'ids' ? '' : 'hidden'}>
+          <div class="field lookup">
+            <label>${t('broadcastPickIds')}</label>
+            <input id="bc-id-q" value="" placeholder="${esc(t('broadcastPickPh'))}" autocomplete="off" />
+            <div id="bc-id-hits" class="lookup-hits" hidden></div>
+          </div>
+          <div id="bc-id-list"></div>
+        </div>
         <div class="field"><label>${t('systemMessage')}</label><textarea id="bc-body" rows="4" placeholder="${esc(t('optionalText'))}"></textarea></div>
         <div class="field"><label>${t('imageOptional')}</label><input id="bc-img" type="file" accept="image/*" /></div>
-        <button id="bc-go">${t('sendEveryone')}</button>
-        <p id="bc-msg" class="muted"></p>`;
+        <button id="bc-go">${broadcastMode === 'ids' ? t('sendToSelected') : t('sendEveryone')}</button>
+        <p id="bc-msg"></p>`;
+      const paintBcStatus = (text, isError) => {
+        const el = $('#bc-msg');
+        if (!el) return;
+        el.textContent = text || '';
+        el.className = text ? `notice${isError ? ' is-error' : ''}` : '';
+      };
+      const paintBcTargets = () => {
+        const list = $('#bc-id-list');
+        if (!list) return;
+        list.innerHTML = broadcastTargets.length
+          ? broadcastTargets
+              .map(
+                (a) =>
+                  `<div class="notice row"><strong>${esc(a.accountId)}</strong> · ${esc(a.username)}<button type="button" class="ghost" data-bc-del="${esc(a.accountId)}">${t('remove')}</button></div>`
+              )
+              .join('')
+          : `<p class="muted">${t('broadcastSelectedNone')}</p>`;
+        list.querySelectorAll('[data-bc-del]').forEach((btn) => {
+          btn.onclick = () => {
+            broadcastTargets = broadcastTargets.filter((x) => x.accountId !== btn.dataset.bcDel);
+            paintBcTargets();
+          };
+        });
+      };
+      const addBcTarget = async (accountId) => {
+        const id = String(accountId || '').trim();
+        if (!id) return;
+        if (broadcastTargets.some((x) => x.accountId.toLowerCase() === id.toLowerCase())) {
+          $('#bc-id-q').value = '';
+          const hits = $('#bc-id-hits');
+          if (hits) hits.hidden = true;
+          return;
+        }
+        try {
+          const data = await api(`/api/admin/search?q=${encodeURIComponent(id)}`);
+          const matches = data.matches || [];
+          const exact = matches.find((m) => String(m.accountId).toLowerCase() === id.toLowerCase()) || matches[0];
+          if (!exact || !exact.accountId) {
+            paintBcStatus(I18n.error('Account not found.'), true);
+            return;
+          }
+          if (!broadcastTargets.some((x) => x.accountId === exact.accountId)) {
+            broadcastTargets.push({ accountId: exact.accountId, username: exact.username });
+          }
+          paintBcTargets();
+          $('#bc-id-q').value = '';
+          const hits = $('#bc-id-hits');
+          if (hits) {
+            hits.hidden = true;
+            hits.innerHTML = '';
+          }
+        } catch (err) {
+          paintBcStatus(I18n.error(err.message), true);
+        }
+      };
+      paintBcTargets();
+      document.querySelectorAll('input[name="bc-mode"]').forEach((radio) => {
+        radio.onchange = () => {
+          broadcastMode = radio.value === 'ids' ? 'ids' : 'all';
+          const wrap = $('#bc-ids-wrap');
+          if (wrap) wrap.hidden = broadcastMode !== 'ids';
+          const go = $('#bc-go');
+          if (go) go.textContent = broadcastMode === 'ids' ? t('sendToSelected') : t('sendEveryone');
+        };
+      });
+      const qInput = $('#bc-id-q');
+      const hits = $('#bc-id-hits');
+      let searchT;
+      if (qInput && hits) {
+        const paintHits = (matches) => {
+          if (!matches.length) {
+            hits.hidden = true;
+            hits.innerHTML = '';
+            return;
+          }
+          hits.hidden = false;
+          hits.innerHTML = matches
+            .map(
+              (m) => `<button type="button" class="hit" data-aid="${esc(m.accountId)}">
+                <strong>${esc(m.accountId)}</strong> · ${esc(m.username)}
+              </button>`
+            )
+            .join('');
+          hits.querySelectorAll('.hit').forEach((b) => {
+            b.onclick = () => addBcTarget(b.dataset.aid);
+          });
+        };
+        qInput.addEventListener('input', () => {
+          clearTimeout(searchT);
+          searchT = setTimeout(async () => {
+            const q = qInput.value.trim();
+            if (q.length < 2) {
+              hits.hidden = true;
+              return;
+            }
+            try {
+              const data = await api(`/api/admin/search?q=${encodeURIComponent(q)}`);
+              paintHits(data.matches || []);
+            } catch {
+              hits.hidden = true;
+            }
+          }, 180);
+        });
+        qInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            addBcTarget(qInput.value);
+          }
+        });
+      }
       $('#bc-go').onclick = async () => {
+        if (broadcastMode === 'ids' && !broadcastTargets.length) {
+          paintBcStatus(t('errBroadcastTargets'), true);
+          return;
+        }
         const fd = new FormData();
         fd.append('body', $('#bc-body').value);
+        fd.append('mode', broadcastMode);
+        if (broadcastMode === 'ids') {
+          fd.append('accountIds', JSON.stringify(broadcastTargets.map((a) => a.accountId)));
+        }
         const file = $('#bc-img').files[0];
         if (file) fd.append('image', file);
+        const go = $('#bc-go');
+        if (go) go.disabled = true;
         try {
           const data = await api('/api/admin/broadcast', { method: 'POST', body: fd });
-          $('#bc-msg').textContent = t('sentToMembers', { n: data.sent });
+          $('#bc-body').value = '';
+          $('#bc-img').value = '';
+          paintBcStatus(t('sentToMembers', { n: data.sent }));
         } catch (err) {
-          $('#bc-msg').textContent = I18n.error(err.message);
+          paintBcStatus(I18n.error(err.message), true);
+        } finally {
+          if (go) go.disabled = false;
         }
       };
     } else if (tab === 'ads') {
@@ -957,6 +1098,8 @@ async function bootDash() {
       const s = await api('/api/admin/settings');
       panel.innerHTML = `
         <div class="field"><label>${t('siteNameLabel')}</label><input id="sn" value="${esc(s.siteName)}" /></div>
+        <div class="field"><label>${t('freeTrialDays')}</label><input id="free-trial-days" type="number" min="1" max="365" step="1" value="${Number(s.freeTrialDays) || 7}" /></div>
+        <p class="muted">${t('freeTrialDaysHelp')}</p>
         <div class="field"><label>${t('paymentInstructions')}</label><textarea id="pi" rows="5">${esc(s.paymentInstructions)}</textarea></div>
         <div class="field"><label>${t('adminContactLabel')}</label><textarea id="ac" rows="3">${esc(s.adminContact)}</textarea></div>
         <p class="muted">${t('hostDemoAdminHelp')}</p>
@@ -970,6 +1113,7 @@ async function bootDash() {
           method: 'PUT',
           json: {
             siteName: $('#sn').value,
+            freeTrialDays: Number($('#free-trial-days').value),
             paymentInstructions: $('#pi').value,
             adminContact: $('#ac').value,
             maintenance: $('#maint').checked

@@ -218,6 +218,26 @@ test('admin dashboard highlights paid accounts and badges extra upgrades', () =>
   assert.match(js, /setInterval\(paint, 1000\)/);
   assert.equal(js.includes('paidHoursLeft'), false);
   assert.equal(js.includes('function incomeLine'), false);
+  assert.match(js, /id="free-trial-days"/);
+  assert.match(js, /freeTrialDays/);
+  I18n.setLang('en');
+  assert.equal(I18n.t('freeTrialDays'), 'Free trial for new accounts (days)');
+  assert.match(I18n.t('freeTrialDaysHelp'), /after you save/i);
+  assert.equal(I18n.error('Invalid free trial days.'), I18n.t('errFreeTrialDays'));
+  I18n.setLang('my');
+  assert.notEqual(I18n.t('freeTrialDays'), I18n.catalogs.en.freeTrialDays);
+  I18n.setLang('en');
+  assert.equal(I18n.t('broadcastToAll'), 'Everyone');
+  assert.equal(I18n.t('broadcastToIds'), 'Selected accounts');
+  assert.equal(I18n.t('sendToSelected'), 'Send to selected');
+  assert.equal(I18n.error('Choose at least one account ID.'), I18n.t('errBroadcastTargets'));
+  assert.match(js, /name="bc-mode"/);
+  assert.match(js, /accountIds/);
+  assert.match(js, /\/api\/admin\/search/);
+  assert.match(js, /const paintBcStatus/);
+  assert.match(js, /paintBcStatus\(t\('sentToMembers'/);
+  assert.match(css, /#bc-msg\.is-error/);
+  assert.match(css, /\.muted\s*\{\s*color:\s*var\(--sw-muted\)/);
 });
 
 test('admin-badge chats block first contact and expose a live gate', () => {
@@ -323,6 +343,7 @@ test('bottom nav has Home, Chat, Group, Profile, and Help — no Upgrade tab', (
   assert.equal(remainFn.includes('freeLeft'), false);
   assert.match(js, /state\.view === 'profile' \? u\.freeUntil/);
   I18n.setLang('en');
+  assert.equal(I18n.t('upgradeEnded'), 'Your free trial has ended for this chat. Upgrade to keep talking.');
   assert.equal(I18n.t('freeCountdown', { h: 23, m: '01', s: '09' }), '23h 01m 09s free remaining');
   I18n.setLang('my');
   assert.match(I18n.t('freeCountdown', { h: 23, m: '01', s: '09' }), /အခမဲ့/);
@@ -422,6 +443,8 @@ test('UI language pack covers Saka rules, Help, errors, and does not translate t
   assert.match(admin, /t\('createSpecialTitle'\)/);
   assert.match(admin, /t\('adminNoticeUpgrades'\)/);
   assert.match(admin, /t\('approveHost'\)/);
+  assert.match(admin, /name="bc-mode"/);
+  assert.match(admin, /sendToSelected/);
   const codes = I18n.LANGS.map((l) => l.code);
   for (const code of codes) {
     assert.ok(I18n.catalogs[code].sakaRules, `${code} missing sakaRules`);
@@ -444,7 +467,7 @@ test('UI language pack covers Saka rules, Help, errors, and does not translate t
   I18n.setLang('en');
   assert.equal(I18n.t('maintenanceMsg'), 'update server');
   assert.match(I18n.t('sakaWelcome', { name: 'Aung' }), /Aung/);
-  assert.match(I18n.localizeChatBody('__SW__:rules'), /24 hours free/i);
+  assert.match(I18n.localizeChatBody('__SW__:rules'), /7 days free/i);
   assert.match(I18n.localizeChatBody('__SW__:host'), /500/);
   assert.equal(I18n.localizeChatBody('__SW__:faq:register'), I18n.t('sakaFaqARegister'));
   assert.equal(I18n.localizeChatBody('__SW__:faq:pin'), I18n.t('sakaFaqAPin'));
@@ -485,7 +508,7 @@ test('UI language pack covers Saka rules, Help, errors, and does not translate t
   assert.equal(I18n.error('Please choose male or female.'), I18n.t('errChooseGender'));
   assert.equal(I18n.statusLabel('pending'), I18n.t('statusPending'));
   I18n.setLang('my');
-  assert.match(I18n.localizeChatBody('__SW__:rules'), /အခမဲ့ ၂၄ နာရီ/);
+  assert.match(I18n.localizeChatBody('__SW__:rules'), /အခမဲ့ ၇ ရက်/);
   assert.notEqual(I18n.t('sakaRules'), I18n.catalogs.en.sakaRules);
   assert.notEqual(I18n.t('createSpecialTitle'), I18n.catalogs.en.createSpecialTitle);
   I18n.setLang('th');

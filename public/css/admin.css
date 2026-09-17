@@ -480,6 +480,11 @@ body.is-admin-login .err-msg {
   text-align: center;
 }
 .muted { color: var(--sw-muted); }
+#bc-msg:empty { display: none; }
+#bc-msg.is-error {
+  border-color: rgba(251, 113, 133, 0.45);
+  color: var(--danger);
+}
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .badge-lv {
   display: inline-block;

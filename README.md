@@ -1,6 +1,6 @@
 # sakarwine
 
-Premium real-time chatting for the web — green messenger-style lounge, 24-hour free chats, admin-approved upgrades, and a separate `/admin` dashboard.
+Premium real-time chatting for the web — green messenger-style lounge, 7-day free chats for new accounts, admin-approved upgrades, and a separate `/admin` dashboard.
 
 ## Run locally
 
@@ -26,7 +26,7 @@ Copy `.env.example` into your shell or Render dashboard. The app reads standard 
 | `SESSION_SECRET` | Cookie signing / session entropy |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | `/admin` login |
 | `SITE_NAME` | Public brand (also editable in admin) |
-| `FREE_CHAT_MS` | Unpaid chat window (default 24 hours). **1:1 chats** count from conversation start; **group chats** count from that member’s `joined_at` (invite accept or join-request accept). Paid/special members skip this gate. |
+| `FREE_CHAT_MS` | Fallback unpaid chat window in milliseconds if the admin setting is missing (default **7 days** = `604800000`). The live length for **new accounts** is **Admin → Settings → Free trial for new accounts (days)** (`free_trial_days`). Each member’s duration is snapshotted at registration. **1:1 chats** count from conversation start; **group chats** count from that member’s `joined_at`. Paid/special members skip this gate. |
 | `HOST_CREDIT_AMOUNT` | Host credit **per month** of an approved upgrade that used their code (default 500; 2 months → 1000, 6 → 3000, 12 → 6000) |
 | `HOST_WITHDRAW_MIN` | Balance that enables Withdraw (default 100000) |
 | `OFFLINE_PURGE_MS` | Auto-close accounts with no activity this long (default 30 days) |
@@ -39,13 +39,13 @@ Copy `.env.example` into your shell or Render dashboard. The app reads standard 
 
 - Register with username (**max 12 characters**, English or Myanmar **letters and digits only** — no spaces or symbols), **exactly 6-digit PIN**, profile photo, male/female, birth year, and phone. A unique `SW########` account ID is assigned. Members with no uploaded photo show a **default avatar**: female on a **pink** background (`/assets/default-female.png`), male on a **black** background (`/assets/default-male.png`) until a custom male asset is provided.
 - **Host apply is later, not at signup.** Female and male registration is the same (username, PIN, photo, gender, birth year, phone, face-scan). Becoming a **host** is only from **Me → Settings → Host application**: **Myanmar NRC front + back**, or a **single passport photo** if they have no NRC. Admin approves that verification. After approval, a blue neon **host** label sits beside the level (or special) badge. ID images are stored on disk and served only to `/admin` (no public or member URLs).
-- **Host income:** a verified host gets an **8-digit host code** (shown on Me and in Settings). Members may optionally enter that code on **Upgrade**. Each time admin **approves** an upgrade that used the code, the host earns **500 × months** in that purchase (1 month → 500, 2 → 1000, 6 → 3000, 12 → 6000) — no per-person or lifetime cap. Blank code: upgrade proceeds with no host credit. Invalid code: the form is rejected. Withdraw lights up at **100,000**; she chooses **KBZ Pay** or **Wave** (name + phone). Balance is deducted immediately; admin **Done** sends the system note `ငွေဝင်ပါပြီ`. Hosts may keep messaging visitors who came to them without the 24-hour gate. Host apply (Me → Settings) explains this referral income only: optional code on upgrade, then **500 × months** when admin approves (12 months → 6000).
+- **Host income:** a verified host gets an **8-digit host code** (shown on Me and in Settings). Members may optionally enter that code on **Upgrade**. Each time admin **approves** an upgrade that used the code, the host earns **500 × months** in that purchase (1 month → 500, 2 → 1000, 6 → 3000, 12 → 6000) — no per-person or lifetime cap. Blank code: upgrade proceeds with no host credit. Invalid code: the form is rejected. Withdraw lights up at **100,000**; she chooses **KBZ Pay** or **Wave** (name + phone). Balance is deducted immediately; admin **Done** sends the system note `ငွေဝင်ပါပြီ`. Hosts may keep messaging visitors who came to them without the free-trial gate. Host apply (Me → Settings) explains this referral income only: optional code on upgrade, then **500 × months** when admin approves (12 months → 6000).
 - Face-scan liveness: turn your head left, then right. On-device camera tracking (skin-pixel centroid) estimates gender. **Limitation:** this is a pragmatic heuristic, not a biometric identity product — lighting, camera angle, makeup, and skin tone strongly affect results.
-- After the scan, **Saka** opens a chat with a dual-language **rules** note (24h free vs paid unlimited, photos at Lv 3, 6mo 30% / 12mo 50% off). **Female** accounts also get a host/referral income note. A coach-mark tour then explains people, photos, and voice notes.
+- After the scan, **Saka** opens a chat with a dual-language **rules** note (7 days free vs paid unlimited, photos at Lv 3, 6mo 30% / 12mo 50% off). **Female** accounts also get a host/referral income note. A coach-mark tour then explains people, photos, and voice notes.
 - Home lists every active member, **online first**, then offline. After register (and later visits until dismissed), a **home overlay** promotes upgrade discounts of **up to 50%**; only the corner **×** closes it. An **ads banner** also sits above the list (admin-managed; multiple images rotate every 5 seconds).
 - Accounts with **no activity for 30 days** are auto-closed and stripped of personal data (chat history for the other person is kept).
-- Each new **1:1** conversation has **exactly 24 hours of free chatting** (`FREE_CHAT_MS` from conversation start). After that, unpaid people in that chat see an upgrade prompt. Paid members may chat with unlimited people for the paid duration.
-- **Groups** (bottom **Group** tab): paid/special members can create a group (name + logo) and invite by account ID. Accepting an invite (or an owner accepting a join request) puts the group in **Chat / Messages** as a group conversation. Unpaid members may send for `FREE_CHAT_MS` **from when they joined**; then the composer shows an upgrade prompt and `POST /api/groups/:id/messages` returns **402 `UPGRADE`**. Group chat has **Leave group**. The owner can kick members.
+- Each new **1:1** conversation for a new account has **7 days of free chatting** by default (the length stored on that account at registration, from Admin → Settings). The clock starts at conversation start. After that, unpaid people in that chat see an upgrade prompt. Paid members may chat with unlimited people for the paid duration. Existing accounts keep the trial they already started (typically the previous 24-hour window).
+- **Groups** (bottom **Group** tab): paid/special members can create a group (name + logo) and invite by account ID. Accepting an invite (or an owner accepting a join request) puts the group in **Chat / Messages** as a group conversation. Unpaid members may send for their snapshotted free-trial length **from when they joined**; then the composer shows an upgrade prompt and `POST /api/groups/:id/messages` returns **402 `UPGRADE`**. Group chat has **Leave group**. The owner can kick members.
 - Block anyone you don’t want. Images and voice notes are allowed; **video is not**. **Admin-badge** accounts cannot be messaged first — wait for them to write, then you may reply. They can close or reopen sending on that thread.
 - Filters: no Myanmar numbers starting with `09`; messages cannot start with `@`.
 - Photos are **locked** until **Level 3** (three approved upgrades). Lower levels see a locked card and a notice on tap. You can always see photos you sent.
@@ -64,7 +64,7 @@ Users submit a **target account ID** and a **payment screenshot**. Own ID upgrad
 
 Plans are 1–12 months. **6 months prepaid = 30% off**. **12 months = 50% off**. The monthly amount is configured in `/admin` → Pricing. The upgrade screen shows duration covered and amount due.
 
-Paid members see a **live countdown** of remaining subscription time as **hours / minutes / seconds** (ticking every second, not a static hours number) on **Profile / Me**, the Home and Chat status pills, and the upgrade screen. The client timer uses the server `paidUntil` expiry timestamp. Pulling the app to the foreground refreshes that timestamp from `/api/me`. When the countdown hits zero, the UI returns to the free 24-hour state.
+Paid members see a **live countdown** of remaining subscription time as **hours / minutes / seconds** (ticking every second, not a static hours number) on **Profile / Me**, the Home and Chat status pills, and the upgrade screen. The client timer uses the server `paidUntil` expiry timestamp. Pulling the app to the foreground refreshes that timestamp from `/api/me`. When the countdown hits zero, the UI returns to the free-trial state.
 
 While a paid period is still active, that account’s row in `/admin` → Accounts is **green**. After expiry it returns to the normal color. If a still-paid member submits another upgrade, a red **Extra upgrade** badge appears beside their name so admin can spot the additional purchase.
 
@@ -78,10 +78,10 @@ Login-protected. Admins can:
 - Review **PIN recovery requests** (Help form: account ID + registration phone). Dashboard count + **PIN recovery** tab. Open the dossier, reset the PIN after verifying, then mark reviewed. Submitting Help does **not** change the PIN.
 - Open any chat for moderation
 - Review upgrade submissions (duration, receipt, account ID, registered phone) and approve/reject
-- Configure site name, payment instructions, and monthly pricing
+- Configure site name, **free-trial days for future new accounts**, payment instructions, and monthly pricing
 - **Look up any account ID** from the search box: typing surfaces matching IDs, and opening one shows a dossier (profile, chats, upgrades, blocks, NRC/passport ID for female hosts, hide/unhide) so you can manage that account in one place.
 - Review **female host / NRC** submissions (ID photos only) and approve/reject. Approval grants the blue host badge.
-- Review **host payouts**, mark Done after transfer, **broadcast** a system message/image to everyone, and manage **home ad banners**.
+- Review **host payouts**, mark Done after transfer, **broadcast** a system message/image to **everyone** or to **selected account IDs**, and manage **home ad banners**.
 
 Pending upgrades show as a dashboard notice / badge.
 
