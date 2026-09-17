@@ -178,6 +178,7 @@ function migrate(db) {
   ensureColumn(db, 'users', 'host_reviewed_at', 'INTEGER');
   ensureColumn(db, 'users', 'last_seen', 'INTEGER');
   ensureColumn(db, 'conversations', 'opened_by', 'INTEGER');
+  ensureColumn(db, 'conversations', 'member_messaging', 'INTEGER NOT NULL DEFAULT 1');
   ensureColumn(db, 'users', 'ui_lang', "TEXT NOT NULL DEFAULT 'my'");
   ensureColumn(db, 'users', 'chat_view_lang', 'TEXT');
   ensureColumn(db, 'users', 'host_code', 'TEXT');

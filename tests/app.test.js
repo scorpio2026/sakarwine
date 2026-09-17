@@ -328,6 +328,83 @@ test('profile card shows account ID and admin accounts cannot be blocked', async
 
   const noBlock = await req(`/api/users/${created.data.user.id}/block`, { method: 'POST', jar: member.jar });
   assert.equal(noBlock.res.status, 403);
+
+  const noStart = await req(`/api/conversations/with/${created.data.user.id}`, { method: 'POST', jar: member.jar });
+  assert.equal(noStart.res.status, 403);
+  assert.match(noStart.data.error, /Admin account/i);
+
+  const admJar = cookieJar();
+  const admLogin = await req('/api/login', {
+    method: 'POST',
+    json: { username: created.data.user.username, password: '999999' },
+    jar: admJar
+  });
+  assert.equal(admLogin.res.status, 200, admLogin.data.error);
+  const startedByAdmin = await req(`/api/conversations/with/${member.user.id}`, { method: 'POST', jar: admJar });
+  assert.equal(startedByAdmin.res.status, 200, startedByAdmin.data.error);
+  const cidAdmin = startedByAdmin.data.conversation.id;
+  const tooSoon = await req(`/api/conversations/${cidAdmin}/messages`, {
+    method: 'POST',
+    json: { body: 'member cannot go first' },
+    jar: member.jar
+  });
+  assert.equal(tooSoon.res.status, 403);
+  const first = await req(`/api/conversations/${cidAdmin}/messages`, {
+    method: 'POST',
+    json: { body: 'admin says hi first' },
+    jar: admJar
+  });
+  assert.equal(first.res.status, 200, first.data.error);
+
+  const opened = await req(`/api/conversations/with/${created.data.user.id}`, { method: 'POST', jar: member.jar });
+  assert.equal(opened.res.status, 200, opened.data.error);
+  const reply = await req(`/api/conversations/${cidAdmin}/messages`, {
+    method: 'POST',
+    json: { body: 'member replies' },
+    jar: member.jar
+  });
+  assert.equal(reply.res.status, 200, reply.data.error);
+
+  const closed = await req(`/api/conversations/${cidAdmin}/messaging`, {
+    method: 'POST',
+    json: { open: false },
+    jar: admJar
+  });
+  assert.equal(closed.res.status, 200, closed.data.error);
+  assert.equal(closed.data.messagingOpen, false);
+  const blockedSend = await req(`/api/conversations/${cidAdmin}/messages`, {
+    method: 'POST',
+    json: { body: 'should fail' },
+    jar: member.jar
+  });
+  assert.equal(blockedSend.res.status, 403);
+  const stillAdmin = await req(`/api/conversations/${cidAdmin}/messages`, {
+    method: 'POST',
+    json: { body: 'admin can still write' },
+    jar: admJar
+  });
+  assert.equal(stillAdmin.res.status, 200, stillAdmin.data.error);
+
+  const dash = await loginAdmin();
+  const dashClose = await req(`/api/admin/conversations/${cidAdmin}/messaging`, {
+    method: 'POST',
+    json: { open: true },
+    jar: dash
+  });
+  assert.equal(dashClose.res.status, 200, dashClose.data.error);
+  const again = await req(`/api/conversations/${cidAdmin}/messages`, {
+    method: 'POST',
+    json: { body: 'open again' },
+    jar: member.jar
+  });
+  assert.equal(again.res.status, 200, again.data.error);
+
+  const hijack = await req(`/api/conversations/${cidAdmin}/messaging`, {
+    method: 'POST',
+    json: { open: false },
+    jar: member.jar
+  });
+  assert.equal(hijack.res.status, 403);
 });
 
 test('members never receive phone numbers; admin still does', async () => {

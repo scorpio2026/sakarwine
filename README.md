@@ -45,7 +45,7 @@ Copy `.env.example` into your shell or Render dashboard. The app reads standard 
 - Home lists every active member, **online first**, then offline. An **ads banner** sits above the list (admin-managed; multiple images rotate every 5 seconds).
 - Accounts with **no activity for 30 days** are auto-closed and stripped of personal data (chat history for the other person is kept).
 - Each new conversation has **exactly 24 hours of free chatting**. After that, unpaid people in that chat see an upgrade prompt. Paid members may chat with unlimited people for the paid duration.
-- Block anyone you don’t want. Images and voice notes are allowed; **video is not**.
+- Block anyone you don’t want. Images and voice notes are allowed; **video is not**. **Admin-badge** accounts cannot be messaged first — wait for them to write, then you may reply. They can close or reopen sending on that thread.
 - Filters: no Myanmar numbers starting with `09`; messages cannot start with `@`.
 - Photos are **locked** until **Level 3** (three approved upgrades). Lower levels see a locked card and a notice on tap. You can always see photos you sent.
 - **Chat history is per-user.** Deleting a conversation (trash in the chat header) clears it for you only. The other person — and admin — still keep the full thread. The Saka guide chat cannot be deleted.

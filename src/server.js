@@ -368,15 +368,79 @@ function getOrCreateConversation(userA, userB, openedBy) {
   let conv = db.prepare('SELECT * FROM conversations WHERE user_lo = ? AND user_hi = ?').get(lo, hi);
   if (!conv) {
     const info = db
-      .prepare('INSERT INTO conversations (user_lo, user_hi, started_at, opened_by) VALUES (?, ?, ?, ?)')
+      .prepare(
+        'INSERT INTO conversations (user_lo, user_hi, started_at, opened_by, member_messaging) VALUES (?, ?, ?, ?, 1)'
+      )
       .run(lo, hi, Date.now(), openedBy || userA);
     conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(info.lastInsertRowid);
   }
   return conv;
 }
 
+function findConversation(userA, userB) {
+  const [lo, hi] = pairIds(userA, userB);
+  return db.prepare('SELECT * FROM conversations WHERE user_lo = ? AND user_hi = ?').get(lo, hi);
+}
+
 function otherUserId(conv, me) {
   return conv.user_lo === me ? conv.user_hi : conv.user_lo;
+}
+
+function adminHasMessaged(conv) {
+  const ids = [conv.user_lo, conv.user_hi];
+  const adminIds = ids.filter((id) => {
+    const row = db.prepare('SELECT badge FROM users WHERE id = ?').get(id);
+    return isAdminAccount(row);
+  });
+  if (!adminIds.length) return true;
+  const row = db
+    .prepare(
+      `SELECT 1 AS ok FROM messages
+       WHERE conversation_id = ? AND sender_id IN (${adminIds.map(() => '?').join(',')})
+         AND type != 'system'
+       LIMIT 1`
+    )
+    .get(conv.id, ...adminIds);
+  return Boolean(row);
+}
+
+function memberMessagingOpen(conv) {
+  return Number(conv && conv.member_messaging) !== 0;
+}
+
+function adminChatGate(conv, viewer) {
+  const peer = db.prepare('SELECT * FROM users WHERE id = ?').get(otherUserId(conv, viewer.id));
+  const viewerAdmin = isAdminAccount(viewer);
+  const peerAdmin = isAdminAccount(peer);
+  const involvesAdmin = viewerAdmin || peerAdmin;
+  const messagingOpen = memberMessagingOpen(conv);
+  const adminMessaged = involvesAdmin ? adminHasMessaged(conv) : true;
+  const waitForAdmin = involvesAdmin && !viewerAdmin && !adminMessaged;
+  const closedForMember = involvesAdmin && !viewerAdmin && !messagingOpen;
+  let deny = null;
+  if (closedForMember) deny = 'This chat is closed by admin.';
+  else if (waitForAdmin) deny = 'Wait for the admin to send a message first.';
+  return {
+    involvesAdmin,
+    messagingOpen,
+    waitForAdmin,
+    closed: involvesAdmin && !messagingOpen,
+    canToggleMessaging: viewerAdmin && involvesAdmin,
+    canSend: !deny,
+    error: deny
+  };
+}
+
+function setMemberMessaging(convId, open, emitTo) {
+  const flag = open ? 1 : 0;
+  db.prepare('UPDATE conversations SET member_messaging = ? WHERE id = ?').run(flag, convId);
+  const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(convId);
+  if (typeof emitTo === 'function' && conv) {
+    const payload = { conversationId: conv.id, messagingOpen: Boolean(flag) };
+    emitTo(conv.user_lo, 'chat:messaging', payload);
+    emitTo(conv.user_hi, 'chat:messaging', payload);
+  }
+  return conv;
 }
 
 function isBlocked(a, b) {
@@ -1205,12 +1269,28 @@ app.post('/api/conversations/with/:userId', requireUser, requireActive, (req, re
   if (theyBlocked) {
     return res.status(403).json({ error: 'This chat is blocked.' });
   }
+  if (isAdminAccount(target) && !isAdminAccount(req.user)) {
+    const existing = findConversation(req.user.id, target.id);
+    if (!existing) {
+      return res.status(403).json({ error: 'You cannot start a chat with an Admin account.' });
+    }
+    const gate = adminChatGate(existing, req.user);
+    return res.json({
+      conversation: {
+        id: existing.id,
+        peer: publicUser(target, { online: isOnline(target.id), viewer: req.user }),
+        window: freeWindow(existing, req.user),
+        adminGate: gate
+      }
+    });
+  }
   const conv = getOrCreateConversation(req.user.id, target.id, req.user.id);
   res.json({
     conversation: {
       id: conv.id,
       peer: publicUser(target, { online: isOnline(target.id), viewer: req.user }),
-      window: freeWindow(conv, req.user)
+      window: freeWindow(conv, req.user),
+      adminGate: adminChatGate(conv, req.user)
     }
   });
 });
@@ -1241,7 +1321,8 @@ app.get('/api/conversations/:id', requireUser, requireActive, async (req, res) =
       mutual: mutualSnapshot(db, conv, req.user, peer),
       viewLang: view.viewLang,
       askViewLang: view.askViewLang,
-      peerLang: view.peerLang
+      peerLang: view.peerLang,
+      adminGate: adminChatGate(conv, req.user)
     },
     messages,
     credited: tick ? tick.credited : []
@@ -1291,6 +1372,23 @@ app.post(
   });
 });
 
+app.post('/api/conversations/:id/messaging', requireUser, requireActive, (req, res) => {
+  const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(Number(req.params.id));
+  if (!conv || (conv.user_lo !== req.user.id && conv.user_hi !== req.user.id)) {
+    return res.status(404).json({ error: 'Conversation not found.' });
+  }
+  if (!isAdminAccount(req.user)) {
+    return res.status(403).json({ error: 'Only Admin accounts can close or reopen this chat.' });
+  }
+  const open = req.body && (req.body.open === false || req.body.open === 0 || req.body.open === '0') ? false : true;
+  const updated = setMemberMessaging(conv.id, open, emitToUser);
+  res.json({
+    ok: true,
+    messagingOpen: memberMessagingOpen(updated),
+    adminGate: adminChatGate(updated, req.user)
+  });
+});
+
 app.delete('/api/conversations/:id', requireUser, requireActive, (req, res) => {
   const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(Number(req.params.id));
   if (!conv || (conv.user_lo !== req.user.id && conv.user_hi !== req.user.id)) {
@@ -1321,6 +1419,10 @@ app.post(
     }
     if (peer.status !== 'active') {
       return res.status(403).json({ error: 'This account is no longer available.' });
+    }
+    const gate = adminChatGate(conv, req.user);
+    if (!gate.canSend) {
+      return res.status(403).json({ error: gate.error, adminGate: gate });
     }
     const win = freeWindow(conv, req.user);
     if (!win.canSend) {
@@ -1944,10 +2046,20 @@ app.get('/api/admin/conversations/:id', requireAdmin, (req, res) => {
     conversation: {
       id: conv.id,
       startedAt: conv.started_at,
-      users: [adminUser(a), adminUser(b)]
+      users: [adminUser(a), adminUser(b)],
+      messagingOpen: memberMessagingOpen(conv),
+      involvesAdmin: isAdminAccount(a) || isAdminAccount(b)
     },
     messages
   });
+});
+
+app.post('/api/admin/conversations/:id/messaging', requireAdmin, (req, res) => {
+  const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(Number(req.params.id));
+  if (!conv) return res.status(404).json({ error: 'Conversation not found.' });
+  const open = req.body && (req.body.open === false || req.body.open === 0 || req.body.open === '0') ? false : true;
+  const updated = setMemberMessaging(conv.id, open, emitToUser);
+  res.json({ ok: true, messagingOpen: memberMessagingOpen(updated) });
 });
 
 app.post('/api/admin/conversations/:id/expire-free', requireAdmin, (req, res) => {

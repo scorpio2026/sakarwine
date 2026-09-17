@@ -194,6 +194,17 @@ function connectSocket() {
       toast(t('newMessageFrom', { name: message.sender.username }));
     }
   });
+  socket.on('chat:messaging', ({ conversationId, messagingOpen }) => {
+    if (state.chat && state.chat.id === conversationId) {
+      if (!state.chat.adminGate) state.chat.adminGate = {};
+      state.chat.adminGate.messagingOpen = messagingOpen;
+      state.chat.adminGate.closed = !messagingOpen;
+      if (!state.user.isAdmin) {
+        state.chat.adminGate.canSend = Boolean(messagingOpen) && !state.chat.adminGate.waitForAdmin;
+      }
+      if (state.view === 'chat') renderChat();
+    }
+  });
   socket.on('presence', () => {
     if (state.view === 'home') loadHome();
   });
@@ -693,6 +704,7 @@ async function openChat(userId, opts = {}) {
       viewLang: full.conversation.viewLang,
       askViewLang: full.conversation.askViewLang,
       peerLang: full.conversation.peerLang,
+      adminGate: full.conversation.adminGate || null,
       messages: full.messages
     };
     renderChat(opts);
@@ -805,6 +817,14 @@ function renderChat(opts = {}) {
   state.view = 'chat';
   const c = state.chat;
   const expired = c.window.expired;
+  const gate = c.adminGate || {};
+  const gated = !expired && !c.peer.isAi && ((gate.waitForAdmin && !state.user.isAdmin) || (gate.closed && !state.user.isAdmin));
+  const composerOff = expired || gated;
+  const gateNote = gate.waitForAdmin && !state.user.isAdmin
+    ? t('waitAdminFirst')
+    : gate.closed && !state.user.isAdmin
+      ? t('chatClosedByAdmin')
+      : '';
   app.innerHTML = `
     <section class="screen chat-screen">
       <div class="screen-body">
@@ -818,24 +838,26 @@ function renderChat(opts = {}) {
         <div class="chat-actions">
           <button class="chat-tool" id="chat-lang" title="${t('changeChatLang')}" aria-label="${t('changeChatLang')}">${ICONS.lang}</button>
           ${c.peer.isAi ? '' : `${c.peer.isAdmin || c.peer.blockable === false ? '' : `<button class="chat-tool" id="block" title="${t('blockBtn')}" aria-label="${t('blockBtn')}">${ICONS.block}</button>`}
+          ${state.user.isAdmin && !c.peer.isAi ? `<button class="chat-tool" id="toggle-msg" title="${gate.messagingOpen === false ? t('reopenMessaging') : t('closeMessaging')}">${gate.messagingOpen === false ? t('reopenMessaging') : t('closeMessaging')}</button>` : ''}
           <button class="chat-tool" id="delete-chat" title="${t('deleteForMe')}" aria-label="${t('deleteForMe')}">${ICONS.trash}</button>`}
         </div>
       </div>
       ${expired ? `<div class="upgrade-banner">${t('upgradeEnded')}<br><button class="btn" id="go-up" style="margin-top:8px">${t('seePlans')}</button></div>` : ''}
+      ${gateNote ? `<div class="upgrade-banner">${escapeHtml(gateNote)}</div>` : ''}
       ${hostCreditBanner(c)}
       <div id="messages" class="messages">${renderThread(c.messages)}</div>
       <div class="typing" id="typing"></div>
       </div>
       <div class="composer">
-        <button class="composer-plus" id="plus-btn" aria-label="${t('photo')}" ${expired ? 'disabled' : ''}>+</button>
+        <button class="composer-plus" id="plus-btn" aria-label="${t('photo')}" ${composerOff ? 'disabled' : ''}>+</button>
         <div class="plus-menu" id="plus-menu" hidden>
           <button type="button" id="img-btn">${t('photo')}</button>
           <button type="button" id="mic-btn">${t('voice')}</button>
         </div>
         <div class="composer-pill">
-          <textarea id="text" rows="1" ${expired ? 'disabled' : ''} placeholder="${t('typeHere')}"></textarea>
+          <textarea id="text" rows="1" ${composerOff ? 'disabled' : ''} placeholder="${t('typeHere')}"></textarea>
         </div>
-        <button class="chat-send" id="send" ${expired ? 'disabled' : ''} aria-label="${t('send')}">${ICONS.send}</button>
+        <button class="chat-send" id="send" ${composerOff ? 'disabled' : ''} aria-label="${t('send')}">${ICONS.send}</button>
         <input id="img-file" class="hidden-file" type="file" accept="image/*" />
       </div>
     </section>`;
@@ -862,6 +884,21 @@ function renderChat(opts = {}) {
     }
   };
   if ($('#chat-lang')) $('#chat-lang').onclick = () => promptChatLang(c, { force: true });
+  if ($('#toggle-msg')) {
+    $('#toggle-msg').onclick = async () => {
+      try {
+        const open = c.adminGate && c.adminGate.messagingOpen === false;
+        const data = await api(`/api/conversations/${c.id}/messaging`, {
+          method: 'POST',
+          json: { open }
+        });
+        c.adminGate = data.adminGate;
+        renderChat(opts);
+      } catch (e) {
+        toastErr(e);
+      }
+    };
+  }
   if ($('#go-up')) $('#go-up').onclick = () => { stopChatPresence(); showUpgrade(); };
   if ($('#block')) $('#block').onclick = async () => {
     if (c.blocked) {

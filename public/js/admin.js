@@ -312,7 +312,19 @@ async function bootDash() {
               ${m.type === 'image' && m.mediaUrl ? `<img class="thumb" src="${m.mediaUrl}" alt="" />` : ''}
               ${m.type === 'voice' && m.mediaUrl ? `<audio controls src="${m.mediaUrl}"></audio>` : ''}
               <div>${esc(m.body || m.type)}</div></div>`).join('')}</div>
+            ${thread.conversation.involvesAdmin ? `<button data-msg="${thread.conversation.id}" data-msg-open="${thread.conversation.messagingOpen ? '0' : '1'}">${thread.conversation.messagingOpen ? 'Close messaging' : 'Reopen messaging'}</button>` : ''}
             <button data-expire="${thread.conversation.id}">Expire 24h free window</button>`;
+          const msgBtn = box.querySelector('[data-msg]');
+          if (msgBtn) {
+            msgBtn.onclick = async (ev) => {
+              ev.stopPropagation();
+              await api(`/api/admin/conversations/${msgBtn.dataset.msg}/messaging`, {
+                method: 'POST',
+                json: { open: msgBtn.dataset.msgOpen === '1' }
+              });
+              await render();
+            };
+          }
           box.querySelector('[data-expire]').onclick = async (ev) => {
             ev.stopPropagation();
             await api(`/api/admin/conversations/${thread.conversation.id}/expire-free`, { method: 'POST' });
@@ -510,6 +522,8 @@ async function bootDash() {
         panel.innerHTML = `
           <button data-back>← Back</button>
           <p>${data.conversation.users.map((u) => `<button class="ghost" data-open-id="${esc(u.accountId)}">${esc(u.username)} · ${esc(u.accountId)}</button> · ${esc(u.phone)}`).join('<br>')}</p>
+          ${data.conversation.involvesAdmin ? `<p class="muted">Member messaging: ${data.conversation.messagingOpen ? 'open' : 'closed'}
+            <button data-msg="${data.conversation.id}" data-msg-open="${data.conversation.messagingOpen ? '0' : '1'}">${data.conversation.messagingOpen ? 'Close messaging' : 'Reopen messaging'}</button></p>` : ''}
           <div class="chat-log">${data.messages.map((m) => `
             <div class="msg"><div class="muted">${m.sender ? esc(m.sender.username) : 'system'} · ${new Date(m.createdAt).toLocaleString()}</div>
             ${m.type === 'image' && m.mediaUrl ? `<img class="thumb" src="${m.mediaUrl}" />` : ''}
@@ -520,6 +534,16 @@ async function bootDash() {
         panel.querySelectorAll('[data-open-id]').forEach((b) => {
           b.onclick = () => openDossier(b.dataset.openId);
         });
+        const msgBtn = panel.querySelector('[data-msg]');
+        if (msgBtn) {
+          msgBtn.onclick = async () => {
+            await api(`/api/admin/conversations/${msgBtn.dataset.msg}/messaging`, {
+              method: 'POST',
+              json: { open: msgBtn.dataset.msgOpen === '1' }
+            });
+            render();
+          };
+        }
         panel.querySelector('[data-expire]').onclick = async () => {
           await api(`/api/admin/conversations/${data.conversation.id}/expire-free`, { method: 'POST' });
           alert('Free window expired for this chat.');
