@@ -349,7 +349,7 @@ test('special accounts skip the upgrade gate and hide IDs', async () => {
   assert.equal(blockedFree.res.status, 402);
 });
 
-test('profile card shows account ID and admin accounts cannot be blocked', async () => {
+test('profile card hides admin username and ID from others; admin accounts cannot be blocked', async () => {
   await started;
   const member = await register('fan2' + Date.now().toString().slice(-5), '121212', 'male');
   const admin = await loginAdmin();
@@ -374,10 +374,18 @@ test('profile card shows account ID and admin accounts cannot be blocked', async
   assert.equal(adm.accountId, null);
 
   const card = await req(`/api/users/${created.data.user.id}/card`, { jar: member.jar });
-  assert.equal(card.data.user.accountId, created.data.user.accountId);
+  assert.equal(card.data.user.isAdmin, true);
+  assert.equal(card.data.user.badge, 'Admin');
+  assert.equal(card.data.user.username, '');
+  assert.equal(card.data.user.accountId, null);
   assert.equal(card.data.user.photoUrl, '/assets/default-male.png');
   assert.equal(card.data.user.hasPhoto, false);
   assert.equal(card.data.user.gender, 'male');
+
+  await req(`/api/admin/accounts/${created.data.user.id}/unhide-id`, { method: 'POST', jar: admin });
+  const cardAfterUnhide = await req(`/api/users/${created.data.user.id}/card`, { jar: member.jar });
+  assert.equal(cardAfterUnhide.data.user.username, '');
+  assert.equal(cardAfterUnhide.data.user.accountId, null);
 
   const noBlock = await req(`/api/users/${created.data.user.id}/block`, { method: 'POST', jar: member.jar });
   assert.equal(noBlock.res.status, 403);
@@ -393,6 +401,16 @@ test('profile card shows account ID and admin accounts cannot be blocked', async
     jar: admJar
   });
   assert.equal(admLogin.res.status, 200, admLogin.data.error);
+  const meAsAdmin = await req('/api/me', { jar: admJar });
+  assert.equal(meAsAdmin.data.user.username, created.data.user.username);
+  assert.equal(meAsAdmin.data.user.accountId, created.data.user.accountId);
+  const selfCard = await req(`/api/users/${created.data.user.id}/card`, { jar: admJar });
+  assert.equal(selfCard.data.user.username, created.data.user.username);
+  assert.equal(selfCard.data.user.accountId, created.data.user.accountId);
+  const dossier = await req(`/api/admin/dossier?q=${created.data.user.accountId}`, { jar: admin });
+  assert.equal(dossier.res.status, 200, dossier.data.error);
+  assert.equal(dossier.data.user.username, created.data.user.username);
+  assert.equal(dossier.data.user.accountId, created.data.user.accountId);
   const startedByAdmin = await req(`/api/conversations/with/${member.user.id}`, { method: 'POST', jar: admJar });
   assert.equal(startedByAdmin.res.status, 200, startedByAdmin.data.error);
   const cidAdmin = startedByAdmin.data.conversation.id;

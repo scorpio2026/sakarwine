@@ -702,6 +702,9 @@ body:has(.auth-screen) {
   margin: 0 0 8px;
   line-height: 1.4;
 }
+.profile-lite-photo + .profile-lite-roles {
+  margin-top: 10px;
+}
 .profile-lite-roles .badge-lv,
 .profile-lite-roles .badge-neon {
   font-size: 0.78rem;

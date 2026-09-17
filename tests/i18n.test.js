@@ -77,9 +77,11 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   assert.match(js, /function showHelp/);
   assert.match(js, /pin-recovery-form/);
   assert.match(js, /back-home-btn/);
-  const photoFn = js.slice(js.indexOf('async function openProfilePhoto'), js.indexOf('function roleMark'));
+  const photoFn = js.slice(js.indexOf('function isOtherAdminProfile'), js.indexOf('function roleMark'));
   assert.match(photoFn, /roleMark\(u\)/);
   assert.match(photoFn, /profile-lite-roles/);
+  assert.match(photoFn, /isOtherAdminProfile/);
+  assert.match(photoFn, /hideAdminIdentity/);
   assert.match(css, /\.profile-lite-roles/);
   const roleFn = js.slice(js.indexOf('function roleMark'), js.indexOf('function statusPill'));
   const aiBranch = roleFn.slice(roleFn.indexOf('isAi'), roleFn.indexOf('let core'));
@@ -723,7 +725,7 @@ test('profile cards use overlapping glass avatar, real-field stats, and pill CTA
   const appCss = fs.readFileSync(path.join(__dirname, '../public/css/app.css'), 'utf8');
   const appJs = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
   const profileFn = appJs.slice(appJs.indexOf('async function showProfile'), appJs.indexOf('function settingsRow'));
-  const photoFn = appJs.slice(appJs.indexOf('async function openProfilePhoto'), appJs.indexOf('function roleMark'));
+  const photoFn = appJs.slice(appJs.indexOf('function isOtherAdminProfile'), appJs.indexOf('function roleMark'));
   assert.match(profileFn, /profile-screen/);
   assert.match(profileFn, /profile-orbs/);
   assert.match(profileFn, /me-identity/);
@@ -738,6 +740,8 @@ test('profile cards use overlapping glass avatar, real-field stats, and pill CTA
   assert.match(photoFn, /profile-lite/);
   assert.match(photoFn, /profile-lite-roles/);
   assert.match(photoFn, /roleMark\(u\)/);
+  assert.match(photoFn, /isOtherAdminProfile/);
+  assert.match(photoFn, /hideAdminIdentity/);
   assert.match(appCss, /\.profile-screen \.me-identity \.me-ava\s*\{[^}]*margin-top:\s*-72px/);
   assert.match(appCss, /\.me-stats\s*\{/);
   assert.match(appCss, /\.profile-lite-photo\s*\{[^}]*border-radius:\s*50%/);

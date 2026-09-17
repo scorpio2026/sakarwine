@@ -207,19 +207,26 @@ function avatarHtml(user, cls = '') {
   return `<img class="avatar round ${cls} ${fb || user.isAi ? genderClass : ''}" alt="" src="${escapeHtml(src)}"${tap} />`;
 }
 
+function isOtherAdminProfile(user) {
+  return Boolean(user && user.isAdmin && !(state.user && Number(state.user.id) === Number(user.id)));
+}
+
 async function openProfilePhoto(userId) {
   try {
     const data = await api(`/api/users/${userId}/card`);
     const u = data.user;
+    const hideAdminIdentity = isOtherAdminProfile(u);
+    const displayName = hideAdminIdentity ? '' : (u.username || '');
+    const displayId = hideAdminIdentity ? '' : (u.accountId || '');
     const photo = u.hasPhoto && u.photoUrl
-      ? `<img class="profile-lite-photo" src="${escapeHtml(u.photoUrl)}" alt="${escapeHtml(u.username)}" />`
+      ? `<img class="profile-lite-photo" src="${escapeHtml(u.photoUrl)}" alt="${escapeHtml(displayName)}" />`
       : avatarHtml(u, 'profile-lite-photo');
     modal(`
       <div class="profile-lite">
         ${photo}
-        <h3 class="profile-lite-name">${escapeHtml(u.username)}</h3>
+        ${displayName ? `<h3 class="profile-lite-name">${escapeHtml(displayName)}</h3>` : ''}
         <div class="profile-lite-roles">${roleMark(u)}</div>
-        <p class="profile-id">${escapeHtml(u.accountId || '—')}</p>
+        ${displayId ? `<p class="profile-id">${escapeHtml(displayId)}</p>` : ''}
         ${u.bio ? `<p class="profile-bio">${escapeHtml(u.bio)}</p>` : ''}
         <button class="btn block" id="photo-close">${t('close')}</button>
       </div>`);
