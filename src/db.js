@@ -210,6 +210,19 @@ function migrate(db) {
       FOREIGN KEY (sender_id) REFERENCES users(id)
     );
     CREATE INDEX IF NOT EXISTS idx_group_messages_group ON group_messages(group_id, id);
+
+    CREATE TABLE IF NOT EXISTS group_join_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      group_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at INTEGER NOT NULL,
+      responded_at INTEGER,
+      FOREIGN KEY (group_id) REFERENCES user_groups(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_group_joins_group ON group_join_requests(group_id, status);
+    CREATE INDEX IF NOT EXISTS idx_group_joins_user ON group_join_requests(user_id, status);
   `);
   ensureColumn(db, 'users', 'is_special', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'users', 'badge', 'TEXT');

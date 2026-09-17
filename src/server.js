@@ -1632,6 +1632,30 @@ app.get('/api/groups/lookup', requireUser, requireActive, (req, res) => {
   res.json({ user: groupInvitePreviewUser(target) });
 });
 
+app.get('/api/groups/discover', requireUser, requireActive, (req, res) => {
+  const mine = new Set(
+    db.prepare('SELECT group_id FROM group_members WHERE user_id = ?').all(req.user.id).map((r) => r.group_id)
+  );
+  const pending = new Set(
+    db
+      .prepare(
+        `SELECT group_id FROM group_join_requests WHERE user_id = ? AND status = 'pending'`
+      )
+      .all(req.user.id)
+      .map((r) => r.group_id)
+  );
+  const countStmt = db.prepare('SELECT COUNT(*) AS n FROM group_members WHERE group_id = ?');
+  const groups = db
+    .prepare('SELECT * FROM user_groups ORDER BY created_at DESC')
+    .all()
+    .map((row) => ({
+      ...serializeGroupPreview(row, { memberCount: countStmt.get(row.id).n }),
+      joined: mine.has(row.id),
+      requested: pending.has(row.id)
+    }));
+  res.json({ groups });
+});
+
 app.get('/api/groups/:id', requireUser, requireActive, (req, res) => {
   const group = db.prepare('SELECT * FROM user_groups WHERE id = ?').get(Number(req.params.id));
   const mine = group ? groupMembership(group.id, req.user.id) : null;
@@ -1646,9 +1670,35 @@ app.get('/api/groups/:id', requireUser, requireActive, (req, res) => {
     )
     .all(group.id)
     .map(serializeGroupMember);
+  const joinRequests =
+    mine.role === 'owner'
+      ? db
+          .prepare(
+            `SELECT r.*, u.username, u.account_id, u.photo_path, u.gender
+             FROM group_join_requests r
+             JOIN users u ON u.id = r.user_id
+             WHERE r.group_id = ? AND r.status = 'pending'
+             ORDER BY r.id ASC`
+          )
+          .all(group.id)
+          .map((r) => ({
+            id: r.id,
+            createdAt: r.created_at,
+            user: {
+              id: r.user_id,
+              username: r.username,
+              accountId: r.account_id,
+              photoUrl: r.photo_path
+                ? `/api/media/profile/${path.basename(r.photo_path)}`
+                : defaultAvatarUrl(r),
+              gender: r.gender
+            }
+          }))
+      : [];
   res.json({
     group: serializeGroupPreview(group, { role: mine.role, memberCount: members.length }),
-    members
+    members,
+    joinRequests
   });
 });
 
@@ -1697,6 +1747,80 @@ app.post('/api/groups/:id/invites', requireUser, requireActive, (req, res) => {
     inviterAccountId: payload.inviter && payload.inviter.accountId
   });
   res.json({ invite: payload, user: groupInvitePreviewUser(target) });
+});
+
+app.post('/api/groups/:id/join', requireUser, requireActive, (req, res) => {
+  const group = db.prepare('SELECT * FROM user_groups WHERE id = ?').get(Number(req.params.id));
+  if (!group) return res.status(404).json({ error: 'Group not found.' });
+  if (groupMembership(group.id, req.user.id)) {
+    return res.status(400).json({ error: 'This person is already in the group.' });
+  }
+  const pending = db
+    .prepare(
+      `SELECT id FROM group_join_requests WHERE group_id = ? AND user_id = ? AND status = 'pending'`
+    )
+    .get(group.id, req.user.id);
+  if (pending) return res.status(400).json({ error: 'A join request is already pending.' });
+  const info = db
+    .prepare(
+      `INSERT INTO group_join_requests (group_id, user_id, status, created_at) VALUES (?, ?, 'pending', ?)`
+    )
+    .run(group.id, req.user.id, Date.now());
+  const owner = db
+    .prepare(`SELECT user_id FROM group_members WHERE group_id = ? AND role = 'owner'`)
+    .get(group.id);
+  if (owner) {
+    emitToUser(owner.user_id, 'group:join-request', {
+      groupId: group.id,
+      groupName: group.name,
+      username: req.user.username,
+      accountId: req.user.account_id
+    });
+  }
+  res.json({ ok: true, requestId: info.lastInsertRowid });
+});
+
+app.post('/api/groups/:id/join-requests/:rid/accept', requireUser, requireActive, (req, res) => {
+  const group = db.prepare('SELECT * FROM user_groups WHERE id = ?').get(Number(req.params.id));
+  const mine = group ? groupMembership(group.id, req.user.id) : null;
+  if (!group || !mine || mine.role !== 'owner') {
+    return res.status(403).json({ error: 'Only the group admin can review join requests.' });
+  }
+  const row = db
+    .prepare(`SELECT * FROM group_join_requests WHERE id = ? AND group_id = ?`)
+    .get(Number(req.params.rid), group.id);
+  if (!row || row.status !== 'pending') return res.status(404).json({ error: 'Join request not found.' });
+  const now = Date.now();
+  db.transaction(() => {
+    db.prepare(
+      `UPDATE group_join_requests SET status = 'accepted', responded_at = ? WHERE id = ?`
+    ).run(now, row.id);
+    db.prepare(
+      `INSERT OR IGNORE INTO group_members (group_id, user_id, role, joined_at) VALUES (?, ?, 'member', ?)`
+    ).run(group.id, row.user_id, now);
+  })();
+  emitToUser(row.user_id, 'group:join-accepted', {
+    groupId: group.id,
+    groupName: group.name
+  });
+  res.json({ ok: true });
+});
+
+app.post('/api/groups/:id/join-requests/:rid/decline', requireUser, requireActive, (req, res) => {
+  const group = db.prepare('SELECT * FROM user_groups WHERE id = ?').get(Number(req.params.id));
+  const mine = group ? groupMembership(group.id, req.user.id) : null;
+  if (!group || !mine || mine.role !== 'owner') {
+    return res.status(403).json({ error: 'Only the group admin can review join requests.' });
+  }
+  const row = db
+    .prepare(`SELECT * FROM group_join_requests WHERE id = ? AND group_id = ?`)
+    .get(Number(req.params.rid), group.id);
+  if (!row || row.status !== 'pending') return res.status(404).json({ error: 'Join request not found.' });
+  db.prepare(
+    `UPDATE group_join_requests SET status = 'declined', responded_at = ? WHERE id = ?`
+  ).run(Date.now(), row.id);
+  emitToUser(row.user_id, 'group:join-declined', { groupId: group.id, groupName: group.name });
+  res.json({ ok: true });
 });
 
 app.get('/api/group-invites', requireUser, requireActive, (req, res) => {

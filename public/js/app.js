@@ -285,6 +285,21 @@ function connectSocket() {
       toast(t('newMessageFrom', { name: message.sender.username }));
     }
   });
+  socket.on('group:join-request', (payload) => {
+    toast(t('joinRequestFrom', { name: payload.username || '', group: payload.groupName || '' }));
+    if (state.view === 'group-detail' && state.group && state.group.id === payload.groupId) {
+      showGroupDetail(payload.groupId);
+    }
+  });
+  socket.on('group:join-accepted', (payload) => {
+    toast(t('joinWasAccepted', { group: payload.groupName || '' }));
+    if (state.view === 'groups') showGroups();
+    if (state.view === 'chats') loadInbox();
+  });
+  socket.on('group:join-declined', (payload) => {
+    toast(t('joinWasDeclined', { group: payload.groupName || '' }));
+    if (state.view === 'groups') showGroups();
+  });
   socket.on('group:removed', ({ groupId, reason }) => {
     toast(reason === 'kicked' ? t('kickedFromGroup') : t('leftGroup'));
     if (state.groupChat && state.groupChat.id === groupId) {
@@ -699,6 +714,7 @@ async function showGroups() {
       </div>
       <div id="group-invites"></div>
       <div id="group-list" class="user-list"><p class="muted">${t('loading')}</p></div>
+      <div id="group-discover"></div>
       </div>
       ${nav('groups')}
     </section>`;
@@ -706,9 +722,10 @@ async function showGroups() {
   bindMeButton();
   $('#group-create').onclick = showCreateGroup;
   try {
-    const [inv, list] = await Promise.all([
+    const [inv, list, disc] = await Promise.all([
       api('/api/group-invites'),
-      api('/api/groups')
+      api('/api/groups'),
+      api('/api/groups/discover')
     ]);
     const invBox = $('#group-invites');
     const invites = inv.invites || [];
@@ -770,6 +787,37 @@ async function showGroups() {
     box.querySelectorAll('.user-row').forEach((row) => {
       row.onclick = () => showGroupDetail(Number(row.dataset.id));
     });
+    const discBox = $('#group-discover');
+    const others = (disc.groups || []).filter((g) => !g.joined);
+    if (discBox) {
+      discBox.innerHTML = `<h3 class="group-section">${t('discoverGroups')}</h3>` + (
+        others.length
+          ? others.map((g) => `
+        <div class="user-row" data-id="${g.id}">
+          ${groupLogoHtml(g)}
+          <div class="meta">
+            <div class="name">${escapeHtml(g.name)}</div>
+            <div class="sub">${g.memberCount != null ? t('groupMemberCount', { n: g.memberCount }) : ''}</div>
+          </div>
+          ${g.requested
+            ? `<span class="when">${t('joinRequested')}</span>`
+            : `<button type="button" class="btn secondary" data-join="${g.id}">${t('requestJoin')}</button>`}
+        </div>`).join('')
+          : `<p class="settings-empty">${t('noDiscoverGroups')}</p>`
+      );
+      discBox.querySelectorAll('[data-join]').forEach((btn) => {
+        btn.onclick = async (e) => {
+          e.stopPropagation();
+          try {
+            await api(`/api/groups/${btn.dataset.join}/join`, { method: 'POST' });
+            toast(t('joinRequested'));
+            showGroups();
+          } catch (err) {
+            toastErr(err);
+          }
+        };
+      });
+    }
   } catch (e) {
     toastErr(e);
   }
@@ -845,6 +893,23 @@ async function showGroupDetail(id) {
           <div class="small muted">${t('groupMemberCount', { n: data.members.length })}</div>
           <button type="button" class="btn block" id="open-group-chat">${t('openGroupChat')}</button>
         </div>
+        ${data.group.role === 'owner' && (data.joinRequests || []).length ? `
+        <h3 class="group-section">${t('joinRequests')}</h3>
+        ${(data.joinRequests || []).map((row) => `
+          <div class="glass-card stack group-invite">
+            <div class="user-row">
+              ${avatarHtml(row.user, 'round')}
+              <div class="meta">
+                <div class="name">${escapeHtml(row.user.username)}</div>
+                <div class="sub">${escapeHtml(row.user.accountId || '')}</div>
+              </div>
+            </div>
+            <div class="me-actions">
+              <button type="button" class="btn" data-join-accept="${row.id}">${t('accept')}</button>
+              <button type="button" class="btn secondary" data-join-decline="${row.id}">${t('decline')}</button>
+            </div>
+          </div>`).join('')}
+        ` : ''}
         <h3 class="group-section">${t('addPeople')}</h3>
         <div class="glass-card stack" style="text-align:left">
           <div class="field"><label>${t('pinRecoveryAccountId')}</label><input id="group-aid" autocomplete="off" /></div>
@@ -871,6 +936,28 @@ async function showGroupDetail(id) {
     bindNav();
     $('#back').onclick = showGroups;
     $('#open-group-chat').onclick = () => openGroupChat(id, { from: 'groups' });
+    document.querySelectorAll('[data-join-accept]').forEach((btn) => {
+      btn.onclick = async () => {
+        try {
+          await api(`/api/groups/${id}/join-requests/${btn.dataset.joinAccept}/accept`, { method: 'POST' });
+          toast(t('joinAcceptDone'));
+          showGroupDetail(id);
+        } catch (err) {
+          toastErr(err);
+        }
+      };
+    });
+    document.querySelectorAll('[data-join-decline]').forEach((btn) => {
+      btn.onclick = async () => {
+        try {
+          await api(`/api/groups/${id}/join-requests/${btn.dataset.joinDecline}/decline`, { method: 'POST' });
+          toast(t('joinDeclineDone'));
+          showGroupDetail(id);
+        } catch (err) {
+          toastErr(err);
+        }
+      };
+    });
     document.querySelectorAll('[data-kick]').forEach((btn) => {
       btn.onclick = async (e) => {
         e.stopPropagation();

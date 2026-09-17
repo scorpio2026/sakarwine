@@ -1023,6 +1023,44 @@ test('paid members can create groups; invites accept and decline', async () => {
   assert.equal(left.res.status, 200, left.data.error);
   const outInbox = await req('/api/conversations', { jar: other.jar });
   assert.equal(outInbox.data.conversations.some((c) => c.kind === 'group' && c.groupId === gid), false);
+
+  const seeker = await register('gsee' + Date.now().toString().slice(-5), '565656', 'male');
+  const disc = await req('/api/groups/discover', { jar: seeker.jar });
+  const found = disc.data.groups.find((g) => g.id === gid);
+  assert.ok(found);
+  assert.equal(found.name, 'Sunset');
+  assert.equal(found.joined, false);
+  assert.equal(found.phone, undefined);
+
+  const ask = await req(`/api/groups/${gid}/join`, { method: 'POST', jar: seeker.jar });
+  assert.equal(ask.res.status, 200, ask.data.error);
+  const dupAsk = await req(`/api/groups/${gid}/join`, { method: 'POST', jar: seeker.jar });
+  assert.equal(dupAsk.res.status, 400);
+
+  const asOwner = await req(`/api/groups/${gid}`, { jar: owner.jar });
+  const reqRow = (asOwner.data.joinRequests || []).find((r) => r.user && r.user.id === seeker.user.id);
+  assert.ok(reqRow);
+  assert.equal(reqRow.user.phone, undefined);
+
+  const notReview = await req(`/api/groups/${gid}/join-requests/${reqRow.id}/accept`, {
+    method: 'POST',
+    jar: seeker.jar
+  });
+  assert.equal(notReview.res.status, 403);
+
+  const okJoin = await req(`/api/groups/${gid}/join-requests/${reqRow.id}/accept`, {
+    method: 'POST',
+    jar: owner.jar
+  });
+  assert.equal(okJoin.res.status, 200, okJoin.data.error);
+  const seekerInbox = await req('/api/conversations', { jar: seeker.jar });
+  assert.ok(seekerInbox.data.conversations.some((c) => c.kind === 'group' && c.groupId === gid));
+  const seekerSend = await req(`/api/groups/${gid}/messages`, {
+    method: 'POST',
+    json: { body: 'joined by request' },
+    jar: seeker.jar
+  });
+  assert.equal(seekerSend.res.status, 200, seekerSend.data.error);
 });
 
 test('female registration matches male; host apply is later from Settings', async () => {
