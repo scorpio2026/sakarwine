@@ -136,6 +136,30 @@ test('health', async () => {
   assert.equal(data.ok, true);
 });
 
+test('home people list filters by gender query', async () => {
+  await started;
+  const viewer = await register('gview' + Date.now().toString().slice(-5), '121212', 'male');
+  const man = await register('gman' + Date.now().toString().slice(-5), '232323', 'male');
+  const woman = await register('gwoman' + Date.now().toString().slice(-4), '343434', 'female');
+
+  const all = await req('/api/users', { jar: viewer.jar });
+  assert.ok(all.data.users.some((u) => u.username === man.user.username));
+  assert.ok(all.data.users.some((u) => u.username === woman.user.username));
+
+  const men = await req('/api/users?gender=male', { jar: viewer.jar });
+  assert.ok(men.data.users.some((u) => u.username === man.user.username));
+  assert.equal(men.data.users.some((u) => u.username === woman.user.username), false);
+  assert.ok(men.data.users.every((u) => u.gender === 'male'));
+
+  const women = await req('/api/users?gender=female', { jar: viewer.jar });
+  assert.ok(women.data.users.some((u) => u.username === woman.user.username));
+  assert.equal(women.data.users.some((u) => u.username === man.user.username), false);
+  assert.ok(women.data.users.every((u) => u.gender === 'female'));
+
+  const ignored = await req('/api/users?gender=nope', { jar: viewer.jar });
+  assert.equal(ignored.data.users.length, all.data.users.length);
+});
+
 test('two users chat, filters, image lock, upgrade path', async () => {
   await started;
   const a = await register('rose' + Date.now().toString().slice(-6), '123456', 'female');

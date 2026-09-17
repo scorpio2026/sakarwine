@@ -440,31 +440,38 @@ body {
   border: 1px solid rgba(16, 185, 129, .28);
 }
 
-.search-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.gender-filter {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 4px;
   min-height: var(--tap);
-  padding: 0 14px;
+  padding: 4px;
   margin-bottom: 12px;
   border-radius: 999px;
   background: #f3f6f4;
-  border: 1px solid transparent;
   flex-shrink: 0;
 }
-.search-bar svg { width: 18px; height: 18px; color: #8aa396; flex-shrink: 0; }
-.search-bar input {
-  flex: 1;
-  min-width: 0;
+.gender-chip {
+  appearance: none;
   border: 0;
+  border-radius: 999px;
   background: transparent;
+  color: var(--muted);
   font: inherit;
-  font-size: 16px;
-  min-height: 40px;
-  outline: none;
-  color: var(--ink);
+  font-size: 0.92rem;
+  font-weight: 650;
+  min-height: calc(var(--tap) - 8px);
+  min-width: 0;
+  padding: 0 8px;
+  cursor: pointer;
 }
-.search-bar input::placeholder { color: #9aada4; }
+.gender-chip[aria-selected="true"] {
+  background: #fff;
+  color: var(--green-deep);
+  box-shadow: 0 1px 4px rgba(16, 64, 48, 0.12);
+}
+.gender-chip[data-gender="male"][aria-selected="true"] { color: #2563eb; }
+.gender-chip[data-gender="female"][aria-selected="true"] { color: #ec4899; }
 
 .user-list {
   flex: 1;

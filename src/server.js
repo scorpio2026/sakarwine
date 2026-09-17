@@ -1281,12 +1281,15 @@ app.get('/api/users', requireUser, requireActive, (req, res) => {
        ORDER BY is_ai DESC, username COLLATE NOCASE`
     )
     .all(req.user.id);
+  const gender = String(req.query.gender || 'all').trim().toLowerCase();
+  const genderFilter = gender === 'male' || gender === 'female' ? gender : null;
   const users = rows
     .map((row) => {
       const u = publicUser(row, { online: isOnline(row.id), viewer: req.user });
       u.blocked = blocked.includes(row.id);
       return u;
     })
+    .filter((u) => !genderFilter || u.gender === genderFilter)
     .sort((a, b) => {
       if (a.isAi !== b.isAi) return a.isAi ? -1 : 1;
       if (a.online !== b.online) return a.online ? -1 : 1;

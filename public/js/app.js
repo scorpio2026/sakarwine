@@ -9,6 +9,7 @@ const state = {
   user: null,
   settings: null,
   users: [],
+  peopleGender: 'all',
   socket: null,
   view: 'welcome',
   chat: null,
@@ -513,8 +514,15 @@ function startAdBanner() {
     });
 }
 
+function peopleGenderFilter() {
+  const g = state.peopleGender;
+  return g === 'male' || g === 'female' ? g : 'all';
+}
+
 async function loadHome() {
-  const { users } = await api('/api/users');
+  const gender = peopleGenderFilter();
+  const qs = gender === 'all' ? '' : `?gender=${encodeURIComponent(gender)}`;
+  const { users } = await api('/api/users' + qs);
   state.users = users;
   paintHomeList();
 }
@@ -522,12 +530,8 @@ async function loadHome() {
 function paintHomeList() {
   const list = $('#user-list');
   if (!list) return;
-  const q = (($('#people-search') && $('#people-search').value) || '').trim().toLowerCase();
-  const users = (state.users || []).filter((u) => {
-    if (!q) return true;
-    const hay = `${u.username} ${u.accountId || ''} ${u.badge || ''}`.toLowerCase();
-    return hay.includes(q);
-  });
+  const gender = peopleGenderFilter();
+  const users = (state.users || []).filter((u) => gender === 'all' || u.gender === gender);
   list.innerHTML = users.map((u) => `
     <div class="user-row ${u.isAi ? '' : (u.gender === 'female' ? 'gender-female' : 'gender-male')}" data-id="${u.id}">
       ${avatarHtml(u)}
@@ -536,7 +540,7 @@ function paintHomeList() {
         <div class="sub">${u.online ? t('onlineNow') : t('offline')} · ${genderLabel(u.gender)}${u.blocked ? ' · ' + t('blocked') : ''}</div>
       </div>
       <span class="when">${u.online ? t('onlineNow') : ''}</span>
-    </div>`).join('') || `<p class="settings-empty">${t('loading')}</p>`;
+    </div>`).join('') || `<p class="settings-empty">${t('noPeople')}</p>`;
   list.querySelectorAll('.user-row').forEach((row) => {
     row.onclick = () => openChat(Number(row.dataset.id));
   });
@@ -554,14 +558,14 @@ async function showHome(opts = {}) {
         <h2 id="home-title">${t('contactsTitle')}</h2>
         <span class="pill-slot">${statusPill(u)}</span>
       </div>
-      <label class="search-bar">
-        ${ICONS.search}
-        <input id="people-search" type="search" placeholder="${t('searchPeople')}" autocomplete="off" />
-      </label>
+      <div class="gender-filter" role="tablist" aria-label="${t('gender')}">
+        <button type="button" class="gender-chip" role="tab" data-gender="all" aria-selected="${peopleGenderFilter() === 'all' ? 'true' : 'false'}">${t('filterAll')}</button>
+        <button type="button" class="gender-chip" role="tab" data-gender="male" aria-selected="${peopleGenderFilter() === 'male' ? 'true' : 'false'}">${t('male')}</button>
+        <button type="button" class="gender-chip" role="tab" data-gender="female" aria-selected="${peopleGenderFilter() === 'female' ? 'true' : 'false'}">${t('female')}</button>
+      </div>
       <div id="ad-banner" class="ad-banner" hidden></div>
       <div id="user-list" class="user-list"></div>
       </div>
-      <button type="button" class="fab" id="home-fab" aria-label="${t('searchPeople')}">${ICONS.plus}</button>
       ${nav('home')}
       <div id="upgrade-promo" class="upgrade-promo" hidden>
         <div class="upgrade-promo-card" role="dialog" aria-modal="true" aria-labelledby="upgrade-promo-title">
@@ -576,15 +580,17 @@ async function showHome(opts = {}) {
     </section>`;
   bindNav();
   bindMeButton();
-  const search = $('#people-search');
-  if (search) search.addEventListener('input', paintHomeList);
-  const fab = $('#home-fab');
-  if (fab) fab.onclick = () => {
-    if (search) {
-      search.focus();
-      search.scrollIntoView({ block: 'nearest' });
-    }
-  };
+  document.querySelectorAll('.gender-chip').forEach((btn) => {
+    btn.onclick = () => {
+      const next = btn.dataset.gender === 'male' || btn.dataset.gender === 'female' ? btn.dataset.gender : 'all';
+      if (state.peopleGender === next) return;
+      state.peopleGender = next;
+      document.querySelectorAll('.gender-chip').forEach((chip) => {
+        chip.setAttribute('aria-selected', chip.dataset.gender === next ? 'true' : 'false');
+      });
+      loadHome();
+    };
+  });
   startAdBanner();
   await loadHome();
   const startHomeTour = () => {
