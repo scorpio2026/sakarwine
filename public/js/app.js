@@ -172,7 +172,7 @@ function roleMark(user) {
 function statusPill(user) {
   if (user && user.isSpecial) return roleMark(user);
   if (user && remainingPaidParts(user.paidUntil).ms) {
-    return `<span class="pill" id="paid-remain-pill">${t('paid')} · ${escapeHtml(paidCountdownLabel(user.paidUntil))} · ${t('lv', { n: user.level })}</span>`;
+    return `<span class="pill paid-tick" id="paid-remain-pill">${t('paid')} · ${escapeHtml(paidCountdownLabel(user.paidUntil))} · ${t('lv', { n: user.level })}</span>`;
   }
   return `<span class="pill">${user && user.paid ? t('paid') : t('free24h')} · ${t('lv', { n: user.level })}</span>`;
 }
@@ -1420,12 +1420,6 @@ function formatRemain(ms, window) {
   return t('freeLeft', { h, m });
 }
 
-function remainingPaidHours(paidUntil, now = Date.now()) {
-  const until = Number(paidUntil);
-  if (!until || until <= now) return 0;
-  return Math.ceil((until - now) / 3600000);
-}
-
 function remainingPaidParts(paidUntil, now = Date.now()) {
   const until = Number(paidUntil);
   const ms = until > now ? until - now : 0;
@@ -1452,8 +1446,15 @@ function paidStatusText(u, now = Date.now()) {
   const until = u && u.paidUntil;
   const label = paidCountdownLabel(until, now);
   if (!label) return t('notPaidYet');
-  const hours = remainingPaidHours(until, now);
-  return `${t('paidUntil', { when: I18n.formatWhen(until) })} · ${t('paidHoursLeft', { hours })} · ${label}`;
+  return `${label} · ${t('paidUntil', { when: I18n.formatWhen(until) })}`;
+}
+
+function paidStatusHtml(u, now = Date.now()) {
+  if (u && u.isSpecial) return escapeHtml(t('specialChat'));
+  const until = u && u.paidUntil;
+  const label = paidCountdownLabel(until, now);
+  if (!label) return escapeHtml(t('notPaidYet'));
+  return `<span class="paid-tick">${escapeHtml(label)}</span><span class="muted"> · ${escapeHtml(t('paidUntil', { when: I18n.formatWhen(until) }))}</span>`;
 }
 
 function paidPillText(paidUntil, now = Date.now()) {
@@ -1478,7 +1479,7 @@ function tickPaidRemain(paidUntil) {
       return;
     }
     const parts = remainingPaidParts(paidUntil);
-    if (remainEl) remainEl.textContent = paidStatusText({ paidUntil, isSpecial: false });
+    if (remainEl) remainEl.innerHTML = paidStatusHtml({ paidUntil, isSpecial: false });
     if (pillEl) pillEl.textContent = paidPillText(paidUntil);
     if (state.user && !parts.ms) {
       state.user.paid = false;
@@ -1781,7 +1782,7 @@ async function showUpgrade() {
           <p>${t('specialUnlimited')}</p>
           <p class="small muted">${t('loungeBadge')} ${roleMark(state.user)}.</p>
         ` : `
-        ${remainingPaidParts(state.user.paidUntil).ms ? `<p class="small" id="paid-remain">${escapeHtml(paidStatusText(state.user))}</p>` : ''}
+        ${remainingPaidParts(state.user.paidUntil).ms ? `<p class="small" id="paid-remain">${paidStatusHtml(state.user)}</p>` : ''}
         <p class="small muted">${t('upgradeHelp')}</p>
         <div class="field"><label>${t('upgradeTargetId')}</label><input id="acc" value="${state.user.accountId}" autocomplete="off" /></div>
         <p class="small muted">${t('upgradeTargetHelp')}</p>
@@ -1886,7 +1887,7 @@ async function showProfile() {
   if (state.view !== 'profile') return;
   const u = state.user;
   if (!u) return;
-  const paidLine = u.isSpecial ? t('specialChat') : paidStatusText(u);
+  const paidLine = u.isSpecial ? escapeHtml(t('specialChat')) : paidStatusHtml(u);
   const hostCard = u.gender === 'female' && u.isHost ? `
         <div class="glass-card stack" style="margin-top:12px;text-align:left">
           <h3 style="margin:0">${t('hostEarnings')}</h3>
@@ -1924,7 +1925,7 @@ async function showProfile() {
           <div class="me-name">${escapeHtml(u.username)}</div>
           <div class="muted">${escapeHtml(u.accountId || t('idHidden'))}</div>
         </div>
-        <div class="small">${roleMark(u)} · ${genderLabel(u.gender)} · ${t('born', { year: u.birthYear })}<br><span id="paid-remain">${escapeHtml(paidLine)}</span>${u.gender === 'female' && u.occupation ? `<br>${escapeHtml(u.occupation)} · ${Number(u.monthlyIncome || 0).toLocaleString()} MMK` : ''}</div>
+        <div class="small">${roleMark(u)} · ${genderLabel(u.gender)} · ${t('born', { year: u.birthYear })}<br><span id="paid-remain">${paidLine}</span>${u.gender === 'female' && u.occupation ? `<br>${escapeHtml(u.occupation)} · ${Number(u.monthlyIncome || 0).toLocaleString()} MMK` : ''}</div>
         ${u.bio ? `<p class="profile-bio">${escapeHtml(u.bio)}</p>` : ''}
         <div class="me-actions">
           <button type="button" class="btn secondary" id="edit-profile">${t('editProfile')}</button>

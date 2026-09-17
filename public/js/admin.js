@@ -37,13 +37,41 @@ function remainingPaidParts(paidUntil, now = Date.now()) {
   };
 }
 
-function paidHoursLabel(paidUntil) {
-  const parts = remainingPaidParts(paidUntil);
+function paidHoursLabel(paidUntil, now = Date.now()) {
+  const parts = remainingPaidParts(paidUntil, now);
   if (!parts.ms) return '';
-  const hours = Math.ceil(parts.ms / 3600000);
   const m = String(parts.minutes).padStart(2, '0');
   const s = String(parts.seconds).padStart(2, '0');
-  return `${t('paidHoursLeft', { hours })} · ${t('paidCountdown', { h: parts.hours, m, s })}`;
+  return t('paidCountdown', { h: parts.hours, m, s });
+}
+
+function paidRemainLine(paidUntil, now = Date.now()) {
+  const parts = remainingPaidParts(paidUntil, now);
+  if (!parts.ms) return 'Not paid';
+  return `${new Date(paidUntil).toLocaleString()} · ${paidHoursLabel(paidUntil, now)}`;
+}
+
+let paidTick = null;
+function stopPaidTick() {
+  if (paidTick) {
+    clearInterval(paidTick);
+    paidTick = null;
+  }
+}
+
+function startPaidTick(el, paidUntil) {
+  stopPaidTick();
+  if (!el) return;
+  const paint = () => {
+    if (!el.isConnected) {
+      stopPaidTick();
+      return;
+    }
+    el.textContent = paidRemainLine(paidUntil);
+    if (!remainingPaidParts(paidUntil).ms) stopPaidTick();
+  };
+  paint();
+  if (remainingPaidParts(paidUntil).ms) paidTick = setInterval(paint, 1000);
 }
 
 function esc(s) {
@@ -242,10 +270,7 @@ async function bootDash() {
     const a = data.user;
     focusAccountId = a.accountId;
     lookupQ = a.accountId;
-    const hoursLeft = paidHoursLabel(a.paidUntil);
-    const paidLine = remainingPaidParts(a.paidUntil).ms
-      ? `${new Date(a.paidUntil).toLocaleString()} · ${hoursLeft}`
-      : 'Not paid';
+    const paidLine = paidRemainLine(a.paidUntil);
     panel.innerHTML = `
       <div class="row">
         <button data-leave>← All accounts</button>
@@ -266,7 +291,7 @@ async function bootDash() {
           </p>
           ${a.photoUrl ? `<img class="thumb user-ava" src="${a.photoUrl}" alt="" />` : ''}
           <p class="muted">Phone ${esc(a.phone)} · ${esc(a.gender)} · born ${a.birthYear}<br>
-            Level ${a.level} · Paid until ${paidLine}<br>
+            Level ${a.level} · Paid until <span id="admin-paid-remain" class="paid-tick">${esc(paidLine)}</span><br>
             Account ID ${a.accountIdHidden ? 'hidden from lounge' : 'visible to lounge'}
             ${a.hostCode ? `<br>Host code ${esc(a.hostCode)}` : ''}
             ${a.bio ? `<br>Bio: ${esc(a.bio)}` : ''}
@@ -309,7 +334,9 @@ async function bootDash() {
           <p class="muted">Blocked this account: ${data.blockedBy.length ? data.blockedBy.map((u) => esc(u.username)).join(', ') : 'none'}</p>
         </section>
       </div>`;
+    startPaidTick(panel.querySelector('#admin-paid-remain'), a.paidUntil);
     panel.querySelector('[data-leave]').onclick = () => {
+      stopPaidTick();
       focusAccountId = null;
       render();
     };

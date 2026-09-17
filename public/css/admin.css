@@ -285,3 +285,8 @@ audio { width: 100%; max-width: 100%; }
 .admin-lang select, .lang-switch select {
   min-height: 44px;
 }
+.paid-tick {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  font-weight: 700;
+}

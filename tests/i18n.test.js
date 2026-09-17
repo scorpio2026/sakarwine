@@ -126,6 +126,9 @@ test('admin dashboard paints paid accounts green and badges extra upgrades', () 
   assert.match(js, /u\.paidActive \? ' paid-active'/);
   assert.match(js, /u\.extraUpgrade/);
   assert.equal(js.includes('extra-upgrade-badge'), true);
+  assert.match(js, /admin-paid-remain/);
+  assert.match(js, /setInterval\(paint, 1000\)/);
+  assert.equal(js.includes('paidHoursLeft'), false);
 });
 
 test('admin-badge chats block first contact and expose a live gate', () => {
@@ -189,8 +192,10 @@ test('bottom nav has Home, Chat, Group, Profile, and Help — no Upgrade tab', (
   assert.equal(I18n.t('paidCountdown', { h: 12, m: '04', s: '09' }), '12h 04m 09s remaining');
   assert.match(js, /setInterval\(paint, 1000\)/);
   assert.match(js, /paidCountdown/);
-  assert.match(js, /paidHoursLeft/);
+  assert.equal(js.includes('paidHoursLeft'), false);
   assert.match(js, /function bindPaidRemain/);
+  assert.match(js, /function paidStatusHtml/);
+  assert.match(js, /class="paid-tick"/);
   assert.match(js, /id="paid-remain-pill"/);
   assert.match(js, /id="paid-remain"/);
   assert.match(js, /visibilitychange/);

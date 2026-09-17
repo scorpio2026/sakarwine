@@ -64,7 +64,7 @@ Users submit a **target account ID** and a **payment screenshot**. Own ID upgrad
 
 Plans are 1–12 months. **6 months prepaid = 30% off**. **12 months = 50% off**. The monthly amount is configured in `/admin` → Pricing. The upgrade screen shows duration covered and amount due.
 
-Paid members see **remaining subscription time in hours** plus a live **h/m/s countdown** on **Profile / Me**, the Home and Chat status pills, and the upgrade screen. The timer uses the server `paidUntil` expiry timestamp (`paidRemainingHours` on `/api/me`) and ticks every second; pulling the app to the foreground refreshes the timestamp from the server. When the countdown hits zero, the UI returns to the free 24-hour state.
+Paid members see a **live countdown** of remaining subscription time as **hours / minutes / seconds** (ticking every second, not a static hours number) on **Profile / Me**, the Home and Chat status pills, and the upgrade screen. The client timer uses the server `paidUntil` expiry timestamp. Pulling the app to the foreground refreshes that timestamp from `/api/me`. When the countdown hits zero, the UI returns to the free 24-hour state.
 
 While a paid period is still active, that account’s row in `/admin` → Accounts is **green**. After expiry it returns to the normal color. If a still-paid member submits another upgrade, a red **Extra upgrade** badge appears beside their name so admin can spot the additional purchase.
 
