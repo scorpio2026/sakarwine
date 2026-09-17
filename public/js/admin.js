@@ -26,12 +26,6 @@ function money(n, c) {
   return `${Number(n).toLocaleString()} ${c || 'MMK'}`;
 }
 
-function remainingPaidHours(paidUntil, now = Date.now()) {
-  const until = Number(paidUntil);
-  if (!until || until <= now) return 0;
-  return Math.ceil((until - now) / 3600000);
-}
-
 function remainingPaidParts(paidUntil, now = Date.now()) {
   const until = Number(paidUntil);
   const ms = until > now ? until - now : 0;
