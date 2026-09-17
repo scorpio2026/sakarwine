@@ -63,10 +63,13 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   assert.match(css, /#ff4ecd/);
   assert.match(css, /#8b5cff/);
   assert.match(css, /#3d7eff/);
-  assert.match(css, /\.user-row\.gender-male\s*\{[^}]*#2563eb/);
-  assert.match(css, /\.user-row\.gender-female\s*\{[^}]*#ec4899/);
-  assert.match(css, /\.user-row\.gender-male\s*\{[^}]*border:\s*4px solid #2563eb/);
-  assert.match(css, /\.user-row\.gender-female\s*\{[^}]*border:\s*4px solid #ec4899/);
+  assert.match(css, /\.user-row\.gender-male,\s*\.user-row\.gender-female\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(css, /\.user-row\.gender-male\s*\{[^}]*border:\s*1px solid rgba\(37, 99, 235/);
+  assert.match(css, /\.user-row\.gender-female\s*\{[^}]*border:\s*1px solid rgba\(236, 72, 153/);
+  assert.match(css, /\.user-row\.gender-male\s*\{[^}]*0 0 16px rgba\(59, 130, 246/);
+  assert.match(css, /\.user-row\.gender-female\s*\{[^}]*0 0 16px rgba\(236, 72, 153/);
+  assert.equal(/\.user-row\.gender-male\s*\{[^}]*border:\s*4px solid/.test(css), false);
+  assert.equal(/\.user-row\.gender-female\s*\{[^}]*border:\s*4px solid/.test(css), false);
   const js = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
   assert.match(js, /logo-aura/);
   assert.match(js, /gender-female/);
@@ -402,6 +405,27 @@ test('Lv, Host, and Admin chips use frosted glass neon edges', () => {
   assert.match(appJs, /class="badge-lv"/);
   assert.match(appJs, /badge-host/);
   assert.match(appJs, /data-badge="host"/);
+});
+
+test('host earnings profile shows glass host code chip and stacked MMK block', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const js = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
+  const css = fs.readFileSync(path.join(__dirname, '../public/css/app.css'), 'utf8');
+  const profileFn = js.slice(js.indexOf('async function showProfile'), js.indexOf('function settingsRow'));
+  assert.match(profileFn, /host-code-frame/);
+  assert.match(profileFn, /id="host-code-value"/);
+  assert.match(profileFn, /host-balance-block/);
+  assert.match(profileFn, /host-balance-amount/);
+  assert.match(profileFn, /host-balance-meta/);
+  assert.match(profileFn, /hostBalance != null \? u\.hostBalance : u\.hostEarnings/);
+  assert.match(profileFn, /u\.hostCreditAmount \|\| 500/);
+  assert.match(profileFn, /host-balance-meta">\$\{t\('earned'\)\}/);
+  assert.equal(profileFn.includes("span class=\"small muted\"> · ${t('earned')}"), false);
+  assert.match(css, /\.host-code-frame,\s*\.host-balance-block\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(css, /\.host-code-frame,\s*\.host-balance-block\s*\{[^}]*--glass-stroke/);
+  assert.match(css, /\.host-balance-meta\s*\{[^}]*display:\s*block/);
+  assert.match(css, /\.host-code-frame\s*\{[^}]*width:\s*fit-content/);
 });
 
 test('settings PIN change is translated and separate from Help recovery', () => {

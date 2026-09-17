@@ -2092,12 +2092,17 @@ async function showProfile() {
   if (!u) return;
   const paidLine = u.isSpecial ? escapeHtml(t('specialChat')) : paidStatusHtml(u);
   const hostCard = u.gender === 'female' && u.isHost ? `
-        <div class="glass-card stack" style="margin-top:12px;text-align:left">
+        <div class="glass-card stack host-earnings-card" style="margin-top:12px;text-align:left">
           <h3 style="margin:0">${t('hostEarnings')}</h3>
           <p class="small muted">${escapeHtml(hostStatusLine(u))}</p>
-          ${u.hostCode ? `<p><span class="small muted">${t('hostCode')}</span><br><strong id="host-code-value">${escapeHtml(u.hostCode)}</strong></p>` : ''}
-          <p><strong>${Number(u.hostBalance != null ? u.hostBalance : u.hostEarnings || 0).toLocaleString()} MMK</strong> ${t('available')}
-            <span class="small muted"> · ${t('earned')} ${Number(u.hostEarnings || 0).toLocaleString()} · ${Number(u.hostCreditAmount || 500).toLocaleString()} × ${t('perVisitor')}</span></p>
+          ${u.hostCode ? `<div class="host-code-frame">
+            <span class="host-code-label">${t('hostCode')}</span>
+            <strong id="host-code-value" class="host-code-digits">${escapeHtml(u.hostCode)}</strong>
+          </div>` : ''}
+          <div class="host-balance-block">
+            <p class="host-balance-amount"><strong>${Number(u.hostBalance != null ? u.hostBalance : u.hostEarnings || 0).toLocaleString()} MMK</strong> ${t('available')}</p>
+            <p class="host-balance-meta">${t('earned')} ${Number(u.hostEarnings || 0).toLocaleString()} · ${Number(u.hostCreditAmount || 500).toLocaleString()} × ${t('perVisitor')}</p>
+          </div>
           <p class="small muted">${t('hostRules')}</p>
           ${(u.hostIncomeLedger || []).length
             ? `<div class="ledger">${u.hostIncomeLedger.map((row) => `<div class="ledger-row">+${row.amount} · ${escapeHtml(row.partner.username)} · ${t('lv', { n: row.partner.level })} · ${I18n.formatWhen(row.createdAt)}</div>`).join('')}</div>`
@@ -2228,7 +2233,10 @@ function showHostApply() {
         <div class="glass-card stack" style="text-align:left">
           <p class="small muted">${escapeHtml(hostStatusLine(u))}</p>
           <p class="small muted">${t('hostApplyHelp')}</p>
-          ${u.hostCode ? `<p><span class="small muted">${t('hostCode')}</span><br><strong>${escapeHtml(u.hostCode)}</strong></p>` : ''}
+          ${u.hostCode ? `<div class="host-code-frame">
+            <span class="host-code-label">${t('hostCode')}</span>
+            <strong class="host-code-digits">${escapeHtml(u.hostCode)}</strong>
+          </div>` : ''}
           ${incomeDemoBlock()}
           ${u.hostStatus === 'pending' ? `<p class="small muted">${t('hostPending')}</p>` : ''}
           ${canApply ? `
