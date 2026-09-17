@@ -36,7 +36,6 @@ const ICONS = {
   block: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M7 7l10 10"/></svg>`,
   trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 7h14M10 7V5h4v2M8 7l1 12h6l1-12"/></svg>`,
   gear: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z"/></svg>`,
-  lang: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c3 3.2 3 12.8 0 16M12 4c-3 3.2-3 12.8 0 16"/></svg>`,
   chevron: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 6l6 6-6 6"/></svg>`
 };
 
@@ -529,6 +528,7 @@ function showRegister() {
         <h2>${t('joinTitle')}</h2>
       </div>
       <form id="reg" class="glass-card auth-card" style="overflow:auto">
+        ${I18n.switcherHtml('lang-switch')}
         <label class="photo-pick">
           <input class="hidden-file" type="file" name="photo" accept="image/*" required />
           <div id="photo-preview" class="avatar ai">📷</div>
@@ -556,6 +556,7 @@ function showRegister() {
       </form>
     </section>`;
   $('#back').onclick = showWelcome;
+  I18n.bindSwitcher('lang-switch');
   const pick = $('input[name=photo]');
   pick.onchange = () => {
     const f = pick.files[0];
@@ -1579,43 +1580,7 @@ function tickPaidRemain(paidUntil, freeUntil) {
   }
 }
 
-function promptChatLang(c, opts = {}) {
-  if (!c) return;
-  if (!opts.force && !c.askViewLang) return;
-  if (!opts.force && c._askedViewLang) return;
-  c._askedViewLang = true;
-  const current = c.viewLang || I18n.lang;
-  const choices = I18n.LANGS.map((l) =>
-    `<button type="button" class="lang-choice ${l.code === current ? 'on' : ''}" data-lang="${l.code}">${l.native}</button>`
-  ).join('');
-  modal(`
-    <h3 style="margin-top:0">${t('chooseChatLang')}</h3>
-    <p class="small muted">${t('chatLangHint', { name: escapeHtml(c.peer.username) })}</p>
-    <div class="lang-choices">${choices}</div>
-    <button class="btn block" id="use-chat-lang">${t('useThisLang')}</button>`);
-  let picked = current;
-  modalEl.querySelectorAll('.lang-choice').forEach((btn) => {
-    btn.onclick = () => {
-      picked = btn.dataset.lang;
-      modalEl.querySelectorAll('.lang-choice').forEach((b) => b.classList.toggle('on', b === btn));
-    };
-  });
-  $('#use-chat-lang').onclick = async () => {
-    try {
-      const data = await api(`/api/conversations/${c.id}/view-lang`, { method: 'PUT', json: { lang: picked } });
-      c.viewLang = data.viewLang;
-      c.askViewLang = false;
-      if (data.messages) c.messages = data.messages;
-      closeModal();
-      renderChat();
-    } catch (e) {
-      toastErr(e);
-    }
-  };
-}
-
 function renderChat(opts = {}) {
-  state.view = 'chat';
   const c = state.chat;
   const expired = c.window.expired;
   const gate = c.adminGate || {};
@@ -1640,7 +1605,6 @@ function renderChat(opts = {}) {
           <div class="sub">${escapeHtml(chatSub)}</div>
         </div>
         <div class="chat-actions">
-          <button class="chat-tool" id="chat-lang" title="${t('changeChatLang')}" aria-label="${t('changeChatLang')}">${ICONS.lang}</button>
           ${c.peer.isAi ? '' : `${c.peer.isAdmin || c.peer.blockable === false ? '' : `<button class="chat-tool" id="block" title="${t('blockBtn')}" aria-label="${t('blockBtn')}">${ICONS.block}</button>`}
           ${state.user.isAdmin && !c.peer.isAi ? `<button class="chat-tool" id="toggle-msg" title="${gate.messagingOpen === false ? t('reopenMessaging') : t('closeMessaging')}">${gate.messagingOpen === false ? t('reopenMessaging') : t('closeMessaging')}</button>` : ''}
           <button class="chat-tool" id="delete-chat" title="${t('deleteForMe')}" aria-label="${t('deleteForMe')}">${ICONS.trash}</button>`}
@@ -1692,7 +1656,6 @@ function renderChat(opts = {}) {
       box.innerHTML = renderThread(c.messages);
     }
   };
-  if ($('#chat-lang')) $('#chat-lang').onclick = () => promptChatLang(c, { force: true });
   if ($('#toggle-msg')) {
     $('#toggle-msg').onclick = async () => {
       try {
@@ -1861,7 +1824,6 @@ function renderChat(opts = {}) {
     }
   };
   }
-  if (c.askViewLang && !c.peer.isAi) promptChatLang(c);
   if (opts.fromTour) {
     setTimeout(() => {
       const steps = c.peer.isAi

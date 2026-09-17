@@ -310,6 +310,16 @@ body:has(.auth-screen) {
   color: var(--auth-ink);
   border: 1px solid rgba(255, 255, 255, 0.16);
 }
+.auth-card .lang-switch {
+  margin: 0 0 10px;
+  padding: 0;
+}
+.auth-card .lang-switch span { color: rgba(237, 233, 254, 0.72); }
+.auth-card .lang-switch select {
+  background: rgba(8, 6, 16, 0.55);
+  color: var(--auth-ink);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
 .welcome-card .btn.block { border-radius: 14px; }
 .welcome-login-btn,
 .welcome-card #login-btn {
@@ -2247,26 +2257,6 @@ button:disabled, .btn:disabled, .icon-btn:disabled, .chat-tool:disabled, .chat-s
 .settings-screen .nav {
   position: relative;
   z-index: 8;
-}
-.lang-choices {
-  display: grid;
-  gap: 8px;
-  margin: 12px 0;
-}
-.lang-choice {
-  border: 1px solid var(--stroke);
-  background: rgba(8, 6, 16, 0.45);
-  border-radius: 14px;
-  min-height: var(--tap);
-  font: inherit;
-  font-weight: 800;
-  color: var(--ink);
-  cursor: pointer;
-}
-.lang-choice:active, .lang-choice.on {
-  border-color: var(--green);
-  background: var(--surface);
-  color: var(--green-deep);
 }
 
 @media (max-width: 399px) {
