@@ -689,6 +689,20 @@ body:has(.auth-screen) {
     0 0 0 3px rgba(236, 72, 153, 0.38),
     0 0 12px rgba(236, 72, 153, 0.36);
 }
+.row-ava {
+  position: relative;
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+}
+.row-ava .avatar {
+  width: 52px;
+  height: 52px;
+}
+.row-ava .ava-on {
+  right: 1px;
+  bottom: 1px;
+}
 .avatar {
   width: 52px;
   height: 52px;
@@ -1292,7 +1306,7 @@ body:has(.auth-screen) {
   background: rgba(237, 233, 254, 0.28);
   border: 2px solid var(--sw-deep);
 }
-.ava-on.on { background: var(--ok); }
+.ava-on.on { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
 
 .chat-screen {
   padding: 0;
@@ -2263,7 +2277,9 @@ button:disabled, .btn:disabled, .icon-btn:disabled, .chat-tool:disabled, .chat-s
   .row-2 { grid-template-columns: 1fr; }
   .brand-lockup h1 { font-size: 1.7rem; }
   .logo-3d { width: 72px; height: 72px; border-radius: 22px; }
-  .user-row .avatar { width: 48px; height: 48px; }
+  .user-row .avatar,
+  .row-ava,
+  .row-ava .avatar { width: 48px; height: 48px; }
   .user-row.gender-male,
   .user-row.gender-female { border-width: 1px; }
   .composer { gap: 6px; }

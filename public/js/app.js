@@ -252,6 +252,24 @@ function roleMark(user) {
   return core;
 }
 
+function hasRoleTag(user) {
+  if (!user) return false;
+  if (user.isAi || user.isAdmin || user.isHost || user.isSpecial) return true;
+  return Boolean(String(user.badge || '').trim());
+}
+
+function presenceDotHtml(user) {
+  if (hasRoleTag(user)) return '';
+  const on = Boolean(user && user.online);
+  const label = on ? t('onlineNow') : t('offline');
+  return `<span class="ava-on${on ? ' on' : ''}" role="img" aria-label="${escapeHtml(label)}"></span>`;
+}
+
+function rowAvatarHtml(user) {
+  if (!user) return '';
+  return `<span class="row-ava">${avatarHtml(user)}${presenceDotHtml(user)}</span>`;
+}
+
 function statusPill(user) {
   if (user && user.isAi) return roleMark(user);
   if (user && user.isSpecial) return roleMark(user);
@@ -709,15 +727,17 @@ function paintHomeList() {
   if (!list) return;
   const gender = peopleGenderFilter();
   const users = (state.users || []).filter((u) => gender === 'all' || u.gender === gender);
-  list.innerHTML = users.map((u) => `
+  list.innerHTML = users.map((u) => {
+    const sub = u.blocked ? `<div class="sub">${escapeHtml(t('blocked'))}</div>` : '';
+    return `
     <div class="user-row ${u.isAi ? '' : (u.gender === 'female' ? 'gender-female' : 'gender-male')}" data-id="${u.id}">
-      ${avatarHtml(u)}
+      ${rowAvatarHtml(u)}
       <div class="meta">
         <div class="name">${escapeHtml(u.username)} ${roleMark(u)}</div>
-        <div class="sub">${u.online ? t('onlineNow') : t('offline')} · ${genderLabel(u.gender)}${u.blocked ? ' · ' + t('blocked') : ''}</div>
+        ${sub}
       </div>
-      <span class="when">${u.online ? t('onlineNow') : ''}</span>
-    </div>`).join('') || `<p class="settings-empty">${t('noPeople')}</p>`;
+    </div>`;
+  }).join('') || `<p class="settings-empty">${t('noPeople')}</p>`;
   list.querySelectorAll('.user-row').forEach((row) => {
     row.onclick = () => openChat(Number(row.dataset.id), { from: 'home' });
   });
@@ -2500,10 +2520,9 @@ async function showBlocked() {
     }
     box.innerHTML = data.users.map((u) => `
       <div class="user-row blocked-row" data-id="${u.id}">
-        ${avatarHtml(u, 'round')}
+        ${rowAvatarHtml(u)}
         <div class="meta">
           <div class="name">${escapeHtml(u.username)}</div>
-          <div class="sub">${u.online ? t('onlineNow') : t('offline')} · ${escapeHtml(genderLabel(u.gender))}</div>
         </div>
         <button type="button" class="btn secondary unblock" data-unblock="${u.id}">${t('unblock')}</button>
       </div>`).join('');
