@@ -108,6 +108,7 @@ async function api(path, opts = {}) {
 
 function mastheadHtml() {
   return `<header class="app-masthead" role="banner">
+    <span class="logo-aura" aria-hidden="true"></span>
     <img class="masthead-logo" src="/assets/sakarwine-logo.png" alt="SAKARWINE" />
   </header>`;
 }
@@ -306,7 +307,10 @@ function showWelcome() {
   app.innerHTML = `
     <section class="screen welcome-screen">
       <div class="welcome-hero">
-        <img class="brand-logo" src="/assets/sakarwine-logo.png" alt="${name}" />
+        <div class="brand-lockup">
+          <span class="logo-aura" aria-hidden="true"></span>
+          <img class="brand-logo" src="/assets/sakarwine-logo.png" alt="${name}" />
+        </div>
         <h1>${name}</h1>
         <svg class="hero-wave" viewBox="0 0 375 56" preserveAspectRatio="none" aria-hidden="true">
           <path d="M0 24C62 52 118 4 188 24C248 42 312 8 375 26V56H0Z" fill="#ffffff"/>
@@ -458,10 +462,7 @@ function showScan() {
 
 function nav(active) {
   return `
-    <nav class="nav">
-      <button data-go="home" class="${active === 'home' ? 'active' : ''}"><span class="icon-btn">${ICONS.people}</span>${t('navPeople')}</button>
-      <button data-go="upgrade" class="${active === 'upgrade' ? 'active' : ''}"><span class="icon-btn">${ICONS.gem}</span>${t('navUpgrade')}</button>
-      <button data-go="profile" class="${active === 'profile' ? 'active' : ''}"><span class="icon-btn">${ICONS.me}</span>${t('navMe')}</button>
+    <nav class="nav nav-help-only">
       <button data-go="help" class="${active === 'help' ? 'active' : ''}"><span class="icon-btn">${ICONS.chat}</span>${t('navHelp')}</button>
     </nav>`;
 }
@@ -470,9 +471,6 @@ function bindNav() {
   document.querySelectorAll('.nav [data-go]').forEach((b) => {
     b.onclick = () => {
       const go = b.dataset.go;
-      if (go === 'home') showHome();
-      if (go === 'upgrade') showUpgrade();
-      if (go === 'profile') showProfile();
       if (go === 'help') showHelp(true);
     };
   });
@@ -546,6 +544,7 @@ async function showHome(opts = {}) {
       ${mastheadHtml()}
       <div class="screen-body">
       <div class="topbar">
+        <button type="button" class="home-me" id="goto-me" aria-label="${t('navMe')}">${avatarHtml(u, 'round home-me-ava')}</button>
         <h2 id="home-title">${t('contactsTitle')}</h2>
         <span class="pill-slot">${statusPill(u)}</span>
       </div>
@@ -560,6 +559,8 @@ async function showHome(opts = {}) {
       ${nav('home')}
     </section>`;
   bindNav();
+  const meBtn = $('#goto-me');
+  if (meBtn) meBtn.onclick = showProfile;
   const search = $('#people-search');
   if (search) search.addEventListener('input', paintHomeList);
   const fab = $('#home-fab');
@@ -1197,6 +1198,7 @@ function showProfile() {
         <div class="me-actions">
           <button type="button" class="btn secondary" id="edit-profile">${t('editProfile')}</button>
           <button type="button" class="btn secondary" id="open-settings-row">${t('settings')}</button>
+          ${u.isSpecial ? '' : `<button type="button" class="btn secondary" id="goto-upgrade">${t('navUpgrade')}</button>`}
         </div>
       </div>
       ${hostCard}
@@ -1207,6 +1209,7 @@ function showProfile() {
   $('#open-settings').onclick = showSettings;
   $('#open-settings-row').onclick = showSettings;
   $('#edit-profile').onclick = showEditProfile;
+  if ($('#goto-upgrade')) $('#goto-upgrade').onclick = showUpgrade;
   if ($('#go-host-apply')) $('#go-host-apply').onclick = showHostApply;
   if ($('#withdraw') && !$('#withdraw').disabled) {
     $('#withdraw').onclick = () => {
@@ -1392,6 +1395,7 @@ function showSettings() {
         </div>
         <div class="settings-list">
           ${settingsRow('go-edit', ICONS.me, t('editProfile'))}
+          ${settingsRow('go-pin', ICONS.gem, t('changePin'))}
           ${settingsRow('go-blocked', ICONS.block, t('blockedList'))}
           ${state.user && state.user.gender === 'female' ? settingsRow('go-host', ICONS.gem, t('applyHost')) : ''}
         </div>
@@ -1411,6 +1415,7 @@ function showSettings() {
     </section>`;
   $('#back').onclick = showProfile;
   $('#go-edit').onclick = showEditProfile;
+  $('#go-pin').onclick = showChangePin;
   $('#go-blocked').onclick = showBlocked;
   if ($('#go-host')) $('#go-host').onclick = showHostApply;
   $('#logout').onclick = doLogout;
@@ -1426,6 +1431,48 @@ function showSettings() {
       }
     };
   }
+}
+
+function showChangePin() {
+  state.view = 'change-pin';
+  app.innerHTML = `
+    <section class="screen settings-screen">
+      <div class="screen-body">
+        <div class="topbar">
+          <button type="button" class="icon-btn" id="back" aria-label="${t('back')}">${ICONS.back}</button>
+          <h2>${t('changePin')}</h2>
+        </div>
+        <div class="glass-card stack" style="text-align:left">
+          <p class="small muted">${t('changePinHelp')}</p>
+          <form id="pin-change-form" class="stack">
+            <div class="field"><label for="pin-cur">${t('currentPin')}</label><input id="pin-cur" type="password" inputmode="numeric" maxlength="6" autocomplete="current-password" required /></div>
+            <div class="field"><label for="pin-new">${t('newPin')}</label><input id="pin-new" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" required /></div>
+            <div class="field"><label for="pin-confirm">${t('confirmPin')}</label><input id="pin-confirm" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" required /></div>
+            <button type="submit" class="btn block" id="pin-save">${t('changePin')}</button>
+          </form>
+        </div>
+      </div>
+    </section>`;
+  $('#back').onclick = showSettings;
+  $('#pin-change-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const currentPin = $('#pin-cur').value.trim();
+    const newPin = $('#pin-new').value.trim();
+    const confirmPin = $('#pin-confirm').value.trim();
+    if (!/^\d{6}$/.test(currentPin) || !/^\d{6}$/.test(newPin)) return toast(t('errPin'));
+    if (newPin !== confirmPin) return toast(t('errPinMismatch'));
+    const btn = $('#pin-save');
+    btn.disabled = true;
+    try {
+      await api('/api/me/pin', { method: 'POST', json: { currentPin, newPin, confirmPin } });
+      toast(t('pinChanged'));
+      showSettings();
+    } catch (err) {
+      toastErr(err);
+    } finally {
+      btn.disabled = false;
+    }
+  };
 }
 
 function showEditProfile() {

@@ -1015,6 +1015,32 @@ app.put(
   }
 );
 
+app.post(
+  '/api/me/pin',
+  requireUser,
+  requireActive,
+  rateLimit({ windowMs: 10 * 60 * 1000, max: 8, name: 'pin-change' }),
+  (req, res) => {
+    const currentPin = String((req.body && req.body.currentPin) || '');
+    const newPin = String((req.body && req.body.newPin) || '');
+    const confirmPin = String((req.body && req.body.confirmPin) || '');
+    if (!/^\d{6}$/.test(currentPin) || !bcrypt.compareSync(currentPin, req.user.password_hash)) {
+      return res.status(400).json({ error: 'Current PIN is wrong.' });
+    }
+    if (!/^\d{6}$/.test(newPin)) {
+      return res.status(400).json({ error: 'New password must be exactly 6 digits.' });
+    }
+    if (newPin !== confirmPin) {
+      return res.status(400).json({ error: 'New PIN and confirmation do not match.' });
+    }
+    if (newPin === currentPin) {
+      return res.status(400).json({ error: 'Choose a different 6-digit PIN.' });
+    }
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(bcrypt.hashSync(newPin, 10), req.user.id);
+    res.json({ ok: true });
+  }
+);
+
 app.post('/api/me/liveness', requireUser, (req, res) => {
   const left = Boolean(req.body.left);
   const right = Boolean(req.body.right);

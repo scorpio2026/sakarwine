@@ -491,6 +491,37 @@ test('settings: members can edit display profile and manage blocked list, not PI
   });
   assert.equal(pinChanged.res.status, 401);
 
+  const pinBad = await req('/api/me/pin', {
+    method: 'POST',
+    json: { currentPin: '000000', newPin: '654321', confirmPin: '654321' },
+    jar: member.jar
+  });
+  assert.equal(pinBad.res.status, 400);
+  const pinMismatch = await req('/api/me/pin', {
+    method: 'POST',
+    json: { currentPin: '121212', newPin: '654321', confirmPin: '111111' },
+    jar: member.jar
+  });
+  assert.equal(pinMismatch.res.status, 400);
+  const pinOk = await req('/api/me/pin', {
+    method: 'POST',
+    json: { currentPin: '121212', newPin: '654321', confirmPin: '654321' },
+    jar: member.jar
+  });
+  assert.equal(pinOk.res.status, 200, pinOk.data.error);
+  const loginNew = await req('/api/login', {
+    method: 'POST',
+    json: { username: hijack.data.user.username, password: '654321' },
+    jar: cookieJar()
+  });
+  assert.equal(loginNew.res.status, 200, loginNew.data.error);
+  const loginOld = await req('/api/login', {
+    method: 'POST',
+    json: { username: hijack.data.user.username, password: '121212' },
+    jar: cookieJar()
+  });
+  assert.equal(loginOld.res.status, 401);
+
   const clash = await req('/api/me/profile', {
     method: 'PUT',
     json: { username: taken },

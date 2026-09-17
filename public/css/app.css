@@ -112,9 +112,49 @@ body {
 }
 .screen-body > .glass-card { min-height: auto; flex-shrink: 0; }
 
+.app-masthead {
+  flex-shrink: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: -6px -14px 8px;
+  padding: 10px 16px 12px;
+  overflow: hidden;
+  background: transparent;
+}
 .brand-lockup {
   text-align: center;
+  position: relative;
   padding: 12px 0 8px;
+}
+.logo-aura {
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  top: 18%;
+  bottom: 18%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff8a3d, #ff4ecd, #8b5cff, #3d7eff, #ff8a3d);
+  background-size: 280% 100%;
+  filter: blur(16px);
+  opacity: 0.28;
+  animation: logo-drift 16s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+.masthead-logo,
+.brand-lockup .brand-logo {
+  position: relative;
+  z-index: 1;
+}
+@keyframes logo-drift {
+  0% { background-position: 0% 50%; opacity: 0.2; }
+  50% { background-position: 100% 50%; opacity: 0.34; }
+  100% { background-position: 0% 50%; opacity: 0.2; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .logo-aura { animation: none; opacity: 0.22; }
 }
 .brand-logo {
   display: block;
@@ -127,15 +167,6 @@ body {
 .welcome-hero .brand-logo {
   width: min(86%, 320px);
   filter: drop-shadow(0 8px 18px rgba(0, 20, 12, 0.18));
-}
-.app-masthead {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: -6px -14px 8px;
-  padding: 6px 16px 8px;
-  background: transparent;
 }
 .masthead-logo {
   display: block;
@@ -510,6 +541,13 @@ body {
   backdrop-filter: blur(18px);
   border-top: 1px solid rgba(16, 64, 48, 0.06);
 }
+.nav.nav-help-only {
+  grid-template-columns: 1fr;
+}
+.nav.nav-help-only button {
+  max-width: 168px;
+  margin: 0 auto;
+}
 .nav button {
   border: 0;
   background: transparent;
@@ -531,6 +569,20 @@ body {
 .nav button.active .icon-btn {
   background: linear-gradient(145deg, var(--hero-a), var(--hero-b));
   color: #fff;
+}
+.home-me {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.home-me-ava {
+  width: 36px;
+  height: 36px;
 }
 
 .chat-head {
