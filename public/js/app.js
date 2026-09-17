@@ -238,9 +238,9 @@ function roleMark(user) {
 function statusPill(user) {
   if (user && user.isSpecial) return roleMark(user);
   if (user && remainingPaidParts(user.paidUntil).ms) {
-    return `<span class="pill paid-tick" id="paid-remain-pill">${t('paid')} · ${escapeHtml(paidCountdownLabel(user.paidUntil))} · ${t('lv', { n: user.level })}</span>`;
+    return `<span class="pill paid-tick" id="paid-remain-pill">${t('paid')} · ${escapeHtml(paidCountdownLabel(user.paidUntil))} · <span class="badge-lv">${t('lv', { n: user.level })}</span></span>`;
   }
-  return `<span class="pill">${t('lv', { n: user && user.level })}</span>`;
+  return `<span class="badge-lv">${t('lv', { n: user && user.level })}</span>`;
 }
 
 function bindPaidRemain() {
@@ -1549,9 +1549,9 @@ function paidStatusHtml(u, now = Date.now()) {
 }
 
 function paidPillText(paidUntil, now = Date.now()) {
-  const lv = t('lv', { n: (state.user && state.user.level) || 0 });
+  const lv = `<span class="badge-lv">${escapeHtml(t('lv', { n: (state.user && state.user.level) || 0 }))}</span>`;
   const label = paidCountdownLabel(paidUntil, now);
-  return label ? `${t('paid')} · ${label} · ${lv}` : lv;
+  return label ? `${escapeHtml(t('paid'))} · ${escapeHtml(label)} · ${lv}` : lv;
 }
 
 function tickPaidRemain(paidUntil, freeUntil) {
@@ -1572,7 +1572,7 @@ function tickPaidRemain(paidUntil, freeUntil) {
     const paidParts = remainingPaidParts(paidUntil);
     const freeParts = remainingPaidParts(freeUntil);
     if (remainEl) remainEl.innerHTML = paidStatusHtml({ paidUntil, freeUntil, isSpecial: false });
-    if (pillEl) pillEl.textContent = paidPillText(paidUntil);
+    if (pillEl) pillEl.innerHTML = paidPillText(paidUntil);
     if (state.user && !paidParts.ms) {
       state.user.paid = false;
       state.user.paidRemainingHours = 0;
@@ -1952,9 +1952,9 @@ function hostStatusLine(u) {
 
 function incomeDemoBlock() {
   const slots = [
-    { key: 'apply', src: '/uploads/host-demo-apply.mp4', title: t('hostDemoApply') },
-    { key: 'code', src: '/uploads/host-demo-code.mp4', title: t('hostDemoCode') },
-    { key: 'income', src: '/uploads/host-demo-income.mp4', title: t('hostDemoIncome') }
+    { key: 'apply', img: '/demo/host-demo-apply.png', src: '/uploads/host-demo-apply.mp4', title: t('hostDemoApply') },
+    { key: 'code', img: '/demo/host-demo-code.png', src: '/uploads/host-demo-code.mp4', title: t('hostDemoCode') },
+    { key: 'income', img: '/demo/host-demo-income.png', src: '/uploads/host-demo-income.mp4', title: t('hostDemoIncome') }
   ];
   return `
     <div class="income-demo">
@@ -1964,11 +1964,12 @@ function incomeDemoBlock() {
       <div class="host-guide-videos">
         <div class="host-guide-kicker">${t('hostDemoTitle')}</div>
         <div class="host-guide-tabs" role="tablist" aria-label="${t('hostDemoTitle')}">
-          ${slots.map((s, i) => `<button type="button" class="host-guide-tab" role="tab" data-guide-src="${escapeHtml(s.src)}" data-guide-title="${escapeHtml(s.title)}" aria-selected="${i === 0 ? 'true' : 'false'}">${escapeHtml(s.title)}</button>`).join('')}
+          ${slots.map((s, i) => `<button type="button" class="host-guide-tab" role="tab" data-guide-img="${escapeHtml(s.img)}" data-guide-src="${escapeHtml(s.src)}" data-guide-title="${escapeHtml(s.title)}" aria-selected="${i === 0 ? 'true' : 'false'}">${escapeHtml(s.title)}</button>`).join('')}
         </div>
         <div class="host-guide-stage">
+          <img class="host-guide-img" id="host-guide-img" src="${escapeHtml(slots[0].img)}" alt="${escapeHtml(slots[0].title)}" />
           <video class="host-guide-video" id="host-guide-video" controls playsinline preload="metadata" hidden></video>
-          <div class="host-guide-ph" id="host-guide-ph">
+          <div class="host-guide-ph" id="host-guide-ph" hidden>
             <strong id="host-guide-ph-title">${escapeHtml(slots[0].title)}</strong>
             <span>${t('hostDemoPlaceholder')}</span>
           </div>
@@ -1980,25 +1981,65 @@ function incomeDemoBlock() {
 function bindHostGuideVideos() {
   const tabs = document.querySelectorAll('.host-guide-tab');
   const video = $('#host-guide-video');
+  const img = $('#host-guide-img');
   const ph = $('#host-guide-ph');
   const phTitle = $('#host-guide-ph-title');
-  if (!tabs.length || !video || !ph) return;
+  if (!tabs.length || !ph) return;
+  let gen = 0;
+  const showImageOrPlaceholder = (imgSrc) => {
+    if (video) video.hidden = true;
+    if (imgSrc && img) {
+      img.hidden = false;
+      ph.hidden = true;
+    } else {
+      if (img) img.hidden = true;
+      ph.hidden = false;
+    }
+  };
   const show = (tab) => {
+    const my = ++gen;
     tabs.forEach((btn) => btn.setAttribute('aria-selected', btn === tab ? 'true' : 'false'));
     const title = tab.dataset.guideTitle || '';
     const src = tab.dataset.guideSrc || '';
+    const imgSrc = tab.dataset.guideImg || '';
     if (phTitle) phTitle.textContent = title;
-    ph.hidden = false;
+    if (img) {
+      img.alt = title;
+      img.onerror = () => {
+        if (my !== gen) return;
+        img.hidden = true;
+        if (!video || video.hidden) ph.hidden = false;
+      };
+      img.onload = () => {
+        if (my !== gen) return;
+        if (video && !video.hidden) return;
+        img.hidden = false;
+        ph.hidden = true;
+      };
+      if (img.getAttribute('src') !== imgSrc) img.src = imgSrc;
+      else if (img.complete && img.naturalWidth) {
+        img.hidden = false;
+        ph.hidden = true;
+      }
+    }
+    showImageOrPlaceholder(imgSrc);
+    if (!video) return;
+    video.onloadeddata = null;
+    video.onerror = null;
     video.hidden = true;
     video.removeAttribute('src');
     video.load();
+    if (!src) return;
     video.onloadeddata = () => {
+      if (my !== gen) return;
+      if (img) img.hidden = true;
       ph.hidden = true;
       video.hidden = false;
     };
     video.onerror = () => {
+      if (my !== gen) return;
       video.hidden = true;
-      ph.hidden = false;
+      showImageOrPlaceholder(imgSrc);
     };
     video.src = src;
   };

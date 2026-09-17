@@ -1110,6 +1110,21 @@ test('paid members can create groups; invites accept and decline', async () => {
   assert.equal(seekerSend.res.status, 200, seekerSend.data.error);
 });
 
+test('host apply sample guide images are served from /demo', async () => {
+  await started;
+  for (const kind of ['apply', 'code', 'income']) {
+    const res = await fetch(`${base}/demo/host-demo-${kind}.png`);
+    assert.equal(res.status, 200);
+    assert.match(String(res.headers.get('content-type') || ''), /image\/png/i);
+    const buf = Buffer.from(await res.arrayBuffer());
+    assert.ok(buf.length > 1000, kind);
+    assert.equal(buf[0], 0x89);
+    assert.equal(buf[1], 0x50);
+  }
+  const missing = await fetch(`${base}/uploads/host-demo-apply.mp4`);
+  assert.equal(missing.status, 404);
+});
+
 test('female registration matches male; host apply is later from Settings', async () => {
   await started;
   const jar = cookieJar();

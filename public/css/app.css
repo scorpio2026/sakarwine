@@ -1310,16 +1310,23 @@ body.is-maintenance #tour {
 .center { text-align: center; }
 .stack { display: grid; gap: 10px; }
 .badge-lv {
+  display: inline-block;
   font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
   padding: 2px 7px;
   border-radius: 999px;
-  background-image: linear-gradient(90deg, #5dffb0, #7dfff6, #c8ff4e, #5dffb0);
+  border: 1px solid #047857;
+  color: #fff;
+  -webkit-text-fill-color: #fff;
+  background-color: #047857;
+  background-image: linear-gradient(90deg, #047857, #0f766e, #4d7c0f, #047857);
   background-size: 280% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
   animation: neon-run 2.2s linear infinite;
-  filter: drop-shadow(0 0 4px #5dffb0) drop-shadow(0 0 8px #7dfff6);
+  filter: none;
+  text-shadow: none;
+  box-shadow: none;
+  vertical-align: middle;
 }
 .badge-neon {
   display: inline-block;
@@ -1327,35 +1334,40 @@ body.is-maintenance #tour {
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  padding: 1px 2px;
-  background: linear-gradient(90deg, #ff4ecd, #7dfff6, #d4ff4a, #ffb347, #8b5cff, #ff4ecd);
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid #9d174d;
+  color: #fff;
+  -webkit-text-fill-color: #fff;
+  background-color: #be185d;
+  background-image: linear-gradient(90deg, #be185d, #0f766e, #4d7c0f, #c2410c, #6d28d9, #be185d);
   background-size: 280% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
   animation: neon-run 2.2s linear infinite;
-  filter: drop-shadow(0 0 4px #ff4ecd) drop-shadow(0 0 8px #7dfff6);
+  filter: none;
+  text-shadow: none;
+  box-shadow: none;
+  vertical-align: middle;
 }
 .badge-neon[data-badge="Admin"] {
-  background-image: linear-gradient(90deg, #ff4ecd, #ff71c2, #7dfff6, #ff4ecd);
-  filter: drop-shadow(0 0 5px #ff4ecd) drop-shadow(0 0 10px #7dfff6);
+  border-color: #9d174d;
+  background-image: linear-gradient(90deg, #be185d, #db2777, #0e7490, #be185d);
 }
 .badge-neon[data-badge="officer"] {
-  background-image: linear-gradient(90deg, #ffe566, #ff9f1c, #fff1a8, #ffe566);
-  filter: drop-shadow(0 0 5px #ffb347) drop-shadow(0 0 10px #ffe566);
+  border-color: #92400e;
+  background-image: linear-gradient(90deg, #b45309, #ca8a04, #a16207, #b45309);
 }
 .badge-neon[data-badge="sponsor"] {
-  background-image: linear-gradient(90deg, #5dffb0, #7dfff6, #c8ff4e, #5dffb0);
-  filter: drop-shadow(0 0 5px #5dffb0) drop-shadow(0 0 10px #7dfff6);
+  border-color: #047857;
+  background-image: linear-gradient(90deg, #047857, #0f766e, #4d7c0f, #047857);
 }
 .badge-neon[data-badge="VVIP"] {
-  background-image: linear-gradient(90deg, #c77dff, #ff4ecd, #ffe566, #c77dff);
-  filter: drop-shadow(0 0 6px #c77dff) drop-shadow(0 0 12px #ff4ecd);
+  border-color: #6b21a8;
+  background-image: linear-gradient(90deg, #7e22ce, #be185d, #b45309, #7e22ce);
 }
 .badge-neon[data-badge="host"],
 .badge-neon.badge-host {
-  background-image: linear-gradient(90deg, #3d7eff, #7ec8ff, #4da6ff, #9adcff, #3d7eff);
-  filter: drop-shadow(0 0 6px #3d7eff) drop-shadow(0 0 12px #7ec8ff);
+  border-color: #1d4ed8;
+  background-image: linear-gradient(90deg, #1d4ed8, #0369a1, #2563eb, #1d4ed8);
 }
 @keyframes neon-run {
   0% { background-position: 0% 50%; }
@@ -1436,15 +1448,29 @@ body.is-maintenance #tour {
   min-height: 148px;
   border-radius: 12px;
   overflow: hidden;
+  background: #fff;
+  border: 1px solid rgba(4, 120, 87, 0.18);
+}
+.host-guide-stage:has(.host-guide-ph:not([hidden])) {
   background: #ecfdf5;
-  border: 1px dashed rgba(4, 120, 87, 0.35);
+  border-style: dashed;
+  border-color: rgba(4, 120, 87, 0.35);
+}
+.host-guide-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: min(52vh, 360px);
+  object-fit: contain;
+  background: #fff;
 }
 .host-guide-video {
   width: 100%;
-  max-height: 200px;
+  max-height: min(52vh, 360px);
   display: block;
   background: #0b1a14;
 }
+.host-guide-img[hidden],
 .host-guide-video[hidden],
 .host-guide-ph[hidden] { display: none; }
 .host-guide-ph {

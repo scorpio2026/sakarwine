@@ -294,7 +294,7 @@ async function bootDash() {
           </p>
           ${a.photoUrl ? `<img class="thumb user-ava" src="${a.photoUrl}" alt="" />` : ''}
           <p class="muted">${t('phone')} ${esc(a.phone)} · ${esc(gLabel(a.gender))} · ${t('born', { year: a.birthYear })}<br>
-            ${t('levelLabel', { n: a.level })} · ${t('paidUntilLabel')} <span id="admin-paid-remain" class="paid-tick">${esc(paidLine)}</span><br>
+            <span class="badge-lv">${t('lv', { n: a.level })}</span> · ${t('paidUntilLabel')} <span id="admin-paid-remain" class="paid-tick">${esc(paidLine)}</span><br>
             ${t('accountId')} ${a.accountIdHidden ? t('idHiddenLounge') : t('idVisibleLounge')}
             ${a.hostCode ? `<br>${t('hostCode')} ${esc(a.hostCode)}` : ''}
             ${a.bio ? `<br>${t('bio')}: ${esc(a.bio)}` : ''}</p>
@@ -488,7 +488,7 @@ async function bootDash() {
             <button class="ghost" data-open-id="${esc(a.accountId)}">${esc(a.accountId)}</button>
             ${a.isSpecial ? `<br><span class="badge-neon">${esc(a.badge || 'special')}</span>` : ''}${a.isHost ? `<br><span class="badge-neon badge-host" data-badge="host">${t('host')}</span>` : ''}${a.hostStatus === 'pending' ? `<br><span class="muted">${t('nrcPending')}</span>` : ''}</td>
           <td>${esc(a.phone)}<br><span class="muted">${esc(gLabel(a.gender))} · ${a.birthYear}</span></td>
-          <td>${a.isSpecial ? `${t('unlimitedChat')} · ${esc(a.badge || 'special')}` : `${t('lv', { n: a.level })}<br>${remainingPaidParts(a.paidUntil).ms ? `${new Date(a.paidUntil).toLocaleDateString(I18n.locale())} · ${esc(paidHoursLabel(a.paidUntil))}` : '—'}`}</td>
+          <td>${a.isSpecial ? `${t('unlimitedChat')} · ${esc(a.badge || 'special')}` : `<span class="badge-lv">${t('lv', { n: a.level })}</span><br>${remainingPaidParts(a.paidUntil).ms ? `${new Date(a.paidUntil).toLocaleDateString(I18n.locale())} · ${esc(paidHoursLabel(a.paidUntil))}` : '—'}`}</td>
           <td>${a.accountIdHidden ? t('hiddenFromLounge') : t('visible')}</td>
           <td><span class="badge ${a.status}">${st(a.status)}</span> ${a.online ? `· ${t('onlineShort')}` : ''}${a.createdByAdmin ? `<br><span class="muted">${t('adminCreated')}</span>` : ''}</td>
           <td class="actions">${moderationButtons(a)}</td>

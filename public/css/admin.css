@@ -169,23 +169,49 @@ audio { width: 100%; max-width: 100%; }
 }
 .muted { color: rgba(255,244,236,.65); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.badge-lv {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid #047857;
+  color: #fff;
+  -webkit-text-fill-color: #fff;
+  background-color: #047857;
+  background-image: linear-gradient(90deg, #047857, #0f766e, #4d7c0f, #047857);
+  background-size: 280% 100%;
+  animation: neon-run 2.2s linear infinite;
+  filter: none;
+  text-shadow: none;
+  box-shadow: none;
+  vertical-align: middle;
+}
 .badge-neon {
   display: inline-block;
+  font-size: 0.78rem;
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  background: linear-gradient(90deg, #ff4ecd, #7dfff6, #d4ff4a, #ffb347, #8b5cff, #ff4ecd);
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid #9d174d;
+  color: #fff;
+  -webkit-text-fill-color: #fff;
+  background-color: #be185d;
+  background-image: linear-gradient(90deg, #be185d, #0f766e, #4d7c0f, #c2410c, #6d28d9, #be185d);
   background-size: 280% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
   animation: neon-run 2.2s linear infinite;
-  filter: drop-shadow(0 0 4px #ff4ecd) drop-shadow(0 0 8px #7dfff6);
+  filter: none;
+  text-shadow: none;
+  box-shadow: none;
+  vertical-align: middle;
 }
 .badge-neon[data-badge="host"],
 .badge-neon.badge-host {
-  background-image: linear-gradient(90deg, #3d7eff, #7ec8ff, #4da6ff, #9adcff, #3d7eff);
-  filter: drop-shadow(0 0 6px #3d7eff) drop-shadow(0 0 12px #7ec8ff);
+  border-color: #1d4ed8;
+  background-image: linear-gradient(90deg, #1d4ed8, #0369a1, #2563eb, #1d4ed8);
 }
 @keyframes neon-run {
   0% { background-position: 0% 50%; }
