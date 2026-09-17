@@ -71,6 +71,7 @@ function rerender() {
   else if (v === 'upgrade') showUpgrade();
   else if (v === 'profile') showProfile();
   else if (v === 'settings') showSettings();
+  else if (v === 'host-apply') showHostApply();
   else if (v === 'edit-profile') showEditProfile();
   else if (v === 'blocked') showBlocked();
   else if (v === 'help') showHelp(Boolean(state.user));
@@ -375,36 +376,6 @@ function showRegister() {
           </div>
         </div>
         <div class="field"><label>${t('phone')}</label><input name="phone" required inputmode="tel" /></div>
-        <div id="female-extra">
-          <h3>${t('income')}</h3>
-          <p class="small muted">${t('incomeFemaleNote')}</p>
-          <div class="field"><label>${t('occupation')}</label><input name="occupation" minlength="2" maxlength="80" /></div>
-          <div class="row-2">
-            <div class="field"><label>${t('monthlyIncome')}</label><input name="monthlyIncome" inputmode="numeric" /></div>
-            <div class="field"><label>${t('incomeSource')}</label>
-              <select name="incomeSource">
-                <option value="salary">${t('salary')}</option>
-                <option value="business">${t('business')}</option>
-                <option value="family">${t('family')}</option>
-                <option value="other">${t('other')}</option>
-              </select>
-            </div>
-          </div>
-          <h3>${t('nrcTitle')}</h3>
-          <p class="small muted">${t('nrcNote')}</p>
-          <div class="row-2">
-            <label class="photo-pick">
-              <input class="hidden-file" type="file" name="nrcFront" accept="image/*" />
-              <div id="nrc-front-preview" class="avatar ai">🪪</div>
-              <span class="small muted">${t('nrcFront')}</span>
-            </label>
-            <label class="photo-pick">
-              <input class="hidden-file" type="file" name="nrcBack" accept="image/*" />
-              <div id="nrc-back-preview" class="avatar ai">🪪</div>
-              <span class="small muted">${t('nrcBack')}</span>
-            </label>
-          </div>
-        </div>
         <button class="btn block" type="submit">${t('continueScan')}</button>
       </form>
     </section>`;
@@ -416,31 +387,6 @@ function showRegister() {
     const url = URL.createObjectURL(f);
     $('#photo-preview').outerHTML = `<img id="photo-preview" class="avatar" src="${url}" alt="" />`;
   };
-  const bindNrcPreview = (name, previewId) => {
-    const input = $(`input[name=${name}]`);
-    if (!input) return;
-    input.onchange = () => {
-      const f = input.files[0];
-      if (!f) return;
-      const url = URL.createObjectURL(f);
-      $(`#${previewId}`).outerHTML = `<img id="${previewId}" class="avatar" src="${url}" alt="" />`;
-    };
-  };
-  bindNrcPreview('nrcFront', 'nrc-front-preview');
-  bindNrcPreview('nrcBack', 'nrc-back-preview');
-  const genderSel = $('select[name=gender]');
-  const extra = $('#female-extra');
-  const syncFemale = () => {
-    const female = genderSel.value === 'female';
-    extra.hidden = !female;
-    extra.querySelectorAll('input, select').forEach((el) => {
-      if (el.name === 'occupation' || el.name === 'monthlyIncome' || el.name === 'incomeSource' || el.name === 'nrcFront' || el.name === 'nrcBack') {
-        el.required = female;
-      }
-    });
-  };
-  genderSel.onchange = syncFemale;
-  syncFemale();
   $('#reg').onsubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
@@ -1184,25 +1130,11 @@ function showProfile() {
   state.view = 'profile';
   const u = state.user;
   const paidLine = u.paidUntil ? t('paidUntil', { when: I18n.formatWhen(u.paidUntil) }) : t('notPaidYet');
-  const formLocked = u.gender === 'female' && !u.canEditIncome;
-  const femaleForm = u.gender === 'female' ? `
+  const hostCard = u.gender === 'female' && u.isHost ? `
         <div class="glass-card stack" style="margin-top:12px;text-align:left">
-          <h3 style="margin:0">${t('income')}</h3>
+          <h3 style="margin:0">${t('hostEarnings')}</h3>
           <p class="small muted">${escapeHtml(hostStatusLine(u))}</p>
           ${incomeDemoBlock(u)}
-          ${formLocked ? `<p class="small muted">${t('incomeLocked')}</p>` : ''}
-          <div class="field"><label>${t('occupation')}</label><input id="inc-occ" ${formLocked ? 'disabled' : ''} value="${escapeHtml(u.occupation || '')}" minlength="2" maxlength="80" /></div>
-          <div class="row-2">
-            <div class="field"><label>${t('monthlyIncome')}</label><input id="inc-amt" ${formLocked ? 'disabled' : ''} inputmode="numeric" value="${u.monthlyIncome != null ? escapeHtml(String(u.monthlyIncome)) : ''}" /></div>
-            <div class="field"><label>${t('incomeSource')}</label>
-              <select id="inc-src" ${formLocked ? 'disabled' : ''}>
-                ${['salary', 'business', 'family', 'other'].map((s) => `<option value="${s}" ${u.incomeSource === s ? 'selected' : ''}>${incomeSourceLabel(s)}</option>`).join('')}
-              </select>
-            </div>
-          </div>
-          <button class="btn block" id="save-income" ${formLocked ? 'disabled' : ''}>${t('saveIncome')}</button>
-          ${u.isHost ? `
-          <h3>${t('hostEarnings')}</h3>
           <p><strong>${Number(u.hostBalance != null ? u.hostBalance : u.hostEarnings || 0).toLocaleString()} MMK</strong> ${t('available')}
             <span class="small muted"> · ${t('earned')} ${Number(u.hostEarnings || 0).toLocaleString()} · ${Number(u.hostCreditAmount || 500).toLocaleString()} ${t('perVisitor')}</span></p>
           <p class="small muted">${t('hostRules')}</p>
@@ -1213,15 +1145,13 @@ function showProfile() {
           ${!u.canWithdraw ? `<p class="small muted">${t('withdrawAt', { amount: Number(u.hostWithdrawMin || 100000).toLocaleString() })}</p>` : ''}
           ${(u.hostPayouts || []).length
             ? `<div class="ledger">${u.hostPayouts.map((p) => `<div class="ledger-row">${p.status} · −${p.amount} · ${p.method === 'kbz' ? t('kbz') : t('wave')} · ${escapeHtml(p.payeeName)}</div>`).join('')}</div>`
-            : ''}` : ''}
-          ${u.hostStatus === 'rejected' || u.hostStatus === 'none' ? `
-          <h3>${t('nrcTitle')}</h3>
-          <p class="small muted">${t('nrcAdminOnly')}</p>
-          <div class="row-2">
-            <label class="photo-pick"><input class="hidden-file" id="nrc-front" type="file" accept="image/*" /><span class="small muted">${t('nrcFront')}</span></label>
-            <label class="photo-pick"><input class="hidden-file" id="nrc-back" type="file" accept="image/*" /><span class="small muted">${t('nrcBack')}</span></label>
-          </div>
-          <button class="btn secondary block" id="save-nrc">${t('submitNrc')}</button>` : ''}
+            : ''}
+        </div>` : u.gender === 'female' ? `
+        <div class="glass-card stack" style="margin-top:12px;text-align:left">
+          <h3 style="margin:0">${t('applyHost')}</h3>
+          <p class="small muted">${escapeHtml(hostStatusLine(u))}</p>
+          <p class="small muted">${t('hostApplyHelp')}</p>
+          <button type="button" class="btn secondary block" id="go-host-apply">${t('hostApplyTitle')}</button>
         </div>` : '';
   app.innerHTML = `
     <section class="screen">
@@ -1242,7 +1172,7 @@ function showProfile() {
           <button type="button" class="btn secondary" id="open-settings-row">${t('settings')}</button>
         </div>
       </div>
-      ${femaleForm}
+      ${hostCard}
       </div>
       ${nav('profile')}
     </section>`;
@@ -1250,25 +1180,7 @@ function showProfile() {
   $('#open-settings').onclick = showSettings;
   $('#open-settings-row').onclick = showSettings;
   $('#edit-profile').onclick = showEditProfile;
-  if ($('#save-income')) {
-    $('#save-income').onclick = async () => {
-      try {
-        const data = await api('/api/me/income', {
-          method: 'PUT',
-          json: {
-            occupation: $('#inc-occ').value,
-            monthlyIncome: $('#inc-amt').value,
-            incomeSource: $('#inc-src').value
-          }
-        });
-        state.user = data.user;
-        toast(t('incomeSaved'));
-        showProfile();
-      } catch (e) {
-        toastErr(e);
-      }
-    };
-  }
+  if ($('#go-host-apply')) $('#go-host-apply').onclick = showHostApply;
   if ($('#withdraw') && !$('#withdraw').disabled) {
     $('#withdraw').onclick = () => {
       modal(`
@@ -1296,24 +1208,6 @@ function showProfile() {
       };
     };
   }
-  if ($('#save-nrc')) {
-    $('#save-nrc').onclick = async () => {
-      const front = $('#nrc-front').files[0];
-      const back = $('#nrc-back').files[0];
-      if (!front || !back) return toast(t('uploadNrcBoth'));
-      const fd = new FormData();
-      fd.append('nrcFront', front);
-      fd.append('nrcBack', back);
-      try {
-        const data = await api('/api/me/nrc', { method: 'POST', body: fd });
-        state.user = data.user;
-        toast(t('nrcSubmitted'));
-        showProfile();
-      } catch (e) {
-        toastErr(e);
-      }
-    };
-  }
 }
 
 async function doLogout() {
@@ -1334,6 +1228,111 @@ function settingsRow(id, icon, label, extra = '') {
       <span class="settings-label">${label}</span>
       ${extra || `<span class="settings-chev" aria-hidden="true">${ICONS.chevron}</span>`}
     </button>`;
+}
+
+function showHostApply() {
+  state.view = 'host-apply';
+  const u = state.user;
+  if (!u || u.gender !== 'female') return showSettings();
+  const formLocked = u.isHost && !u.canEditIncome;
+  const canApply = u.hostStatus === 'none' || u.hostStatus === 'rejected';
+  app.innerHTML = `
+    <section class="screen settings-screen">
+      <div class="screen-body">
+        <div class="topbar">
+          <button type="button" class="icon-btn" id="back" aria-label="${t('back')}">${ICONS.back}</button>
+          <h2>${t('hostApplyTitle')}</h2>
+        </div>
+        <div class="glass-card stack" style="text-align:left">
+          <p class="small muted">${escapeHtml(hostStatusLine(u))}</p>
+          <p class="small muted">${t('hostApplyHelp')}</p>
+          ${incomeDemoBlock(u)}
+          ${u.hostStatus === 'pending' ? `<p class="small muted">${t('hostPending')}</p>` : ''}
+          ${formLocked ? `<p class="small muted">${t('incomeLocked')}</p>` : ''}
+          <div class="field"><label>${t('occupation')}</label><input id="inc-occ" ${formLocked ? 'disabled' : ''} value="${escapeHtml(u.occupation || '')}" minlength="2" maxlength="80" /></div>
+          <div class="row-2">
+            <div class="field"><label>${t('monthlyIncome')}</label><input id="inc-amt" ${formLocked ? 'disabled' : ''} inputmode="numeric" value="${u.monthlyIncome != null ? escapeHtml(String(u.monthlyIncome)) : ''}" /></div>
+            <div class="field"><label>${t('incomeSource')}</label>
+              <select id="inc-src" ${formLocked ? 'disabled' : ''}>
+                ${['salary', 'business', 'family', 'other'].map((s) => `<option value="${s}" ${u.incomeSource === s ? 'selected' : ''}>${incomeSourceLabel(s)}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          ${u.isHost
+            ? `<button class="btn block" id="save-income" ${formLocked ? 'disabled' : ''}>${t('saveIncome')}</button>`
+            : ''}
+          ${canApply ? `
+          <h3>${t('nrcTitle')}</h3>
+          <p class="small muted">${t('nrcAdminOnly')}</p>
+          <div class="row-2">
+            <label class="photo-pick">
+              <input class="hidden-file" id="nrc-front" type="file" accept="image/*" />
+              <div id="nrc-front-preview" class="avatar ai">🪪</div>
+              <span class="small muted">${t('nrcFront')}</span>
+            </label>
+            <label class="photo-pick">
+              <input class="hidden-file" id="nrc-back" type="file" accept="image/*" />
+              <div id="nrc-back-preview" class="avatar ai">🪪</div>
+              <span class="small muted">${t('nrcBack')}</span>
+            </label>
+          </div>
+          <button class="btn block" id="host-apply-send">${t('hostApplySend')}</button>` : ''}
+        </div>
+      </div>
+    </section>`;
+  $('#back').onclick = showSettings;
+  const bindPreview = (id, previewId) => {
+    const input = $(`#${id}`);
+    if (!input) return;
+    input.onchange = () => {
+      const f = input.files[0];
+      if (!f) return;
+      const url = URL.createObjectURL(f);
+      $(`#${previewId}`).outerHTML = `<img id="${previewId}" class="avatar" src="${url}" alt="" />`;
+    };
+  };
+  bindPreview('nrc-front', 'nrc-front-preview');
+  bindPreview('nrc-back', 'nrc-back-preview');
+  if ($('#save-income')) {
+    $('#save-income').onclick = async () => {
+      try {
+        const data = await api('/api/me/income', {
+          method: 'PUT',
+          json: {
+            occupation: $('#inc-occ').value,
+            monthlyIncome: $('#inc-amt').value,
+            incomeSource: $('#inc-src').value
+          }
+        });
+        state.user = data.user;
+        toast(t('incomeSaved'));
+        showHostApply();
+      } catch (e) {
+        toastErr(e);
+      }
+    };
+  }
+  if ($('#host-apply-send')) {
+    $('#host-apply-send').onclick = async () => {
+      const front = $('#nrc-front').files[0];
+      const back = $('#nrc-back').files[0];
+      if (!front || !back) return toast(t('uploadNrcBoth'));
+      const fd = new FormData();
+      fd.append('occupation', $('#inc-occ').value);
+      fd.append('monthlyIncome', $('#inc-amt').value);
+      fd.append('incomeSource', $('#inc-src').value);
+      fd.append('nrcFront', front);
+      fd.append('nrcBack', back);
+      try {
+        const data = await api('/api/me/host-apply', { method: 'POST', body: fd });
+        state.user = data.user;
+        toast(t('hostApplySent'));
+        showHostApply();
+      } catch (e) {
+        toastErr(e);
+      }
+    };
+  }
 }
 
 function showSettings() {
@@ -1366,6 +1365,7 @@ function showSettings() {
         <div class="settings-list">
           ${settingsRow('go-edit', ICONS.me, t('editProfile'))}
           ${settingsRow('go-blocked', ICONS.block, t('blockedList'))}
+          ${state.user && state.user.gender === 'female' ? settingsRow('go-host', ICONS.gem, t('applyHost')) : ''}
         </div>
         <div class="settings-list settings-note-card">
           <div class="settings-note">
@@ -1384,6 +1384,7 @@ function showSettings() {
   $('#back').onclick = showProfile;
   $('#go-edit').onclick = showEditProfile;
   $('#go-blocked').onclick = showBlocked;
+  if ($('#go-host')) $('#go-host').onclick = showHostApply;
   $('#logout').onclick = doLogout;
   I18n.bindSwitcher('lang-switch');
   const viewSel = $('#chat-view-lang');

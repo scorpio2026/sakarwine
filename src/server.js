@@ -197,20 +197,11 @@ const uploadReceipt = multer({
 });
 
 const uploadRegister = multer({
-  storage: multer.diskStorage({
-    destination: (_req, file, cb) => {
-      const nrc = file.fieldname === 'nrcFront' || file.fieldname === 'nrcBack';
-      cb(null, path.join(UPLOADS, nrc ? 'nrc' : 'profiles'));
-    },
-    filename: (_req, file, cb) => {
-      const ext = mimeExt(file.mimetype) || '.bin';
-      cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`);
-    }
-  }),
+  storage: storageFor('profiles'),
   limits: { fileSize: 6 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (!isAllowedImageMime(file.mimetype)) {
-      return cb(new Error('Photos must be images (NRC and profile).'));
+      return cb(new Error('Profile photo must be an image.'));
     }
     cb(null, true);
   }
@@ -438,7 +429,7 @@ function startAiWelcome(user) {
     'Photos stay softly locked until you reach Level 3 (three approved upgrades). Tap a locked photo to read why.',
     'Please don’t send Myanmar numbers starting with 09, and don’t start a message with @.',
     'You can delete a chat for yourself only — the other person still keeps the history. Sent messages cannot be edited.',
-    'Female members fill an income form and upload Myanmar NRC (front + back). After admin approves, a blue host badge sits beside your level.',
+    'Female members can apply as a host later from Settings (income form plus Myanmar NRC front and back). After admin approves, a blue host badge sits beside your level.',
     'Hosts earn 500 when an upgraded member (Lv 1+) comes to talk and you stay in a continuous mutual chat for at least 10 minutes. Chats you start do not count. Each visitor credits once. Going offline or blocking before 10 minutes voids that session.',
     'Host income withdraws at 100,000 via KBZ Pay or Wave. Admin confirms transfer with a system note.',
     'Forgot your 6-digit PIN? There is no self-serve reset — contact admin and give the phone you registered.'
@@ -740,9 +731,7 @@ app.post(
   '/api/register',
   rateLimit({ windowMs: 10 * 60 * 1000, max: 15, name: 'register' }),
   multerFields(uploadRegister, [
-    { name: 'photo', maxCount: 1 },
-    { name: 'nrcFront', maxCount: 1 },
-    { name: 'nrcBack', maxCount: 1 }
+    { name: 'photo', maxCount: 1 }
   ]),
   (req, res) => {
   try {
@@ -753,12 +742,8 @@ app.post(
     const birthYear = Number(req.body.birthYear);
     const phone = String(req.body.phone || '').trim();
     const photo = firstFile(req, 'photo');
-    const nrcFront = firstFile(req, 'nrcFront');
-    const nrcBack = firstFile(req, 'nrcBack');
     const dropUploads = () => {
       unlinkQuiet(photo);
-      unlinkQuiet(nrcFront);
-      unlinkQuiet(nrcBack);
     };
     const nameErr = usernameError(username);
     if (nameErr) {
@@ -786,32 +771,6 @@ app.post(
       dropUploads();
       return res.status(400).json({ error: 'Profile photo is required.' });
     }
-    let occupation = null;
-    let incomeMonthly = null;
-    let incomeSource = null;
-    let hostStatus = 'none';
-    let nrcFrontName = null;
-    let nrcBackName = null;
-    if (gender === 'female') {
-      const income = parseIncome(req.body);
-      if (income.error) {
-        dropUploads();
-        return res.status(400).json({ error: income.error });
-      }
-      if (!nrcFront || !nrcBack) {
-        dropUploads();
-        return res.status(400).json({ error: 'Female accounts must upload Myanmar NRC front and back photos.' });
-      }
-      occupation = income.occupation;
-      incomeMonthly = income.monthlyIncome;
-      incomeSource = income.incomeSource;
-      hostStatus = 'pending';
-      nrcFrontName = nrcFront.filename;
-      nrcBackName = nrcBack.filename;
-    } else {
-      unlinkQuiet(nrcFront);
-      unlinkQuiet(nrcBack);
-    }
     const taken = db.prepare('SELECT id FROM users WHERE username = ? COLLATE NOCASE').get(username);
     if (taken) {
       dropUploads();
@@ -828,9 +787,8 @@ app.post(
       .prepare(
         `INSERT INTO users (
           account_id, username, password_hash, gender, birth_year, phone,
-          photo_path, level, status, occupation, income_monthly, income_source,
-          nrc_front_path, nrc_back_path, host_status, ui_lang, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'pending_liveness', ?, ?, ?, ?, ?, ?, ?, ?)`
+          photo_path, level, status, host_status, ui_lang, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'pending_liveness', 'none', ?, ?)`
       )
       .run(
         accountId,
@@ -840,12 +798,6 @@ app.post(
         birthYear,
         phone,
         photo.filename,
-        occupation,
-        incomeMonthly,
-        incomeSource,
-        nrcFrontName,
-        nrcBackName,
-        hostStatus,
         uiLang,
         Date.now()
       );
@@ -1098,6 +1050,61 @@ app.post(
       `UPDATE users SET nrc_front_path = ?, nrc_back_path = ?, host_status = 'pending', is_host = 0
        WHERE id = ?`
     ).run(nrcFront.filename, nrcBack.filename, req.user.id);
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+    res.json({ user: serializeMe(user) });
+  }
+);
+
+app.post(
+  '/api/me/host-apply',
+  requireUser,
+  requireActive,
+  multerFields(uploadNrc, [
+    { name: 'nrcFront', maxCount: 1 },
+    { name: 'nrcBack', maxCount: 1 }
+  ]),
+  (req, res) => {
+    const nrcFront = firstFile(req, 'nrcFront');
+    const nrcBack = firstFile(req, 'nrcBack');
+    const drop = () => {
+      unlinkQuiet(nrcFront);
+      unlinkQuiet(nrcBack);
+    };
+    if (req.user.gender !== 'female') {
+      drop();
+      return res.status(400).json({ error: 'Host application is for female accounts.' });
+    }
+    if (req.user.host_status === 'approved') {
+      drop();
+      return res.status(409).json({ error: 'Your host verification is already approved.' });
+    }
+    const income = parseIncome(req.body);
+    if (income.error) {
+      drop();
+      return res.status(400).json({ error: income.error });
+    }
+    if (!nrcFront || !nrcBack) {
+      drop();
+      return res.status(400).json({ error: 'Upload Myanmar NRC front and back photos.' });
+    }
+    if (req.user.nrc_front_path) {
+      unlinkQuiet({ path: path.join(UPLOADS, 'nrc', path.basename(req.user.nrc_front_path)) });
+    }
+    if (req.user.nrc_back_path) {
+      unlinkQuiet({ path: path.join(UPLOADS, 'nrc', path.basename(req.user.nrc_back_path)) });
+    }
+    db.prepare(
+      `UPDATE users SET occupation = ?, income_monthly = ?, income_source = ?,
+         nrc_front_path = ?, nrc_back_path = ?, host_status = 'pending', is_host = 0
+       WHERE id = ?`
+    ).run(
+      income.occupation,
+      income.monthlyIncome,
+      income.incomeSource,
+      nrcFront.filename,
+      nrcBack.filename,
+      req.user.id
+    );
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
     res.json({ user: serializeMe(user) });
   }

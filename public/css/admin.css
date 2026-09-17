@@ -132,8 +132,8 @@ audio { width: 100%; max-width: 100%; }
   width: min(220px, 80%);
   height: auto;
   margin: 0 auto 14px;
-  border-radius: 10px;
-  background: #000;
+  border-radius: 0;
+  background: transparent;
 }
 .muted { color: rgba(255,244,236,.65); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }

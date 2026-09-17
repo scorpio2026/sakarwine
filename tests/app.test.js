@@ -71,13 +71,6 @@ async function register(name, pin, gender = 'female') {
   form.set('birthYear', '1998');
   form.set('phone', '091111111');
   form.set('photo', new Blob([PNG], { type: 'image/png' }), 'p.png');
-  if (gender === 'female') {
-    form.set('occupation', 'Lounge host');
-    form.set('monthlyIncome', '450000');
-    form.set('incomeSource', 'salary');
-    form.set('nrcFront', new Blob([PNG], { type: 'image/png' }), 'front.png');
-    form.set('nrcBack', new Blob([PNG], { type: 'image/png' }), 'back.png');
-  }
   const { data } = await req('/api/register', { method: 'POST', form, jar });
   assert.ok(data.user, data.error);
   await req('/api/me/liveness', {
@@ -86,6 +79,19 @@ async function register(name, pin, gender = 'female') {
     jar
   });
   return { jar, user: data.user };
+}
+
+async function applyHost(member, extras = {}) {
+  const form = new FormData();
+  form.set('occupation', extras.occupation || 'Lounge host');
+  form.set('monthlyIncome', extras.monthlyIncome || '450000');
+  form.set('incomeSource', extras.incomeSource || 'salary');
+  form.set('nrcFront', extras.nrcFront || new Blob([PNG], { type: 'image/png' }), 'front.png');
+  form.set('nrcBack', extras.nrcBack || new Blob([PNG], { type: 'image/png' }), 'back.png');
+  const applied = await req('/api/me/host-apply', { method: 'POST', form, jar: member.jar });
+  assert.equal(applied.res.status, 200, applied.data.error);
+  member.user = applied.data.user;
+  return member;
 }
 
 async function loginAdmin() {
@@ -564,7 +570,7 @@ test('chat history is per-user delete and messages cannot be edited', async () =
   assert.equal(delSaka.res.status, 400);
 });
 
-test('female accounts need NRC, admin-only ID photos, and host badge after approval', async () => {
+test('female registration matches male; host apply is later from Settings', async () => {
   await started;
   const jar = cookieJar();
   const missing = new FormData();
@@ -574,19 +580,17 @@ test('female accounts need NRC, admin-only ID photos, and host badge after appro
   missing.set('birthYear', '1998');
   missing.set('phone', '091111111');
   missing.set('photo', new Blob([PNG], { type: 'image/png' }), 'p.png');
-  missing.set('occupation', 'Host');
-  missing.set('monthlyIncome', '200000');
-  missing.set('incomeSource', 'salary');
-  const denied = await req('/api/register', { method: 'POST', form: missing, jar });
-  assert.equal(denied.res.status, 400);
-  assert.match(denied.data.error, /NRC/i);
+  const created = await req('/api/register', { method: 'POST', form: missing, jar });
+  assert.equal(created.res.status, 200, created.data.error);
+  assert.equal(created.data.user.hostStatus, 'none');
+  assert.equal(created.data.user.isHost, false);
+  assert.equal(created.data.user.occupation, null);
 
   const female = await register('hosty' + Date.now().toString().slice(-5), '343434', 'female');
   assert.equal(female.user.gender, 'female');
   assert.equal(female.user.isHost, false);
-  assert.equal(female.user.hostStatus, 'pending');
-  assert.equal(female.user.occupation, 'Lounge host');
-  assert.equal(female.user.monthlyIncome, 450000);
+  assert.equal(female.user.hostStatus, 'none');
+  assert.equal(female.user.occupation, null);
   assert.equal(female.user.nrcFrontUrl, undefined);
 
   const listed = await req('/api/users', { jar: female.jar });
@@ -597,6 +601,26 @@ test('female accounts need NRC, admin-only ID photos, and host badge after appro
   const male = await register('lad' + Date.now().toString().slice(-6), '565656', 'male');
   assert.equal(male.user.hostStatus, 'none');
   assert.equal(male.user.isHost, false);
+
+  const maleApply = await req('/api/me/host-apply', {
+    method: 'POST',
+    form: (() => {
+      const form = new FormData();
+      form.set('occupation', 'Nope');
+      form.set('monthlyIncome', '1000');
+      form.set('incomeSource', 'salary');
+      form.set('nrcFront', new Blob([PNG], { type: 'image/png' }), 'front.png');
+      form.set('nrcBack', new Blob([PNG], { type: 'image/png' }), 'back.png');
+      return form;
+    })(),
+    jar: male.jar
+  });
+  assert.equal(maleApply.res.status, 400);
+
+  await applyHost(female);
+  assert.equal(female.user.hostStatus, 'pending');
+  assert.equal(female.user.occupation, 'Lounge host');
+  assert.equal(female.user.monthlyIncome, 450000);
 
   const nrcAsUser = await fetch(base + `/api/admin/accounts/${female.user.id}/nrc/front`, {
     headers: { cookie: female.jar.header() }
@@ -625,6 +649,12 @@ test('female accounts need NRC, admin-only ID photos, and host badge after appro
   assert.ok(dossier.data.user.nrcFrontUrl);
   assert.ok(dossier.data.user.nrcBackUrl);
   assert.equal(dossier.data.user.hostStatus, 'pending');
+
+  const noNrc = await req(`/api/admin/accounts/${male.user.id}/host-approve`, {
+    method: 'POST',
+    jar: admin
+  });
+  assert.equal(noNrc.res.status, 400);
 
   const approved = await req(`/api/admin/accounts/${female.user.id}/host-approve`, {
     method: 'POST',
@@ -676,6 +706,7 @@ test('hosts earn 500 per qualifying Lv1+ partner after 10 minutes of mutual chat
   const paid2 = await register('payer' + Date.now().toString().slice(-4), '666666', 'male');
   const invited = await register('inv' + Date.now().toString().slice(-5), '232323', 'male');
 
+  await applyHost(host);
   const okHost = await req(`/api/admin/accounts/${host.user.id}/host-approve`, { method: 'POST', jar: admin });
   assert.equal(okHost.data.user.isHost, true);
   await giveUpgrade(admin, paid);
@@ -771,6 +802,7 @@ test('offline or block before 10 minutes voids host credit', async () => {
   const admin = await loginAdmin();
   const host = await register('voidh' + Date.now().toString().slice(-5), '777777', 'female');
   const paid = await register('voidp' + Date.now().toString().slice(-5), '888888', 'male');
+  await applyHost(host);
   await req(`/api/admin/accounts/${host.user.id}/host-approve`, { method: 'POST', jar: admin });
   await giveUpgrade(admin, paid);
   const opened = await req(`/api/conversations/with/${host.user.id}`, { method: 'POST', jar: paid.jar });
@@ -786,6 +818,7 @@ test('offline or block before 10 minutes voids host credit', async () => {
   assert.equal(me.data.user.hostEarnings, 0);
 
   const host2 = await register('voidb' + Date.now().toString().slice(-5), '121212', 'female');
+  await applyHost(host2);
   await req(`/api/admin/accounts/${host2.user.id}/host-approve`, { method: 'POST', jar: admin });
   const opened2 = await req(`/api/conversations/with/${host2.user.id}`, { method: 'POST', jar: paid.jar });
   const cid2 = opened2.data.conversation.id;
@@ -806,6 +839,7 @@ test('hosts keep chatting visitors after 24h; ads, broadcast, and stale purge', 
   const admin = await loginAdmin();
   const host = await register('freh' + Date.now().toString().slice(-5), '232323', 'female');
   const visitor = await register('vis' + Date.now().toString().slice(-5), '454545', 'male');
+  await applyHost(host);
   await req(`/api/admin/accounts/${host.user.id}/host-approve`, { method: 'POST', jar: admin });
   const opened = await req(`/api/conversations/with/${host.user.id}`, { method: 'POST', jar: visitor.jar });
   const cid = opened.data.conversation.id;
@@ -886,6 +920,7 @@ test('money, levels, and roles cannot be set from the client', async () => {
   const member = { jar, user: created.data.user };
   await giveUpgrade(admin, member);
   const host = await register('secH' + Date.now().toString().slice(-5), '343434', 'female');
+  await applyHost(host);
   await req(`/api/admin/accounts/${host.user.id}/host-approve`, { method: 'POST', jar: admin });
   const opened = await req(`/api/conversations/with/${host.user.id}`, { method: 'POST', jar });
   await req(`/api/conversations/${opened.data.conversation.id}/presence`, {
