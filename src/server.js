@@ -9,7 +9,7 @@ const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const { Server } = require('socket.io');
 const { openDb, ensureDir, getSetting, setSetting, getBadges, addBadge, publicUser, adminUser, isAdminAccount, defaultAvatarUrl } = require('./db');
-const { messageFilterError, bioFilterError, isAllowedImageMime, isAllowedVoiceMime, isForbiddenVideo } = require('./filters');
+const { messageFilterError, bioFilterError, groupNameError, isAllowedImageMime, isAllowedVoiceMime, isForbiddenVideo } = require('./filters');
 const { usernameError } = require('./username');
 const { translateText, normalizeLang } = require('./translate');
 const { quotePlan, allQuotes, addMonths, isPaid, isSpecial, canChatUnlimited, clampMonths } = require('./pricing');
@@ -55,6 +55,7 @@ ensureDir(path.join(UPLOADS, 'receipts'));
 ensureDir(path.join(UPLOADS, 'nrc'));
 ensureDir(path.join(UPLOADS, 'ads'));
 ensureDir(path.join(UPLOADS, 'broadcast'));
+ensureDir(path.join(UPLOADS, 'groups'));
 
 const db = openDb(DATA_DIR);
 const app = express();
@@ -205,6 +206,15 @@ const uploadRegister = multer({
     if (!isAllowedImageMime(file.mimetype)) {
       return cb(new Error('Profile photo must be an image.'));
     }
+    cb(null, true);
+  }
+});
+
+const uploadGroup = multer({
+  storage: storageFor('groups'),
+  limits: { fileSize: 6 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (!isAllowedImageMime(file.mimetype)) return cb(new Error('Group logo must be an image.'));
     cb(null, true);
   }
 });
@@ -1446,6 +1456,256 @@ app.get('/api/conversations', requireUser, requireActive, (req, res) => {
   res.json({ conversations });
 });
 
+function groupLogoUrl(row) {
+  return row && row.logo_path ? `/api/media/group/${path.basename(row.logo_path)}` : null;
+}
+
+function serializeGroupPreview(row, extra = {}) {
+  return {
+    id: row.id,
+    name: row.name,
+    logoUrl: groupLogoUrl(row),
+    creatorId: row.creator_id,
+    createdAt: row.created_at,
+    memberCount: extra.memberCount != null ? extra.memberCount : undefined,
+    role: extra.role || null
+  };
+}
+
+function serializeGroupMember(row) {
+  return {
+    id: row.id,
+    username: row.username,
+    photoUrl: row.photo_path
+      ? `/api/media/profile/${path.basename(row.photo_path)}`
+      : defaultAvatarUrl(row),
+    gender: row.gender,
+    accountId: row.account_id,
+    role: row.role,
+    isAi: Boolean(row.is_ai),
+    isAdmin: isAdminAccount(row)
+  };
+}
+
+function serializeGroupInvite(row, viewer) {
+  const group = db.prepare('SELECT * FROM user_groups WHERE id = ?').get(row.group_id);
+  const inviter = db.prepare('SELECT * FROM users WHERE id = ?').get(row.inviter_id);
+  const invitee = db.prepare('SELECT * FROM users WHERE id = ?').get(row.invitee_id);
+  return {
+    id: row.id,
+    status: row.status,
+    createdAt: row.created_at,
+    group: group ? serializeGroupPreview(group) : null,
+    inviter: inviter
+      ? {
+          id: inviter.id,
+          username: inviter.username,
+          accountId: inviter.account_id,
+          photoUrl: inviter.photo_path
+            ? `/api/media/profile/${path.basename(inviter.photo_path)}`
+            : defaultAvatarUrl(inviter)
+        }
+      : null,
+    invitee:
+      viewer && isAdminAccount(viewer) && invitee
+        ? { id: invitee.id, username: invitee.username, accountId: invitee.account_id }
+        : undefined
+  };
+}
+
+function groupMembership(groupId, userId) {
+  return db
+    .prepare('SELECT * FROM group_members WHERE group_id = ? AND user_id = ?')
+    .get(groupId, userId);
+}
+
+function findUserByAccountId(accountId) {
+  const id = String(accountId || '').trim();
+  if (!id) return null;
+  return db.prepare('SELECT * FROM users WHERE account_id = ? COLLATE NOCASE AND is_ai = 0').get(id);
+}
+
+function groupInvitePreviewUser(row) {
+  return {
+    id: row.id,
+    username: row.username,
+    accountId: row.account_id,
+    photoUrl: row.photo_path
+      ? `/api/media/profile/${path.basename(row.photo_path)}`
+      : defaultAvatarUrl(row),
+    gender: row.gender,
+    bio: row.bio ? String(row.bio) : ''
+  };
+}
+
+function canCreateGroup(user) {
+  return isSpecial(user) || isPaid(user);
+}
+
+app.get('/api/groups', requireUser, requireActive, (req, res) => {
+  const rows = db
+    .prepare(
+      `SELECT g.*, m.role AS role
+       FROM group_members m
+       JOIN user_groups g ON g.id = m.group_id
+       WHERE m.user_id = ?
+       ORDER BY g.created_at DESC`
+    )
+    .all(req.user.id);
+  const countStmt = db.prepare('SELECT COUNT(*) AS n FROM group_members WHERE group_id = ?');
+  const groups = rows.map((row) =>
+    serializeGroupPreview(row, { role: row.role, memberCount: countStmt.get(row.id).n })
+  );
+  res.json({ groups, canCreate: canCreateGroup(req.user) });
+});
+
+app.post(
+  '/api/groups',
+  requireUser,
+  requireActive,
+  multerSingle(uploadGroup, 'logo'),
+  (req, res) => {
+    if (!canCreateGroup(req.user)) {
+      return res.status(403).json({ error: 'Upgrade to create a group.', code: 'GROUP_PAID' });
+    }
+    const nameErr = groupNameError(req.body && req.body.name);
+    if (nameErr) return res.status(400).json({ error: nameErr });
+    if (!req.file) return res.status(400).json({ error: 'Upload a group logo.' });
+    const now = Date.now();
+    const tx = db.transaction(() => {
+      const info = db
+        .prepare('INSERT INTO user_groups (name, logo_path, creator_id, created_at) VALUES (?, ?, ?, ?)')
+        .run(String(req.body.name).trim(), req.file.filename, req.user.id, now);
+      db.prepare(
+        'INSERT INTO group_members (group_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)'
+      ).run(info.lastInsertRowid, req.user.id, 'owner', now);
+      return info.lastInsertRowid;
+    });
+    const groupId = tx();
+    const group = db.prepare('SELECT * FROM user_groups WHERE id = ?').get(groupId);
+    res.json({
+      group: serializeGroupPreview(group, { role: 'owner', memberCount: 1 }),
+      canCreate: true
+    });
+  }
+);
+
+app.get('/api/groups/lookup', requireUser, requireActive, (req, res) => {
+  const target = findUserByAccountId(req.query.accountId);
+  if (!target || target.status !== 'active') {
+    return res.status(404).json({ error: 'No account found for that ID.' });
+  }
+  res.json({ user: groupInvitePreviewUser(target) });
+});
+
+app.get('/api/groups/:id', requireUser, requireActive, (req, res) => {
+  const group = db.prepare('SELECT * FROM user_groups WHERE id = ?').get(Number(req.params.id));
+  const mine = group ? groupMembership(group.id, req.user.id) : null;
+  if (!group || !mine) return res.status(404).json({ error: 'Group not found.' });
+  const members = db
+    .prepare(
+      `SELECT u.*, m.role AS role
+       FROM group_members m
+       JOIN users u ON u.id = m.user_id
+       WHERE m.group_id = ?
+       ORDER BY m.role = 'owner' DESC, u.username COLLATE NOCASE`
+    )
+    .all(group.id)
+    .map(serializeGroupMember);
+  res.json({
+    group: serializeGroupPreview(group, { role: mine.role, memberCount: members.length }),
+    members
+  });
+});
+
+app.post('/api/groups/:id/invites', requireUser, requireActive, (req, res) => {
+  const group = db.prepare('SELECT * FROM user_groups WHERE id = ?').get(Number(req.params.id));
+  if (!group || !groupMembership(group.id, req.user.id)) {
+    return res.status(404).json({ error: 'Group not found.' });
+  }
+  const body = req.body || {};
+  let target = null;
+  const userId = Number(body.userId);
+  if (userId) {
+    target = db.prepare('SELECT * FROM users WHERE id = ? AND is_ai = 0').get(userId);
+  } else {
+    target = findUserByAccountId(body.targetAccountId || body.swId);
+  }
+  if (!target || target.status !== 'active') {
+    return res.status(404).json({ error: 'No account found for that ID.' });
+  }
+  if (target.id === req.user.id) return res.status(400).json({ error: 'You cannot invite yourself.' });
+  if (groupMembership(group.id, target.id)) {
+    return res.status(400).json({ error: 'This person is already in the group.' });
+  }
+  const blocked =
+    db.prepare('SELECT 1 FROM blocks WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)')
+      .get(req.user.id, target.id, target.id, req.user.id);
+  if (blocked) return res.status(403).json({ error: 'This chat is blocked.' });
+  const pending = db
+    .prepare(
+      `SELECT id FROM group_invites WHERE group_id = ? AND invitee_id = ? AND status = 'pending'`
+    )
+    .get(group.id, target.id);
+  if (pending) return res.status(400).json({ error: 'An invite is already pending.' });
+  const info = db
+    .prepare(
+      `INSERT INTO group_invites (group_id, inviter_id, invitee_id, status, created_at)
+       VALUES (?, ?, ?, 'pending', ?)`
+    )
+    .run(group.id, req.user.id, target.id, Date.now());
+  const invite = db.prepare('SELECT * FROM group_invites WHERE id = ?').get(info.lastInsertRowid);
+  const payload = serializeGroupInvite(invite, req.user);
+  emitToUser(target.id, 'group:invite', {
+    inviteId: payload.id,
+    groupName: payload.group && payload.group.name,
+    inviterName: payload.inviter && payload.inviter.username,
+    inviterAccountId: payload.inviter && payload.inviter.accountId
+  });
+  res.json({ invite: payload, user: groupInvitePreviewUser(target) });
+});
+
+app.get('/api/group-invites', requireUser, requireActive, (req, res) => {
+  const rows = db
+    .prepare(
+      `SELECT * FROM group_invites WHERE invitee_id = ? AND status = 'pending' ORDER BY id DESC`
+    )
+    .all(req.user.id);
+  res.json({ invites: rows.map((row) => serializeGroupInvite(row, req.user)) });
+});
+
+app.post('/api/group-invites/:id/accept', requireUser, requireActive, (req, res) => {
+  const invite = db.prepare('SELECT * FROM group_invites WHERE id = ?').get(Number(req.params.id));
+  if (!invite || invite.invitee_id !== req.user.id || invite.status !== 'pending') {
+    return res.status(404).json({ error: 'Invite not found.' });
+  }
+  const now = Date.now();
+  db.transaction(() => {
+    db.prepare(
+      `UPDATE group_invites SET status = 'accepted', responded_at = ? WHERE id = ?`
+    ).run(now, invite.id);
+    db.prepare(
+      `INSERT OR IGNORE INTO group_members (group_id, user_id, role, joined_at) VALUES (?, ?, 'member', ?)`
+    ).run(invite.group_id, req.user.id, now);
+  })();
+  const group = db.prepare('SELECT * FROM user_groups WHERE id = ?').get(invite.group_id);
+  res.json({
+    ok: true,
+    group: serializeGroupPreview(group, { role: 'member' })
+  });
+});
+
+app.post('/api/group-invites/:id/decline', requireUser, requireActive, (req, res) => {
+  const invite = db.prepare('SELECT * FROM group_invites WHERE id = ?').get(Number(req.params.id));
+  if (!invite || invite.invitee_id !== req.user.id || invite.status !== 'pending') {
+    return res.status(404).json({ error: 'Invite not found.' });
+  }
+  db.prepare(
+    `UPDATE group_invites SET status = 'declined', responded_at = ? WHERE id = ?`
+  ).run(Date.now(), invite.id);
+  res.json({ ok: true });
+});
+
 app.get('/api/conversations/:id', requireUser, requireActive, async (req, res) => {
   const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(Number(req.params.id));
   if (!conv || (conv.user_lo !== req.user.id && conv.user_hi !== req.user.id)) {
@@ -1736,6 +1996,7 @@ function sendUpload(res, subdir, filename, { noStore = false } = {}) {
 }
 
 app.get('/api/media/profile/:file', requireUser, (req, res) => sendUpload(res, 'profiles', req.params.file));
+app.get('/api/media/group/:file', requireUser, (req, res) => sendUpload(res, 'groups', req.params.file));
 
 app.get('/api/media/chat/:file', requireUser, (req, res) => {
   const file = path.basename(req.params.file);

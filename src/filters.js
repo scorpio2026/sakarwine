@@ -8,6 +8,7 @@ function normalizeForPhoneScan(text) {
 }
 
 const BIO_MAX_LENGTH = 280;
+const GROUP_NAME_MAX = 40;
 const RESTRICTED_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/;
 
 function hasForbiddenPhone(text) {
@@ -47,6 +48,19 @@ function bioFilterError(text) {
   return null;
 }
 
+function groupNameError(text) {
+  const raw = String(text == null ? '' : text);
+  const trimmed = raw.trim();
+  if (!trimmed) return 'Enter a group name.';
+  if ([...trimmed].length > GROUP_NAME_MAX) return 'Group name must be 40 characters or fewer.';
+  if (RESTRICTED_CHARS.test(raw)) return 'Restricted characters are not allowed.';
+  if (trimmed.startsWith('@')) return 'Group name cannot start with @.';
+  if (hasForbiddenPhone(trimmed)) {
+    return 'Myanmar phone numbers starting with 09 cannot be sent.';
+  }
+  return null;
+}
+
 function isAllowedImageMime(mime) {
   return ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'].includes(String(mime || '').toLowerCase());
 }
@@ -69,7 +83,9 @@ function isForbiddenVideo(mime, originalName = '') {
 module.exports = {
   messageFilterError,
   bioFilterError,
+  groupNameError,
   BIO_MAX_LENGTH,
+  GROUP_NAME_MAX,
   isAllowedImageMime,
   isAllowedVoiceMime,
   isForbiddenVideo

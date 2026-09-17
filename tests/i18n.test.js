@@ -128,7 +128,7 @@ test('admin-badge chats block first contact and expose a live gate', () => {
   assert.equal(I18n.error('This chat is closed by admin.'), I18n.t('chatClosedByAdmin'));
 });
 
-test('bottom nav has Home, Chat, Profile, and Help — no Upgrade tab', () => {
+test('bottom nav has Home, Chat, Group, Profile, and Help — no Upgrade tab', () => {
   const fs = require('fs');
   const path = require('path');
   const js = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
@@ -137,6 +137,7 @@ test('bottom nav has Home, Chat, Profile, and Help — no Upgrade tab', () => {
   assert.match(navSlice, /data-go="\$\{go\}"/);
   assert.match(navSlice, /tab\('home'/);
   assert.match(navSlice, /tab\('chats'/);
+  assert.match(navSlice, /tab\('groups'/);
   assert.match(navSlice, /tab\('profile'/);
   assert.match(navSlice, /tab\('help'/);
   assert.equal(navSlice.includes("tab('people'"), false);
@@ -144,23 +145,27 @@ test('bottom nav has Home, Chat, Profile, and Help — no Upgrade tab', () => {
   assert.equal(navSlice.includes('data-go="upgrade"'), false);
   assert.match(navSlice, /navHome/);
   assert.match(navSlice, /navChat/);
+  assert.match(navSlice, /navGroup/);
   assert.match(navSlice, /navProfile/);
   assert.match(navSlice, /navHelp/);
   assert.equal(navSlice.includes('navUpgrade'), false);
   assert.match(js, /function showInbox/);
+  assert.match(js, /function showGroups/);
   assert.match(js, /\/api\/conversations/);
+  assert.match(js, /\/api\/groups/);
   assert.match(js, /function meBtnHtml/);
   assert.match(js, /id="goto-me"/);
   assert.match(js, /id="up-back"/);
   assert.match(js, /id="me-back"/);
   const css = fs.readFileSync(path.join(__dirname, '../public/css/app.css'), 'utf8');
   assert.equal(css.includes('nav-help-only'), false);
-  assert.match(css, /\.nav\s*\{[^}]*grid-template-columns:\s*repeat\(4/);
+  assert.match(css, /\.nav\s*\{[^}]*grid-template-columns:\s*repeat\(5/);
   I18n.setLang('en');
   assert.equal(I18n.t('navHome'), 'Home');
   assert.equal(I18n.t('navChat'), 'Chat');
   assert.equal(I18n.t('navProfile'), 'Profile');
   assert.equal(I18n.t('navHelp'), 'Help');
+  assert.equal(I18n.t('navGroup'), 'Group');
   assert.equal(I18n.t('noChats'), 'No conversations yet.');
 });
 

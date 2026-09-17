@@ -29,6 +29,7 @@ const ICONS = {
   gem: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 10l8-6 8 6-8 10L4 10z"/><path d="M4 10h16M12 4v16"/></svg>`,
   me: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.2"/><path d="M5 19c1.4-3.2 3.8-5 7-5s5.6 1.8 7 5"/></svg>`,
   help: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M9.6 9.2a2.4 2.4 0 1 1 3.4 2.2c-.8.4-1.4 1.1-1.4 2"/><circle cx="12" cy="16.6" r="0.9" fill="currentColor" stroke="none"/></svg>`,
+  group: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="9" r="2.6"/><circle cx="16" cy="9" r="2.6"/><path d="M3.6 18c.7-2.6 2.6-4 4.4-4s3.7 1.4 4.4 4M11.6 18c.7-2.6 2.6-4 4.4-4s3.7 1.4 4.4 4"/></svg>`,
   back: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 6l-6 6 6 6"/></svg>`,
   image: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M7 17l4-4 3 3 3-3 3 4"/></svg>`,
   mic: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v3"/></svg>`,
@@ -72,6 +73,9 @@ function rerender() {
   else if (v === 'scan') showScan();
   else if (v === 'home') showHome();
   else if (v === 'chats') showInbox();
+  else if (v === 'groups') showGroups();
+  else if (v === 'group-create') showCreateGroup();
+  else if (v === 'group-detail' && state.group) showGroupDetail(state.group.id);
   else if (v === 'chat' && state.chat) renderChat();
   else if (v === 'upgrade') showUpgrade();
   else if (v === 'profile') showProfile();
@@ -258,6 +262,14 @@ function connectSocket() {
     refreshMe().then(() => {
       if (state.view === 'profile') showProfile();
     });
+  });
+  socket.on('group:invite', (payload) => {
+    toast(t('inviteFrom', {
+      name: payload.inviterName || '',
+      id: payload.inviterAccountId || '',
+      group: payload.groupName || ''
+    }));
+    if (state.view === 'groups') showGroups();
   });
   socket.on('broadcast', () => {
     refreshMe();
@@ -469,6 +481,7 @@ function nav(active) {
     <nav class="nav" aria-label="${t('navHome')}">
       ${tab('home', ICONS.people, t('navHome'))}
       ${tab('chats', ICONS.chat, t('navChat'))}
+      ${tab('groups', ICONS.group, t('navGroup'))}
       ${tab('profile', ICONS.me, t('navProfile'))}
       ${tab('help', ICONS.help, t('navHelp'))}
     </nav>`;
@@ -480,6 +493,7 @@ function bindNav() {
       const go = b.dataset.go;
       if (go === 'home') showHome();
       else if (go === 'chats') showInbox();
+      else if (go === 'groups') showGroups();
       else if (go === 'profile') showProfile();
       else if (go === 'help') showHelp(true);
     };
@@ -625,6 +639,229 @@ function leaveChat() {
   stopChatPresence();
   if (state.chatFrom === 'chats') showInbox();
   else showHome();
+}
+
+function groupLogoHtml(g) {
+  if (g && g.logoUrl) return `<img class="avatar round" src="${escapeHtml(g.logoUrl)}" alt="" />`;
+  return `<div class="avatar round ai">${ICONS.group}</div>`;
+}
+
+async function showGroups() {
+  state.view = 'groups';
+  const u = state.user;
+  app.innerHTML = `
+    <section class="screen home-screen">
+      ${mastheadHtml()}
+      <div class="screen-body">
+      <div class="topbar">
+        ${meBtnHtml()}
+        <h2>${t('groupsTitle')}</h2>
+        <button type="button" class="icon-btn" id="group-create" aria-label="${t('createGroup')}">${ICONS.plus}</button>
+      </div>
+      <div id="group-invites"></div>
+      <div id="group-list" class="user-list"><p class="muted">${t('loading')}</p></div>
+      </div>
+      ${nav('groups')}
+    </section>`;
+  bindNav();
+  bindMeButton();
+  $('#group-create').onclick = showCreateGroup;
+  try {
+    const [inv, list] = await Promise.all([
+      api('/api/group-invites'),
+      api('/api/groups')
+    ]);
+    const invBox = $('#group-invites');
+    const invites = inv.invites || [];
+    if (invites.length) {
+      invBox.innerHTML = `<h3 class="group-section">${t('groupInvites')}</h3>` + invites.map((row) => `
+        <div class="glass-card stack group-invite" data-id="${row.id}">
+          <div class="user-row">
+            ${groupLogoHtml(row.group)}
+            <div class="meta">
+              <div class="name">${escapeHtml((row.group && row.group.name) || '')}</div>
+              <div class="sub">${t('inviteFrom', {
+                name: (row.inviter && row.inviter.username) || '',
+                id: (row.inviter && row.inviter.accountId) || '',
+                group: (row.group && row.group.name) || ''
+              })}</div>
+            </div>
+          </div>
+          <div class="me-actions">
+            <button type="button" class="btn" data-accept="${row.id}">${t('accept')}</button>
+            <button type="button" class="btn secondary" data-decline="${row.id}">${t('decline')}</button>
+          </div>
+        </div>`).join('');
+      invBox.querySelectorAll('[data-accept]').forEach((btn) => {
+        btn.onclick = async () => {
+          try {
+            await api(`/api/group-invites/${btn.dataset.accept}/accept`, { method: 'POST' });
+            toast(t('inviteAccepted'));
+            showGroups();
+          } catch (e) {
+            toastErr(e);
+          }
+        };
+      });
+      invBox.querySelectorAll('[data-decline]').forEach((btn) => {
+        btn.onclick = async () => {
+          try {
+            await api(`/api/group-invites/${btn.dataset.decline}/decline`, { method: 'POST' });
+            toast(t('inviteDeclined'));
+            showGroups();
+          } catch (e) {
+            toastErr(e);
+          }
+        };
+      });
+    } else {
+      invBox.innerHTML = '';
+    }
+    const groups = list.groups || [];
+    const box = $('#group-list');
+    box.innerHTML = groups.map((g) => `
+      <div class="user-row" data-id="${g.id}">
+        ${groupLogoHtml(g)}
+        <div class="meta">
+          <div class="name">${escapeHtml(g.name)}</div>
+          <div class="sub">${g.memberCount != null ? t('groupMemberCount', { n: g.memberCount }) : ''}</div>
+        </div>
+        <span class="when">${g.role === 'owner' ? t('groupOwner') : ''}</span>
+      </div>`).join('') || `<p class="settings-empty">${t('noGroups')}</p>`;
+    box.querySelectorAll('.user-row').forEach((row) => {
+      row.onclick = () => showGroupDetail(Number(row.dataset.id));
+    });
+  } catch (e) {
+    toastErr(e);
+  }
+}
+
+function showCreateGroup() {
+  state.view = 'group-create';
+  const can = Boolean(state.user && (state.user.paid || state.user.isSpecial));
+  app.innerHTML = `
+    <section class="screen">
+      <div class="screen-body">
+      <div class="topbar">
+        <button type="button" class="icon-btn" id="back" aria-label="${t('back')}">${ICONS.back}</button>
+        <h2>${t('createGroup')}</h2>
+      </div>
+      <div class="glass-card stack" style="text-align:left">
+        ${can ? `
+          <p class="small muted">${t('groupCreateHelp')}</p>
+          <div class="field"><label>${t('groupName')}</label><input id="group-name" maxlength="40" required /></div>
+          <div class="field"><label>${t('groupLogo')}</label><input id="group-logo" type="file" accept="image/*" /></div>
+          <button type="button" class="btn block" id="group-save">${t('createGroup')}</button>
+        ` : `
+          <p>${t('errGroupPaid')}</p>
+          <p class="small muted">${t('groupCreateHelp')}</p>
+          <button type="button" class="btn block" id="group-upgrade">${t('navUpgrade')}</button>
+        `}
+      </div>
+      </div>
+      ${nav('groups')}
+    </section>`;
+  bindNav();
+  $('#back').onclick = showGroups;
+  if ($('#group-upgrade')) $('#group-upgrade').onclick = showUpgrade;
+  if ($('#group-save')) {
+    $('#group-save').onclick = async () => {
+      const name = $('#group-name').value.trim();
+      const logo = $('#group-logo').files[0];
+      if (!name) return toast(t('errGroupName'));
+      if (!logo) return toast(t('errGroupLogo'));
+      const fd = new FormData();
+      fd.append('name', name);
+      fd.append('logo', logo);
+      const btn = $('#group-save');
+      btn.disabled = true;
+      try {
+        const data = await api('/api/groups', { method: 'POST', body: fd });
+        toast(t('groupCreated'));
+        showGroupDetail(data.group.id);
+      } catch (e) {
+        btn.disabled = false;
+        if (e.code === 'GROUP_PAID' || e.code === 'UPGRADE') showUpgrade();
+        toastErr(e);
+      }
+    };
+  }
+}
+
+async function showGroupDetail(id) {
+  state.view = 'group-detail';
+  try {
+    const data = await api(`/api/groups/${id}`);
+    state.group = data.group;
+    app.innerHTML = `
+      <section class="screen">
+        <div class="screen-body">
+        <div class="topbar">
+          <button type="button" class="icon-btn" id="back" aria-label="${t('back')}">${ICONS.back}</button>
+          <h2>${escapeHtml(data.group.name)}</h2>
+        </div>
+        <div class="glass-card stack center me-card">
+          ${groupLogoHtml(data.group)}
+          <div class="me-name">${escapeHtml(data.group.name)}</div>
+          <div class="small muted">${t('groupMemberCount', { n: data.members.length })}</div>
+        </div>
+        <h3 class="group-section">${t('addPeople')}</h3>
+        <div class="glass-card stack" style="text-align:left">
+          <div class="field"><label>${t('pinRecoveryAccountId')}</label><input id="group-aid" autocomplete="off" /></div>
+          <button type="button" class="btn secondary block" id="group-lookup">${t('lookupGo')}</button>
+          <div id="group-preview"></div>
+        </div>
+        <h3 class="group-section">${t('groupMembers')}</h3>
+        <div class="user-list">
+          ${data.members.map((m) => `
+            <div class="user-row">
+              ${avatarHtml(m, 'round')}
+              <div class="meta">
+                <div class="name">${escapeHtml(m.username)} ${m.role === 'owner' ? '· ' + t('groupOwner') : ''}</div>
+                <div class="sub">${escapeHtml(m.accountId || '')}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+        </div>
+        ${nav('groups')}
+      </section>`;
+    bindNav();
+    $('#back').onclick = showGroups;
+    $('#group-lookup').onclick = async () => {
+      const accountId = $('#group-aid').value.trim();
+      if (!accountId) return toast(t('errAccountId'));
+      const box = $('#group-preview');
+      try {
+        const looked = await api('/api/groups/lookup?accountId=' + encodeURIComponent(accountId));
+        const u = looked.user;
+        box.innerHTML = `
+          <div class="user-row">
+            ${avatarHtml(u, 'round')}
+            <div class="meta">
+              <div class="name">${escapeHtml(u.username)}</div>
+              <div class="sub">${escapeHtml(u.accountId || '')}</div>
+            </div>
+            <button type="button" class="btn" id="group-add">${t('inviteSend')}</button>
+          </div>`;
+        $('#group-add').onclick = async () => {
+          try {
+            await api(`/api/groups/${id}/invites`, { method: 'POST', json: { userId: u.id } });
+            toast(t('inviteSent'));
+            box.innerHTML = '';
+            $('#group-aid').value = '';
+          } catch (e) {
+            toastErr(e);
+          }
+        };
+      } catch (e) {
+        box.innerHTML = '';
+        toastErr(e);
+      }
+    };
+  } catch (e) {
+    toastErr(e);
+    showGroups();
+  }
 }
 
 async function showHome(opts = {}) {

@@ -695,8 +695,8 @@ body {
 
 .nav {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
   margin-top: 4px;
   flex-shrink: 0;
   position: sticky;
@@ -712,14 +712,14 @@ body {
   background: transparent;
   color: var(--muted);
   font: inherit;
-  font-size: 0.72rem;
+  font-size: 0.62rem;
   font-weight: 800;
   display: grid;
   justify-items: center;
-  gap: 4px;
+  gap: 2px;
   cursor: pointer;
-  padding: 8px 2px;
-  min-height: 72px;
+  padding: 6px 1px;
+  min-height: 68px;
   min-width: 0;
   touch-action: manipulation;
 }
@@ -729,6 +729,12 @@ body {
   background: linear-gradient(145deg, var(--hero-a), var(--hero-b));
   color: #fff;
 }
+.group-section {
+  margin: 16px 4px 8px;
+  font-size: 0.95rem;
+}
+.group-invite { margin-bottom: 10px; }
+.group-invite .user-row { border: 0; padding: 0; background: transparent; }
 .home-me {
   border: 0;
   background: transparent;

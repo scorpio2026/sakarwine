@@ -2,7 +2,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { messageFilterError, bioFilterError, isForbiddenVideo, isAllowedImageMime } = require('../src/filters');
+const { messageFilterError, bioFilterError, groupNameError, isForbiddenVideo, isAllowedImageMime } = require('../src/filters');
 
 test('blocks messages that start with @', () => {
   assert.equal(messageFilterError('@admin'), 'Messages cannot start with @.');
@@ -28,6 +28,14 @@ test('filters bios with chat rules, restricted characters, and a max length', ()
   assert.equal(bioFilterError('hi\u200bthere'), 'Restricted characters are not allowed.');
   assert.equal(bioFilterError('x'.repeat(280)), null);
   assert.match(bioFilterError('x'.repeat(281)), /280/);
+});
+
+test('group names require text, reject @ / 09 phones / over-length', () => {
+  assert.match(groupNameError(''), /group name/i);
+  assert.equal(groupNameError('Sunset'), null);
+  assert.equal(groupNameError('@club'), 'Group name cannot start with @.');
+  assert.match(groupNameError('call 0912345678'), /09/);
+  assert.match(groupNameError('x'.repeat(41)), /40/);
 });
 
 test('allows images and forbids typical video files', () => {

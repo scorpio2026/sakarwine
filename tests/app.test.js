@@ -852,6 +852,112 @@ test('member inbox lists visible conversations and hides deleted threads', async
   assert.equal(back.lastMessage.body, 'after hide');
 });
 
+test('paid members can create groups; invites accept and decline', async () => {
+  await started;
+  const free = await register('gfree' + Date.now().toString().slice(-5), '121212', 'male');
+  const owner = await register('gown' + Date.now().toString().slice(-5), '232323', 'female');
+  const invitee = await register('ginv' + Date.now().toString().slice(-5), '343434', 'male');
+  const other = await register('goth' + Date.now().toString().slice(-5), '454545', 'female');
+  const admin = await loginAdmin();
+  await giveUpgrade(admin, owner);
+
+  function groupForm(name) {
+    const form = new FormData();
+    form.set('name', name);
+    form.set('logo', new Blob([PNG], { type: 'image/png' }), 'logo.png');
+    return form;
+  }
+
+  const denied = await req('/api/groups', { method: 'POST', form: groupForm('NoPay'), jar: free.jar });
+  assert.equal(denied.res.status, 403);
+  assert.match(denied.data.error, /upgrade/i);
+
+  const created = await req('/api/groups', { method: 'POST', form: groupForm('Sunset'), jar: owner.jar });
+  assert.equal(created.res.status, 200, created.data.error);
+  const gid = created.data.group.id;
+  assert.equal(created.data.group.name, 'Sunset');
+  assert.ok(created.data.group.logoUrl);
+
+  const listed = await req('/api/groups', { jar: owner.jar });
+  assert.ok(listed.data.groups.some((g) => g.id === gid));
+  assert.equal(listed.data.canCreate, true);
+
+  const lookup = await req(`/api/groups/lookup?accountId=${encodeURIComponent(invitee.user.accountId)}`, {
+    jar: owner.jar
+  });
+  assert.equal(lookup.res.status, 200, lookup.data.error);
+  assert.equal(lookup.data.user.username, invitee.user.username);
+  assert.equal(lookup.data.user.phone, undefined);
+
+  const self = await req(`/api/groups/${gid}/invites`, {
+    method: 'POST',
+    json: { userId: owner.user.id },
+    jar: owner.jar
+  });
+  assert.equal(self.res.status, 400);
+
+  const inv = await req(`/api/groups/${gid}/invites`, {
+    method: 'POST',
+    json: { userId: invitee.user.id },
+    jar: owner.jar
+  });
+  assert.equal(inv.res.status, 200, inv.data.error);
+  assert.equal(inv.data.user.phone, undefined);
+
+  const dup = await req(`/api/groups/${gid}/invites`, {
+    method: 'POST',
+    json: { userId: invitee.user.id },
+    jar: owner.jar
+  });
+  assert.equal(dup.res.status, 400);
+
+  const pending = await req('/api/group-invites', { jar: invitee.jar });
+  assert.equal(pending.data.invites.length, 1);
+  assert.equal(pending.data.invites[0].group.name, 'Sunset');
+  assert.equal(pending.data.invites[0].inviter.username, owner.user.username);
+  assert.equal(pending.data.invites[0].inviter.accountId, owner.user.accountId);
+  assert.equal(pending.data.invites[0].inviter.phone, undefined);
+
+  const hijack = await req(`/api/group-invites/${pending.data.invites[0].id}/accept`, {
+    method: 'POST',
+    jar: other.jar
+  });
+  assert.equal(hijack.res.status, 404);
+
+  const acc = await req(`/api/group-invites/${pending.data.invites[0].id}/accept`, {
+    method: 'POST',
+    jar: invitee.jar
+  });
+  assert.equal(acc.res.status, 200, acc.data.error);
+  const joined = await req('/api/groups', { jar: invitee.jar });
+  assert.ok(joined.data.groups.some((g) => g.id === gid));
+
+  const already = await req(`/api/groups/${gid}/invites`, {
+    method: 'POST',
+    json: { userId: invitee.user.id },
+    jar: owner.jar
+  });
+  assert.equal(already.res.status, 400);
+
+  const inv2 = await req(`/api/groups/${gid}/invites`, {
+    method: 'POST',
+    json: { userId: other.user.id },
+    jar: owner.jar
+  });
+  assert.equal(inv2.res.status, 200, inv2.data.error);
+  const pending2 = await req('/api/group-invites', { jar: other.jar });
+  assert.equal(pending2.data.invites.length, 1);
+  const dec = await req(`/api/group-invites/${pending2.data.invites[0].id}/decline`, {
+    method: 'POST',
+    jar: other.jar
+  });
+  assert.equal(dec.res.status, 200, dec.data.error);
+  const stillOut = await req('/api/groups', { jar: other.jar });
+  assert.equal(stillOut.data.groups.some((g) => g.id === gid), false);
+  const emptyInv = await req('/api/group-invites', { jar: other.jar });
+  assert.equal(emptyInv.data.invites.length, 0);
+});
+
 test('female registration matches male; host apply is later from Settings', async () => {
   await started;
   const jar = cookieJar();

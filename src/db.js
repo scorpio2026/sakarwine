@@ -162,6 +162,40 @@ function migrate(db) {
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
     CREATE INDEX IF NOT EXISTS idx_pin_recovery_status ON pin_recovery_requests(status, created_at);
+
+    CREATE TABLE IF NOT EXISTS user_groups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      logo_path TEXT,
+      creator_id INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (creator_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS group_members (
+      group_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      role TEXT NOT NULL DEFAULT 'member',
+      joined_at INTEGER NOT NULL,
+      PRIMARY KEY (group_id, user_id),
+      FOREIGN KEY (group_id) REFERENCES user_groups(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS group_invites (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      group_id INTEGER NOT NULL,
+      inviter_id INTEGER NOT NULL,
+      invitee_id INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at INTEGER NOT NULL,
+      responded_at INTEGER,
+      FOREIGN KEY (group_id) REFERENCES user_groups(id),
+      FOREIGN KEY (inviter_id) REFERENCES users(id),
+      FOREIGN KEY (invitee_id) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_group_members_user ON group_members(user_id, group_id);
+    CREATE INDEX IF NOT EXISTS idx_group_invites_invitee ON group_invites(invitee_id, status);
   `);
   ensureColumn(db, 'users', 'is_special', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'users', 'badge', 'TEXT');
