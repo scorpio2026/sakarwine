@@ -704,20 +704,37 @@ body:has(.auth-screen) {
   border-radius: 20px;
   margin-bottom: 10px;
   padding: 10px 12px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(14, 10, 24, 0.22));
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
 }
 .user-row.gender-male {
-  border: 4px solid #2563eb;
+  border: 1px solid rgba(37, 99, 235, 0.42);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 0 0 1px rgba(37, 99, 235, 0.16),
+    0 0 16px rgba(59, 130, 246, 0.28);
 }
 .user-row.gender-female {
-  border: 4px solid #ec4899;
+  border: 1px solid rgba(236, 72, 153, 0.42);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 0 0 1px rgba(236, 72, 153, 0.16),
+    0 0 16px rgba(236, 72, 153, 0.28);
 }
-.user-row.gender-male:hover { background: rgba(37, 99, 235, 0.16); }
-.user-row.gender-female:hover { background: rgba(236, 72, 153, 0.16); }
+.user-row.gender-male:hover { background: rgba(37, 99, 235, 0.14); }
+.user-row.gender-female:hover { background: rgba(236, 72, 153, 0.14); }
 .user-row.gender-male .avatar.round {
-  box-shadow: 0 0 0 2px #fff, 0 0 0 6px #2563eb;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.35),
+    0 0 0 3px rgba(37, 99, 235, 0.38),
+    0 0 12px rgba(59, 130, 246, 0.36);
 }
 .user-row.gender-female .avatar.round {
-  box-shadow: 0 0 0 2px #fff, 0 0 0 6px #ec4899;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.35),
+    0 0 0 3px rgba(236, 72, 153, 0.38),
+    0 0 12px rgba(236, 72, 153, 0.36);
 }
 .avatar {
   width: 52px;
@@ -2312,7 +2329,7 @@ button:disabled, .btn:disabled, .icon-btn:disabled, .chat-tool:disabled, .chat-s
   .logo-3d { width: 72px; height: 72px; border-radius: 22px; }
   .user-row .avatar { width: 48px; height: 48px; }
   .user-row.gender-male,
-  .user-row.gender-female { border-width: 4px; }
+  .user-row.gender-female { border-width: 1px; }
   .composer { gap: 6px; }
   .chat-head .meta .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }

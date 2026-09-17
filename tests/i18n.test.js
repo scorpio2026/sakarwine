@@ -63,10 +63,13 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   assert.match(css, /#ff4ecd/);
   assert.match(css, /#8b5cff/);
   assert.match(css, /#3d7eff/);
-  assert.match(css, /\.user-row\.gender-male\s*\{[^}]*#2563eb/);
-  assert.match(css, /\.user-row\.gender-female\s*\{[^}]*#ec4899/);
-  assert.match(css, /\.user-row\.gender-male\s*\{[^}]*border:\s*4px solid #2563eb/);
-  assert.match(css, /\.user-row\.gender-female\s*\{[^}]*border:\s*4px solid #ec4899/);
+  assert.match(css, /\.user-row\.gender-male,\s*\.user-row\.gender-female\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(css, /\.user-row\.gender-male\s*\{[^}]*border:\s*1px solid rgba\(37, 99, 235/);
+  assert.match(css, /\.user-row\.gender-female\s*\{[^}]*border:\s*1px solid rgba\(236, 72, 153/);
+  assert.match(css, /\.user-row\.gender-male\s*\{[^}]*0 0 16px rgba\(59, 130, 246/);
+  assert.match(css, /\.user-row\.gender-female\s*\{[^}]*0 0 16px rgba\(236, 72, 153/);
+  assert.equal(/\.user-row\.gender-male\s*\{[^}]*border:\s*4px solid/.test(css), false);
+  assert.equal(/\.user-row\.gender-female\s*\{[^}]*border:\s*4px solid/.test(css), false);
   const js = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
   assert.match(js, /logo-aura/);
   assert.match(js, /gender-female/);
