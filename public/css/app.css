@@ -1253,6 +1253,19 @@ body {
 
 .hidden-file { display: none; }
 
+body.is-maintenance {
+  background: #000;
+  overflow: hidden;
+}
+body.is-maintenance .app,
+body.is-maintenance .petal-layer,
+body.is-maintenance #toast,
+body.is-maintenance #modal,
+body.is-maintenance #tour {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 #maintenance-screen {
   position: fixed;
   inset: 0;
@@ -1266,8 +1279,9 @@ body {
   gap: 18px;
   padding: 24px;
   text-align: center;
+  pointer-events: auto;
 }
-#maintenance-screen[hidden] { display: none; }
+#maintenance-screen[hidden] { display: none !important; }
 #maintenance-screen img {
   width: min(72vw, 260px);
   height: auto;

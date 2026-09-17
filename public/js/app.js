@@ -128,10 +128,46 @@ async function api(path, opts = {}) {
 function applyMaintenance(on) {
   const el = $('#maintenance-screen');
   if (!el) return;
-  el.hidden = !on;
+  const next = Boolean(on);
+  const wasOn = document.body.classList.contains('is-maintenance');
+  if (state.settings) state.settings.maintenance = next;
+  el.hidden = !next;
   const msg = $('#maintenance-msg');
   if (msg) msg.textContent = t('maintenanceMsg');
-  document.body.classList.toggle('is-maintenance', Boolean(on));
+  document.body.classList.toggle('is-maintenance', next);
+  const extras = [app, toastEl, modalEl, $('#tour')];
+  extras.forEach((node) => {
+    if (!node) return;
+    if (next) node.setAttribute('inert', '');
+    else node.removeAttribute('inert');
+  });
+  if (next) {
+    closeModal();
+    const tour = $('#tour');
+    if (tour) {
+      tour.hidden = true;
+      tour.innerHTML = '';
+    }
+    if (state.socket) {
+      const sock = state.socket;
+      state.socket = null;
+      sock.disconnect();
+    }
+  } else if (wasOn) {
+    if (state.user) {
+      if (!state.socket) connectSocket();
+    } else {
+      api('/api/me')
+        .then((me) => {
+          if (state.settings && state.settings.maintenance) return;
+          state.user = me.user;
+          if (me.user.status === 'pending_liveness') return showScan();
+          connectSocket();
+          showHome();
+        })
+        .catch(() => {});
+    }
+  }
 }
 
 function startMaintenancePoll() {
@@ -228,12 +264,22 @@ function usernamePatternOk(value) {
 }
 
 function connectSocket() {
+  if ((state.settings && state.settings.maintenance) || document.body.classList.contains('is-maintenance')) {
+    return;
+  }
   if (state.socket) {
     state.socket.disconnect();
     state.socket = null;
   }
   const socket = io({ transports: ['websocket', 'polling'] });
   state.socket = socket;
+  socket.on('maintenance', (payload) => {
+    const frozen = Boolean(payload && payload.on);
+    applyMaintenance(frozen);
+  });
+  socket.on('connect_error', (err) => {
+    if (String((err && err.message) || '').includes('MAINTENANCE')) applyMaintenance(true);
+  });
   socket.on('message', ({ conversationId, message }) => {
     if (state.chat && state.chat.id === conversationId) {
       addChatMessage(message);

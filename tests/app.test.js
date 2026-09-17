@@ -2003,6 +2003,32 @@ test('admin can freeze members with maintenance mode; health and admin stay up',
   const me2 = await req('/api/me', { jar: member.jar });
   assert.equal(me2.res.status, 200);
   assert.ok(me2.data.user);
+
+  const on2 = await req('/api/admin/settings', { method: 'PUT', json: { maintenance: true }, jar: admin });
+  assert.equal(on2.data.maintenance, true);
+  const login = await req('/api/login', {
+    method: 'POST',
+    json: { username: member.user.username, password: '121212' }
+  });
+  assert.equal(login.res.status, 503);
+  assert.equal(login.data.code, 'MAINTENANCE');
+  const form = new FormData();
+  form.set('username', 'mntx' + Date.now().toString().slice(-5));
+  form.set('password', '343434');
+  form.set('gender', 'male');
+  form.set('birthYear', '1998');
+  form.set('phone', '091111111');
+  form.set('photo', new Blob([PNG], { type: 'image/png' }), 'p.png');
+  const reg = await req('/api/register', { method: 'POST', form });
+  assert.equal(reg.res.status, 503);
+  const page = await fetch(base + '/');
+  assert.equal(page.status, 200);
+  const html = await page.text();
+  assert.match(html, /id="maintenance-screen"/);
+  assert.match(html, /alt="SAKARWINE"/);
+  const adminPage = await fetch(base + '/admin');
+  assert.equal(adminPage.status, 200);
+  await req('/api/admin/settings', { method: 'PUT', json: { maintenance: false }, jar: admin });
 });
 
 after(() => new Promise((resolve) => server.close(resolve)));

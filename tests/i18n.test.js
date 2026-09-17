@@ -328,6 +328,8 @@ test('UI language pack covers Saka rules, Help, errors, and does not translate t
     assert.ok(I18n.catalogs[code].sakaRules, `${code} missing sakaRules`);
     assert.ok(I18n.catalogs[code].sakaHostNotice, `${code} missing sakaHostNotice`);
     assert.ok(I18n.catalogs[code].sakaWelcome, `${code} missing sakaWelcome`);
+    assert.ok(I18n.catalogs[code].maintenanceMsg, `${code} missing maintenanceMsg`);
+    assert.equal(/SAKARWINE/.test(I18n.catalogs[code].maintenanceMsg), false, `${code} translated logo into maintenanceMsg`);
     assert.equal(/09/.test(I18n.catalogs[code].sakaRules), false, `${code} sakaRules mentions 09`);
     assert.equal(/@/.test(I18n.catalogs[code].sakaRules), false, `${code} sakaRules mentions @`);
     assert.equal(/09/.test(I18n.catalogs[code].sakaWelcome), false, `${code} sakaWelcome mentions 09`);
@@ -338,6 +340,7 @@ test('UI language pack covers Saka rules, Help, errors, and does not translate t
     assert.equal(/@/.test(I18n.catalogs[code].bioHelp), false, `${code} bioHelp mentions @`);
   }
   I18n.setLang('en');
+  assert.equal(I18n.t('maintenanceMsg'), 'update server');
   assert.match(I18n.t('sakaWelcome', { name: 'Aung' }), /Aung/);
   assert.match(I18n.localizeChatBody('__SW__:rules'), /24 hours free/i);
   assert.match(I18n.localizeChatBody('__SW__:host'), /500/);

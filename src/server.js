@@ -750,6 +750,14 @@ function maintenanceOn() {
   return getSetting(db, 'maintenance_mode', '0') === '1';
 }
 
+function notifyMaintenance(on) {
+  const flag = Boolean(on);
+  for (const socket of io.sockets.sockets.values()) {
+    socket.emit('maintenance', { on: flag });
+    if (flag && !socket.data.admin) socket.disconnect(true);
+  }
+}
+
 app.use((req, res, next) => {
   if (!maintenanceOn()) return next();
   const p = req.path || '';
@@ -2922,7 +2930,9 @@ app.put('/api/admin/settings', requireAdmin, (req, res) => {
     setSetting(db, 'income_demo_video_url', url || '/demo/income-host.mp4');
   }
   if (req.body.maintenance != null) {
-    setSetting(db, 'maintenance_mode', req.body.maintenance === true || req.body.maintenance === '1' ? '1' : '0');
+    const on = req.body.maintenance === true || req.body.maintenance === '1';
+    setSetting(db, 'maintenance_mode', on ? '1' : '0');
+    notifyMaintenance(on);
   }
   if (Array.isArray(req.body.badges)) {
     const cleaned = req.body.badges.map((b) => String(b || '').trim()).filter((b) => b && b.length <= 24);
