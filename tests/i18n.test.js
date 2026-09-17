@@ -384,3 +384,20 @@ test('UI language pack covers Saka rules, Help, errors, and does not translate t
   I18n.setLang('ja');
   assert.notEqual(I18n.t('upgradeTitle'), I18n.catalogs.en.upgradeTitle);
 });
+
+test('welcome login language switcher is not clipped on short mobile viewports', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const css = fs.readFileSync(path.join(__dirname, '../public/css/app.css'), 'utf8');
+  const js = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
+  const welcomeSlice = js.slice(js.indexOf('function showWelcome'), js.indexOf('async function login'));
+  const registerSlice = js.slice(js.indexOf('function showRegister'), js.indexOf('function showScan'));
+  assert.match(welcomeSlice, /I18n\.switcherHtml\('lang-switch'\)/);
+  assert.equal(registerSlice.includes("switcherHtml('lang-switch')"), false);
+  assert.match(css, /\.welcome-screen\s*\{[^}]*overflow-y:\s*auto/);
+  assert.equal(/\.welcome-screen\s*\{[^}]*overflow:\s*hidden/.test(css), false);
+  assert.match(css, /\.welcome-card\s*\{[^}]*flex:\s*1 0 auto/);
+  assert.match(css, /\.welcome-card \.lang-switch\s*\{[^}]*flex-shrink:\s*0/);
+  assert.match(css, /\.welcome-hero\s*\{[^}]*min-height:\s*min\(30dvh,\s*220px\)/);
+  assert.match(css, /@media \(max-height: 740px\)\s*\{[^}]*\.welcome-hero/);
+});

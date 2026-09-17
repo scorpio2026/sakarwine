@@ -206,13 +206,16 @@ body {
 .welcome-screen {
   padding: 0;
   background: var(--card);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .welcome-hero {
   position: relative;
   flex: 0 0 auto;
-  min-height: 42dvh;
-  padding: 18px 22px 48px;
+  min-height: min(30dvh, 220px);
+  padding: 22px 22px 48px;
   color: #f7fffb;
   background: linear-gradient(160deg, var(--hero-a) 0%, var(--hero-b) 52%, var(--hero-c) 100%);
   display: flex;
@@ -250,12 +253,23 @@ body {
 }
 .welcome-card {
   margin-top: -8px;
-  padding: 8px 22px calc(22px + var(--safe-bottom));
+  padding: 4px 22px calc(28px + var(--safe-bottom));
   background: var(--card);
-  flex: 1;
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
+  min-width: 0;
+}
+.welcome-card.stack {
+  gap: 8px;
+  align-content: start;
+}
+.welcome-card .field { margin-bottom: 0; }
+.welcome-card .lang-switch {
+  margin-top: 4px;
+  padding-bottom: 2px;
+  flex-shrink: 0;
 }
 .welcome-card .btn.block { border-radius: 999px; }
 
@@ -1721,7 +1735,25 @@ button:disabled, .btn:disabled, .icon-btn:disabled, .chat-tool:disabled, .chat-s
   .user-row.gender-female { border-width: 4px; }
   .composer { gap: 6px; }
   .chat-head .meta .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .welcome-hero { min-height: 38dvh; padding-bottom: 40px; }
+  .welcome-hero { min-height: min(26dvh, 188px); padding-bottom: 40px; }
+}
+
+@media (max-height: 740px) {
+  .welcome-hero {
+    min-height: min(24dvh, 168px);
+    padding-top: 16px;
+    padding-bottom: 40px;
+  }
+  .welcome-hero .brand-logo { width: min(78%, 280px); }
+}
+
+@media (max-height: 640px) {
+  .welcome-hero {
+    min-height: 0;
+    padding-top: 12px;
+    padding-bottom: 36px;
+  }
+  .welcome-hero .brand-logo { width: min(68%, 240px); }
 }
 
 @media (min-width: 900px) {
