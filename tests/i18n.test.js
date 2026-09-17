@@ -234,6 +234,17 @@ test('bottom nav has Home, Chat, Group, Profile, and Help — no Upgrade tab', (
   assert.match(js, /\/api\/groups\/discover/);
   assert.match(js, /\/api\/conversations/);
   assert.match(js, /\/api\/groups/);
+  const groupsFn = js.slice(js.indexOf('async function showGroups'), js.indexOf('function showDiscoverPreview'));
+  assert.match(groupsFn, /Number\(Boolean\(b\.joined\)\) - Number\(Boolean\(a\.joined\)\)/);
+  assert.match(groupsFn, /g && g\.joined\) showGroupDetail/);
+  assert.match(groupsFn, /showDiscoverPreview/);
+  assert.equal(groupsFn.includes('data-join='), false);
+  assert.equal(groupsFn.includes("t('requestJoin')"), false);
+  assert.equal(groupsFn.includes('group-discover'), false);
+  const previewFn = js.slice(js.indexOf('function showDiscoverPreview'), js.indexOf('function showCreateGroup'));
+  assert.match(previewFn, /id="req-join"/);
+  assert.match(previewFn, /t\('requestJoin'\)/);
+  assert.match(previewFn, /\/api\/groups\/\$\{g\.id\}\/join/);
   assert.match(js, /function meBtnHtml/);
   assert.match(js, /id="goto-me"/);
   assert.match(js, /id="up-back"/);

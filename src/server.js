@@ -1582,8 +1582,11 @@ app.get('/api/groups/lookup', requireUser, requireActive, (req, res) => {
 });
 
 app.get('/api/groups/discover', requireUser, requireActive, (req, res) => {
-  const mine = new Set(
-    db.prepare('SELECT group_id FROM group_members WHERE user_id = ?').all(req.user.id).map((r) => r.group_id)
+  const mine = new Map(
+    db
+      .prepare('SELECT group_id, role FROM group_members WHERE user_id = ?')
+      .all(req.user.id)
+      .map((r) => [r.group_id, r.role])
   );
   const pending = new Set(
     db
@@ -1598,10 +1601,14 @@ app.get('/api/groups/discover', requireUser, requireActive, (req, res) => {
     .prepare('SELECT * FROM user_groups ORDER BY created_at DESC')
     .all()
     .map((row) => ({
-      ...serializeGroupPreview(row, { memberCount: countStmt.get(row.id).n }),
+      ...serializeGroupPreview(row, {
+        memberCount: countStmt.get(row.id).n,
+        role: mine.get(row.id) || null
+      }),
       joined: mine.has(row.id),
       requested: pending.has(row.id)
     }));
+  groups.sort((a, b) => Number(Boolean(b.joined)) - Number(Boolean(a.joined)));
   res.json({ groups });
 });
 

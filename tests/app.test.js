@@ -1062,6 +1062,25 @@ test('paid members can create groups; invites accept and decline', async () => {
   assert.ok(found.logoUrl);
   assert.equal(found.joined, false);
   assert.equal(found.phone, undefined);
+  const seekerMine = await req('/api/groups', { jar: seeker.jar });
+  assert.equal(seekerMine.data.groups.some((g) => g.id === gid), false);
+  assert.ok(disc.data.groups.length >= 1);
+
+  const discOwner = await req('/api/groups/discover', { jar: owner.jar });
+  const ownerFound = discOwner.data.groups.find((g) => g.id === gid);
+  assert.ok(ownerFound);
+  assert.equal(ownerFound.joined, true);
+  assert.equal(ownerFound.role, 'owner');
+  let seenUnjoined = false;
+  for (const g of discOwner.data.groups) {
+    if (!g.joined) seenUnjoined = true;
+    else assert.equal(seenUnjoined, false, 'joined groups must sort first');
+  }
+  seenUnjoined = false;
+  for (const g of disc.data.groups) {
+    if (!g.joined) seenUnjoined = true;
+    else assert.equal(seenUnjoined, false, 'joined groups must sort first');
+  }
 
   const passer = await register('gpass' + Date.now().toString().slice(-5), '676767', 'female');
   const passAsk = await req(`/api/groups/${gid}/join`, { method: 'POST', jar: passer.jar });

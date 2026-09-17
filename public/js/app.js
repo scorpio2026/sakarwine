@@ -808,7 +808,6 @@ async function showGroups() {
       </div>
       <div id="group-invites"></div>
       <div id="group-list" class="user-list"><p class="muted">${t('loading')}</p></div>
-      <div id="group-discover"></div>
       </div>
       ${nav('groups')}
     </section>`;
@@ -816,9 +815,8 @@ async function showGroups() {
   bindMeButton();
   $('#group-create').onclick = showCreateGroup;
   try {
-    const [inv, list, disc] = await Promise.all([
+    const [inv, disc] = await Promise.all([
       api('/api/group-invites'),
-      api('/api/groups'),
       api('/api/groups/discover')
     ]);
     const invBox = $('#group-invites');
@@ -867,52 +865,26 @@ async function showGroups() {
     } else {
       invBox.innerHTML = '';
     }
-    const groups = list.groups || [];
+    const groups = [...(disc.groups || [])].sort(
+      (a, b) => Number(Boolean(b.joined)) - Number(Boolean(a.joined))
+    );
     const box = $('#group-list');
     box.innerHTML = groups.map((g) => `
-      <div class="user-row" data-id="${g.id}">
+      <div class="user-row" data-id="${g.id}" data-joined="${g.joined ? '1' : '0'}">
         ${groupLogoHtml(g)}
         <div class="meta">
           <div class="name">${escapeHtml(g.name)}</div>
           <div class="sub">${g.memberCount != null ? t('groupMemberCount', { n: g.memberCount }) : ''}</div>
         </div>
-        <span class="when">${g.role === 'owner' ? t('groupOwner') : ''}</span>
+        <span class="when">${g.joined ? (g.role === 'owner' ? t('groupOwner') : '') : (g.requested ? t('joinRequested') : '')}</span>
       </div>`).join('') || `<p class="settings-empty">${t('noGroups')}</p>`;
     box.querySelectorAll('.user-row').forEach((row) => {
-      row.onclick = () => showGroupDetail(Number(row.dataset.id));
+      const g = groups.find((x) => x.id === Number(row.dataset.id));
+      row.onclick = () => {
+        if (g && g.joined) showGroupDetail(g.id);
+        else if (g) showDiscoverPreview(g);
+      };
     });
-    const discBox = $('#group-discover');
-    const others = (disc.groups || []).filter((g) => !g.joined);
-    if (discBox) {
-      discBox.innerHTML = `<h3 class="group-section">${t('discoverGroups')}</h3>` + (
-        others.length
-          ? others.map((g) => `
-        <div class="user-row" data-id="${g.id}">
-          ${groupLogoHtml(g)}
-          <div class="meta">
-            <div class="name">${escapeHtml(g.name)}</div>
-            <div class="sub">${g.memberCount != null ? t('groupMemberCount', { n: g.memberCount }) : ''}</div>
-          </div>
-          ${g.requested
-            ? `<span class="when">${t('joinRequested')}</span>`
-            : `<button type="button" class="btn secondary" data-join="${g.id}">${t('requestJoin')}</button>`}
-        </div>`).join('')
-          : `<p class="settings-empty">${t('noDiscoverGroups')}</p>`
-      );
-      discBox.querySelectorAll('.user-row').forEach((row) => {
-        const g = others.find((x) => x.id === Number(row.dataset.id));
-        row.onclick = () => {
-          if (g) showDiscoverPreview(g);
-        };
-      });
-      discBox.querySelectorAll('[data-join]').forEach((btn) => {
-        btn.onclick = (e) => {
-          e.stopPropagation();
-          const g = others.find((x) => x.id === Number(btn.dataset.join));
-          if (g) showDiscoverPreview(g);
-        };
-      });
-    }
   } catch (e) {
     toastErr(e);
   }
