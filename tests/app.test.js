@@ -2185,6 +2185,17 @@ test('Saka guide chat is a restricted FAQ helper', async () => {
   assert.equal(spoof.data.faqTopic, null);
   assert.equal(spoof.data.guideReply.body, '__SW__:faq:refuse');
 
+  const viewed = await req(`/api/conversations/${convId}/view-lang`, {
+    method: 'PUT',
+    json: { lang: 'ja' },
+    jar: member.jar
+  });
+  assert.equal(viewed.res.status, 200, viewed.data.error);
+  assert.equal(viewed.data.viewLang, 'ja');
+  const faqReply = (viewed.data.messages || []).find((m) => m.body === '__SW__:faq:register');
+  assert.ok(faqReply, 'Guide FAQ keys stay tokens so the client can localize them');
+  assert.equal(Boolean(faqReply.translated), false);
+
   const media = new FormData();
   media.set('type', 'image');
   media.set('file', new Blob([PNG], { type: 'image/png' }), 'x.png');

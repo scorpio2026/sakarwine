@@ -2423,8 +2423,9 @@
     return String(s).replace(/\{(\w+)\}/g, (_, k) => (vars[k] != null ? String(vars[k]) : ''));
   }
 
-  function t(key, vars) {
-    const pack = catalogs[lang] || catalogs.en;
+  function t(key, vars, langCode) {
+    const code = langCode && catalogs[langCode] ? langCode : lang;
+    const pack = catalogs[code] || catalogs.en;
     const s = pack[key] || catalogs.en[key] || key;
     return interpolate(s, vars);
   }

@@ -1182,8 +1182,10 @@
     };
     I18n.localizeChatBody = function (body, vars) {
       const s = String(body || '');
+      const loc = vars && vars.lang;
+      const tt = (key, v) => I18n.t(key, v, loc);
       if (s === '__SW__:welcome' || (/Welcome to sakarwine/.test(s) && /Saka/.test(s))) {
-        return I18n.t('sakaWelcome', vars);
+        return tt('sakaWelcome', vars);
       }
       const oldRules =
         /No 09 phone numbers/.test(s) ||
@@ -1199,17 +1201,17 @@
         (s.includes('Without upgrade') && s.includes('အဆင့်မမြှင့်ရသေးပါက')) ||
         oldRules
       ) {
-        return I18n.t('sakaRules');
+        return tt('sakaRules');
       }
       if (s === '__SW__:host' || (s.includes('Female host') && s.includes('Host (မိန်းကလေးသာ)'))) {
-        return I18n.t('sakaHostNotice');
+        return tt('sakaHostNotice');
       }
-      if (s === '__SW__:faq:register') return I18n.t('sakaFaqARegister');
-      if (s === '__SW__:faq:pin') return I18n.t('sakaFaqAPin');
-      if (s === '__SW__:faq:host') return I18n.t('sakaFaqAHost');
-      if (s === '__SW__:faq:upgrade') return I18n.t('sakaFaqAUpgrade');
-      if (s === '__SW__:faq:refuse') return I18n.t('sakaFaqRefuse');
-      if (s === 'ငွေဝင်ပါပြီ') return I18n.t('payoutDone');
+      if (s === '__SW__:faq:register') return tt('sakaFaqARegister');
+      if (s === '__SW__:faq:pin') return tt('sakaFaqAPin');
+      if (s === '__SW__:faq:host') return tt('sakaFaqAHost');
+      if (s === '__SW__:faq:upgrade') return tt('sakaFaqAUpgrade');
+      if (s === '__SW__:faq:refuse') return tt('sakaFaqRefuse');
+      if (s === 'ငွေဝင်ပါပြီ') return tt('payoutDone');
       return s;
     };
     I18n.statusLabel = function (s) {

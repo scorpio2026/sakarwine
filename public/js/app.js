@@ -54,8 +54,8 @@ function toast(msg) {
   toastEl._t = setTimeout(() => { toastEl.hidden = true; }, 2800);
 }
 
-function t(key, vars) {
-  return I18n.t(key, vars);
+function t(key, vars, langCode) {
+  return I18n.t(key, vars, langCode);
 }
 
 function toastErr(e) {
@@ -69,9 +69,15 @@ function genderLabel(g) {
   return g || '';
 }
 
+function chatViewLang() {
+  if (state.chat && state.chat.viewLang && I18n.catalogs[state.chat.viewLang]) return state.chat.viewLang;
+  return I18n.lang;
+}
+
 function chatBody(body, vars) {
   const name = (vars && vars.name) || (state.user && state.user.username) || '';
-  return I18n.localizeChatBody ? I18n.localizeChatBody(body, { name }) : (body || '');
+  const lang = (vars && vars.lang) || chatViewLang();
+  return I18n.localizeChatBody ? I18n.localizeChatBody(body, { name, lang }) : (body || '');
 }
 
 function planLabel(months) {
@@ -1601,7 +1607,7 @@ function promptChatLang(c, opts = {}) {
   ).join('');
   modal(`
     <h3 style="margin-top:0">${t('chooseChatLang')}</h3>
-    <p class="small muted">${t('chatLangHint', { name: escapeHtml(c.peer.username) })}</p>
+    <p class="small muted">${c.peer && c.peer.isAi ? t('changeChatLang') : t('chatLangHint', { name: escapeHtml(c.peer.username) })}</p>
     <div class="lang-choices">${choices}</div>
     <button class="btn block" id="use-chat-lang">${t('useThisLang')}</button>`);
   let picked = current;
@@ -1640,8 +1646,10 @@ function renderChat(opts = {}) {
   const presence = c.peer.online ? t('activeNow') : t('offline');
   const remain = formatRemain(c.window.remainingMs, c.window);
   const chatSub = remain ? `${presence} · ${remain}` : presence;
+  const faqLang = chatViewLang();
+  const faqNative = (I18n.LANGS.find((l) => l.code === faqLang) || I18n.LANGS[0]).native;
   app.innerHTML = `
-    <section class="screen chat-screen">
+    <section class="screen chat-screen${c.peer.isAi ? ' guide-chat' : ''}">
       <div class="screen-body">
       <div class="topbar chat-head">
         <button class="chat-tool" id="back" aria-label="${t('back')}">${ICONS.back}</button>
@@ -1659,15 +1667,18 @@ function renderChat(opts = {}) {
       </div>
       ${expired ? `<div class="upgrade-banner">${t('upgradeEnded')}<br><button class="btn" id="go-up" style="margin-top:8px">${t('seePlans')}</button></div>` : ''}
       ${gateNote ? `<div class="upgrade-banner">${escapeHtml(gateNote)}</div>` : ''}
-      <div id="messages" class="messages">${renderThread(c.messages)}</div>
+      <div id="messages" class="messages${c.peer.isAi ? ' guide-messages' : ''}">${renderThread(c.messages)}</div>
       <div class="typing" id="typing"></div>
       </div>
       <div class="composer${c.peer.isAi ? ' composer-faq' : ''}">
         ${c.peer.isAi ? `
         <div class="saka-faq" id="saka-faq-chips">
+          <div class="saka-faq-langbar">
+            <button type="button" class="saka-faq-lang" id="guide-lang">${escapeHtml(t('language'))}: ${escapeHtml(faqNative)}</button>
+          </div>
           <p class="saka-faq-hint">${escapeHtml(t('sakaFaqHint'))}</p>
           <div class="saka-faq-chips">
-            ${SAKA_FAQ.map((item) => `<button type="button" class="saka-faq-chip" data-faq="${item.topic}">${escapeHtml(t(item.q))}</button>`).join('')}
+            ${SAKA_FAQ.map((item) => `<button type="button" class="saka-faq-chip" data-faq="${item.topic}">${escapeHtml(t(item.q, null, faqLang))}</button>`).join('')}
           </div>
         </div>` : ''}
         <div class="composer-main">
@@ -1704,6 +1715,7 @@ function renderChat(opts = {}) {
     }
   };
   if ($('#chat-lang')) $('#chat-lang').onclick = () => promptChatLang(c, { force: true });
+  if ($('#guide-lang')) $('#guide-lang').onclick = () => promptChatLang(c, { force: true });
   if ($('#toggle-msg')) {
     $('#toggle-msg').onclick = async () => {
       try {
@@ -1794,7 +1806,7 @@ function renderChat(opts = {}) {
     btn.onclick = () => {
       const topic = btn.dataset.faq;
       const item = SAKA_FAQ.find((x) => x.topic === topic);
-      sendText(item ? t(item.q) : btn.textContent, topic);
+      sendText(item ? t(item.q, null, chatViewLang()) : btn.textContent, topic);
     };
   });
   ta.addEventListener('keydown', (e) => {

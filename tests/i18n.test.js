@@ -498,6 +498,10 @@ test('UI language pack covers Saka rules, Help, errors, and does not translate t
   assert.equal(I18n.localizeChatBody('__SW__:faq:host'), I18n.t('sakaFaqAHost'));
   assert.equal(I18n.localizeChatBody('__SW__:faq:upgrade'), I18n.t('sakaFaqAUpgrade'));
   assert.equal(I18n.localizeChatBody('__SW__:faq:refuse'), I18n.t('sakaFaqRefuse'));
+  I18n.setLang('en');
+  assert.equal(I18n.localizeChatBody('__SW__:faq:register', { lang: 'my' }), I18n.catalogs.my.sakaFaqARegister);
+  assert.equal(I18n.localizeChatBody('__SW__:faq:upgrade', { lang: 'ja' }), I18n.catalogs.ja.sakaFaqAUpgrade);
+  assert.equal(I18n.t('sakaFaqQRegister', null, 'th'), I18n.catalogs.th.sakaFaqQRegister);
   assert.equal(I18n.t('sakaFaqQRegister'), 'How to register');
   I18n.setLang('my');
   assert.equal(I18n.t('sakaFaqQRegister'), 'အကောင့်ဖွင့်ပုံ');
@@ -698,6 +702,14 @@ test('chat DM surfaces use glass neon chrome and keep bubble clustering', () => 
   assert.match(appCss, /\.composer-pill\s*\{[^}]*backdrop-filter:\s*blur/);
   assert.match(appCss, /\.chat-send\s*\{[^}]*--sw-cta/);
   assert.match(appCss, /\.saka-faq-chip\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(appCss, /\.guide-chat \.bubble\.them,\s*\.guide-chat \.bubble\.ai\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(appCss, /\.guide-chat \.bubble\.me\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(appCss, /\.saka-faq-lang\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(appJs, /function chatViewLang/);
+  assert.match(appJs, /guide-chat/);
+  assert.match(appJs, /id="guide-lang"/);
+  assert.match(appJs, /t\(item\.q, null, faqLang\)/);
+  assert.match(appJs, /localizeChatBody\(body, \{ name, lang \}\)/);
   assert.match(appCss, /\.chat-screen \.bubble\.first\.me/);
   assert.match(appCss, /\.chat-screen \.bubble\.mid\.me/);
   assert.match(appCss, /\.chat-screen \.bubble\.last\.them/);
