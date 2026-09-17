@@ -338,5 +338,6 @@ module.exports = {
   addBadge,
   publicUser,
   adminUser,
-  isAdminAccount
+  isAdminAccount,
+  defaultAvatarUrl
 };

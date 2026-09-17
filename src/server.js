@@ -8,7 +8,7 @@ const express = require('express');
 const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const { Server } = require('socket.io');
-const { openDb, ensureDir, getSetting, setSetting, getBadges, addBadge, publicUser, adminUser, isAdminAccount } = require('./db');
+const { openDb, ensureDir, getSetting, setSetting, getBadges, addBadge, publicUser, adminUser, isAdminAccount, defaultAvatarUrl } = require('./db');
 const { messageFilterError, isAllowedImageMime, isAllowedVoiceMime, isForbiddenVideo } = require('./filters');
 const { usernameError } = require('./username');
 const { translateText, normalizeLang } = require('./translate');
@@ -1078,7 +1078,11 @@ app.get('/api/users/:id/card', requireUser, requireActive, (req, res) => {
     user: {
       id: target.id,
       username: target.username,
-      photoUrl: target.photo_path ? `/api/media/profile/${path.basename(target.photo_path)}` : null,
+      photoUrl: target.photo_path
+        ? `/api/media/profile/${path.basename(target.photo_path)}`
+        : defaultAvatarUrl(target),
+      hasPhoto: Boolean(target.photo_path),
+      gender: target.gender,
       accountId: target.account_id,
       isAi: Boolean(target.is_ai),
       isAdmin: isAdminAccount(target),

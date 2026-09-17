@@ -244,10 +244,15 @@ test('special accounts skip the upgrade gate and hide IDs', async () => {
   assert.equal(created.data.user.badge, 'VVIP');
   assert.equal(created.data.user.accountIdHidden, true);
   assert.ok(created.data.user.accountId);
+  assert.equal(created.data.user.hasPhoto, false);
+  assert.equal(created.data.user.photoUrl, '/assets/default-female.png');
+  assert.equal(created.data.user.photoUrl.includes('sakarwine-logo'), false);
 
   const listed = await req('/api/users', { jar: member.jar });
   const vvip = listed.data.users.find((u) => u.username === created.data.user.username);
   assert.ok(vvip);
+  assert.equal(vvip.photoUrl, '/assets/default-female.png');
+  assert.equal(vvip.hasPhoto, false);
   assert.equal(vvip.accountId, null);
   assert.equal(vvip.accountIdHidden, true);
   assert.equal(vvip.badge, 'VVIP');
@@ -299,6 +304,8 @@ test('profile card shows account ID and admin accounts cannot be blocked', async
   assert.equal(created.res.status, 200, created.data.error);
   assert.equal(created.data.user.isAdmin, true);
   assert.equal(created.data.user.blockable, false);
+  assert.equal(created.data.user.hasPhoto, false);
+  assert.equal(created.data.user.photoUrl, '/assets/default-male.png');
 
   const listed = await req('/api/users', { jar: member.jar });
   const adm = listed.data.users.find((u) => u.username === created.data.user.username);
@@ -308,7 +315,9 @@ test('profile card shows account ID and admin accounts cannot be blocked', async
 
   const card = await req(`/api/users/${created.data.user.id}/card`, { jar: member.jar });
   assert.equal(card.data.user.accountId, created.data.user.accountId);
-  assert.ok(card.data.user.photoUrl || card.data.user.accountId);
+  assert.equal(card.data.user.photoUrl, '/assets/default-male.png');
+  assert.equal(card.data.user.hasPhoto, false);
+  assert.equal(card.data.user.gender, 'male');
 
   const noBlock = await req(`/api/users/${created.data.user.id}/block`, { method: 'POST', jar: member.jar });
   assert.equal(noBlock.res.status, 403);

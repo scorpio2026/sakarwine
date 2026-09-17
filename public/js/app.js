@@ -105,6 +105,12 @@ async function api(path, opts = {}) {
   return data;
 }
 
+function mastheadHtml() {
+  return `<header class="app-masthead" role="banner">
+    <img class="masthead-logo" src="/assets/sakarwine-logo.png" alt="SAKARWINE" />
+  </header>`;
+}
+
 function avatarHtml(user, cls = '') {
   if (!user) return '';
   const tap = user.id != null ? ` data-photo-user="${user.id}"` : '';
@@ -118,7 +124,7 @@ async function openProfilePhoto(userId) {
   try {
     const data = await api(`/api/users/${userId}/card`);
     const u = data.user;
-    const photo = u.photoUrl
+    const photo = u.hasPhoto && u.photoUrl
       ? `<img class="profile-lite-photo" src="${escapeHtml(u.photoUrl)}" alt="${escapeHtml(u.username)}" />`
       : avatarHtml(u, 'profile-lite-photo');
     modal(`
@@ -580,12 +586,10 @@ async function showHome(opts = {}) {
   const u = state.user;
   app.innerHTML = `
     <section class="screen home-screen">
+      ${mastheadHtml()}
       <div class="screen-body">
       <div class="topbar">
-        <div>
-          <img class="masthead-logo" src="/assets/sakarwine-logo.png" alt="${escapeHtml(state.settings.siteName)}" />
-          <h2 id="home-title">${t('contactsTitle')}</h2>
-        </div>
+        <h2 id="home-title">${t('contactsTitle')}</h2>
         <span class="pill-slot">${statusPill(u)}</span>
       </div>
       <label class="search-bar">

@@ -128,13 +128,22 @@ body {
   width: min(86%, 320px);
   box-shadow: 0 10px 28px rgba(0, 20, 12, 0.22);
 }
+.app-masthead {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: -14px -14px 8px;
+  padding: 10px 16px 12px;
+  background: #000;
+}
 .masthead-logo {
   display: block;
-  width: min(176px, 58vw);
+  width: min(200px, 68vw);
   height: auto;
-  margin: 0 0 6px;
-  border-radius: 8px;
-  background: #000;
+  margin: 0;
+  border-radius: 0;
+  background: transparent;
 }
 .welcome-screen {
   padding: 0;
