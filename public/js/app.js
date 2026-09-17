@@ -139,7 +139,7 @@ function connectSocket() {
       state.chat.messages.push(message);
       const box = $('#messages');
       if (box) {
-        box.insertAdjacentHTML('beforeend', renderBubble(message));
+        box.innerHTML = renderThread(state.chat.messages);
         box.scrollTop = box.scrollHeight;
       }
     } else if (!message.sender) {
@@ -546,23 +546,72 @@ async function showHome(opts = {}) {
   }
 }
 
-function renderBubble(m) {
+function sameBubbleGroup(a, b) {
+  if (!a || !b || !a.sender || !b.sender) return false;
+  if (a.type === 'system' || b.type === 'system') return false;
+  if (a.sender.id !== b.sender.id) return false;
+  return Math.abs((Number(b.createdAt) || 0) - (Number(a.createdAt) || 0)) < 120000;
+}
+
+function formatMsgTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return '';
+  const t = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return t;
+  return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} · ${t}`;
+}
+
+function shouldShowTime(prev, m) {
+  if (!m || !m.createdAt) return false;
+  if (!prev || !prev.createdAt) return true;
+  return Math.abs((Number(m.createdAt) || 0) - (Number(prev.createdAt) || 0)) > 15 * 60 * 1000;
+}
+
+function stackClass(prev, m, next) {
+  if (m.type === 'system' || !m.sender) return '';
+  const withPrev = sameBubbleGroup(prev, m);
+  const withNext = sameBubbleGroup(m, next);
+  if (!withPrev && !withNext) return ' alone';
+  if (!withPrev && withNext) return ' first';
+  if (withPrev && withNext) return ' mid';
+  return ' last';
+}
+
+function renderBubble(m, prev, next) {
   const mine = m.sender && state.user && m.sender.id === state.user.id;
-  const cls = `bubble ${mine ? 'me' : 'them'}${m.sender && m.sender.isAi ? ' ai' : ''}`;
+  const media = m.type === 'image' || m.type === 'voice';
+  const sys = m.type === 'system' || !m.sender;
+  const cls = `bubble ${mine ? 'me' : 'them'}${m.sender && m.sender.isAi ? ' ai' : ''}${media ? ' media' : ''}${sys ? ' system' : ''}${stackClass(prev, m, next)}`;
   let inner = '';
   if (m.type === 'image' && m.imageLocked) {
-    inner = `<div class="locked-photo" data-lock>Photos unlock at Level 3 (3 approved upgrades). Tap for details.</div>`;
+    inner = `<div class="locked-photo" data-lock>Photos unlock at Level 3. Tap for details.</div>`;
   } else if (m.type === 'image' && m.mediaUrl) {
-    inner = `<img src="${m.mediaUrl}" alt="photo" />`;
+    inner = `<img src="${m.mediaUrl}" alt="" />`;
   } else if (m.type === 'voice' && m.mediaUrl) {
     inner = `<audio controls src="${m.mediaUrl}"></audio>`;
-  } else if (m.type === 'system' || !m.sender) {
+  } else if (sys) {
     inner = `<span class="sys-note">${escapeHtml(m.body || '')}</span>`;
   } else {
     inner = escapeHtml(m.body || '');
   }
-  const extra = m.type === 'system' || !m.sender ? ' system' : '';
-  return `<div class="${cls}${extra}" contenteditable="false">${inner}</div>`;
+  return `<div class="${cls}" contenteditable="false">${inner}</div>`;
+}
+
+function renderThread(messages) {
+  const list = messages || [];
+  let html = '';
+  for (let i = 0; i < list.length; i++) {
+    const m = list[i];
+    const prev = list[i - 1];
+    const next = list[i + 1];
+    if (shouldShowTime(prev, m)) {
+      html += `<div class="chat-time">${escapeHtml(formatMsgTime(m.createdAt))}</div>`;
+    }
+    html += renderBubble(m, prev, next);
+  }
+  return html;
 }
 
 function escapeHtml(s) {
@@ -675,27 +724,32 @@ function renderChat(opts = {}) {
     <section class="screen chat-screen">
       <div class="screen-body">
       <div class="topbar chat-head">
-        <button class="icon-btn" id="back">${ICONS.back}</button>
-        ${avatarHtml(c.peer)}
+        <button class="chat-tool" id="back" aria-label="Back">${ICONS.back}</button>
+        <div class="chat-ava">
+          ${avatarHtml(c.peer, 'round')}
+          <span class="ava-on ${c.peer.online ? 'on' : ''}"></span>
+        </div>
         <div class="meta">
-          <div class="name">${c.peer.username} ${roleMark(c.peer)}</div>
-          <div class="sub">${c.peer.online ? 'Online' : 'Offline'} · ${formatRemain(c.window.remainingMs, c.window)}</div>
+          <div class="name">${escapeHtml(c.peer.username)} ${roleMark(c.peer)}</div>
+          <div class="sub">${c.peer.online ? 'Active now' : 'Offline'} · ${formatRemain(c.window.remainingMs, c.window)}</div>
         </div>
         ${c.peer.isAi ? '' : `<div class="chat-actions">
-          ${c.peer.isAdmin || c.peer.blockable === false ? '' : `<button class="icon-btn" id="block" title="Block">${ICONS.block}</button>`}
-          <button class="icon-btn" id="delete-chat" title="Delete for me">${ICONS.trash}</button>
+          ${c.peer.isAdmin || c.peer.blockable === false ? '' : `<button class="chat-tool" id="block" title="Block" aria-label="Block">${ICONS.block}</button>`}
+          <button class="chat-tool" id="delete-chat" title="Delete for me" aria-label="Delete chat">${ICONS.trash}</button>
         </div>`}
       </div>
-      ${expired ? `<div class="upgrade-banner">Free 24 hours has ended for this chat. Upgrade to keep talking with unlimited people during your paid period.<br><button class="btn" id="go-up" style="margin-top:8px">See plans</button></div>` : ''}
+      ${expired ? `<div class="upgrade-banner">Free 24 hours has ended for this chat. Upgrade to keep talking.<br><button class="btn" id="go-up" style="margin-top:8px">See plans</button></div>` : ''}
       ${hostCreditBanner(c)}
-      <div id="messages" class="messages">${c.messages.map(renderBubble).join('')}</div>
+      <div id="messages" class="messages">${renderThread(c.messages)}</div>
       <div class="typing" id="typing"></div>
       </div>
       <div class="composer">
-        <button class="icon-btn" id="img-btn" ${expired ? 'disabled' : ''}>${ICONS.image}</button>
-        <button class="icon-btn" id="mic-btn" ${expired ? 'disabled' : ''}>${ICONS.mic}</button>
-        <textarea id="text" ${expired ? 'disabled' : ''} placeholder="Say something lovely…"></textarea>
-        <button class="icon-btn" id="send" ${expired ? 'disabled' : ''}>${ICONS.send}</button>
+        <button class="chat-tool" id="img-btn" aria-label="Photo" ${expired ? 'disabled' : ''}>${ICONS.image}</button>
+        <div class="composer-pill">
+          <textarea id="text" rows="1" ${expired ? 'disabled' : ''} placeholder="Message…"></textarea>
+          <button class="chat-send" id="send" hidden ${expired ? 'disabled' : ''}>Send</button>
+        </div>
+        <button class="chat-tool" id="mic-btn" aria-label="Voice note" ${expired ? 'disabled' : ''}>${ICONS.mic}</button>
         <input id="img-file" class="hidden-file" type="file" accept="image/*" />
       </div>
     </section>`;
@@ -744,8 +798,20 @@ function renderChat(opts = {}) {
     };
   };
   let sending = false;
+  const ta = $('#text');
+  const syncComposer = () => {
+    const has = ta.value.trim().length > 0;
+    $('#send').hidden = !has;
+    if ($('#mic-btn')) $('#mic-btn').hidden = has;
+    ta.style.height = 'auto';
+    ta.style.height = `${Math.min(120, Math.max(24, ta.scrollHeight))}px`;
+  };
+  const paintThread = () => {
+    box.innerHTML = renderThread(c.messages);
+    box.scrollTop = box.scrollHeight;
+  };
   const sendText = async () => {
-    const body = $('#text').value;
+    const body = ta.value;
     if (sending || !body.trim()) return;
     sending = true;
     try {
@@ -753,11 +819,11 @@ function renderChat(opts = {}) {
         method: 'POST',
         json: { type: 'text', body }
       });
-      $('#text').value = '';
+      ta.value = '';
+      syncComposer();
       c.window = data.window;
       c.messages.push(data.message);
-      box.insertAdjacentHTML('beforeend', renderBubble(data.message));
-      box.scrollTop = box.scrollHeight;
+      paintThread();
     } catch (e) {
       if (e.code === 'UPGRADE') showUpgrade();
       toast(e.message);
@@ -766,18 +832,20 @@ function renderChat(opts = {}) {
     }
   };
   $('#send').onclick = sendText;
-  $('#text').addEventListener('keydown', (e) => {
+  ta.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendText();
     }
   });
   let typingT;
-  $('#text').addEventListener('input', () => {
+  ta.addEventListener('input', () => {
+    syncComposer();
     if (state.socket) state.socket.emit('typing', { conversationId: c.id, typing: true });
     clearTimeout(typingT);
     typingT = setTimeout(() => state.socket && state.socket.emit('typing', { conversationId: c.id, typing: false }), 800);
   });
+  syncComposer();
   $('#img-btn').onclick = () => $('#img-file').click();
   $('#img-file').onchange = async () => {
     const f = $('#img-file').files[0];
@@ -788,8 +856,7 @@ function renderChat(opts = {}) {
     try {
       const data = await api(`/api/conversations/${c.id}/messages`, { method: 'POST', body: fd });
       c.messages.push(data.message);
-      box.insertAdjacentHTML('beforeend', renderBubble(data.message));
-      box.scrollTop = box.scrollHeight;
+      paintThread();
     } catch (e) {
       toast(e.message);
     }
@@ -806,6 +873,7 @@ function renderChat(opts = {}) {
       rec = new MediaRecorder(stream);
       rec.ondataavailable = (e) => chunks.push(e.data);
       rec.onstop = async () => {
+        $('#mic-btn').classList.remove('live');
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(chunks, { type: rec.mimeType || 'audio/webm' });
         const fd = new FormData();
@@ -814,13 +882,13 @@ function renderChat(opts = {}) {
         try {
           const data = await api(`/api/conversations/${c.id}/messages`, { method: 'POST', body: fd });
           c.messages.push(data.message);
-          box.insertAdjacentHTML('beforeend', renderBubble(data.message));
-          box.scrollTop = box.scrollHeight;
+          paintThread();
         } catch (e) {
           toast(e.message);
         }
       };
       rec.start();
+      $('#mic-btn').classList.add('live');
       toast('Recording… tap mic again to send');
     } catch {
       toast('Microphone not available');
@@ -830,8 +898,8 @@ function renderChat(opts = {}) {
     setTimeout(() => {
       Tour.start([
         { target: '#text', text: 'Type here. Don’t start with @, and don’t share 09 phone numbers.', arrow: 'up' },
-        { target: '#img-btn', text: 'The raised picture button sends a photo. Recipients below Level 3 see it locked.', arrow: 'up' },
-        { target: '#mic-btn', text: 'Hold the mic to send a voice note. Video is not allowed.', arrow: 'up' }
+        { target: '#img-btn', text: 'The photo button sends a picture. Recipients below Level 3 see it locked.', arrow: 'up' },
+        { target: '#mic-btn', text: 'Tap the mic to send a voice note. Video is not allowed.', arrow: 'up' }
       ]);
     }, 400);
   }
