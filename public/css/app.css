@@ -231,48 +231,54 @@ body:has(.welcome-screen) {
 }
 .welcome-orbs {
   position: absolute;
-  inset: 0;
-  overflow: hidden;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: min(560px, 100%);
+  transform: translateX(-50%);
+  overflow: visible;
   pointer-events: none;
   z-index: 0;
 }
 .orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(10px);
 }
 .orb-a {
-  width: min(46vw, 240px);
-  height: min(46vw, 240px);
-  left: -12%;
-  top: 16%;
-  background: radial-gradient(circle at 32% 28%, #f0abfc, #a21caf 72%);
-  opacity: 0.92;
+  width: 240px;
+  height: 240px;
+  left: -72px;
+  top: 22%;
+  background: radial-gradient(circle at 32% 28%, #f0abfc, #d946ef 46%, #a21caf 72%);
+  filter: blur(6px);
+  opacity: 0.95;
 }
 .orb-b {
-  width: min(54vw, 280px);
-  height: min(54vw, 280px);
-  right: -16%;
+  width: 270px;
+  height: 270px;
+  right: -88px;
   bottom: 4%;
-  background: radial-gradient(circle at 40% 36%, #fb7185, #f59e0b 74%);
-  opacity: 0.88;
+  left: auto;
+  background: radial-gradient(circle at 40% 36%, #fb7185, #f97316 52%, #f59e0b 74%);
+  filter: blur(6px);
+  opacity: 0.92;
 }
 .orb-c {
   width: 22px;
   height: 22px;
-  right: 16%;
-  top: 20%;
+  right: 28px;
+  top: 18%;
   background: #e879f9;
-  filter: blur(1px);
+  filter: blur(0.6px);
   box-shadow: 0 0 18px #e879f9;
 }
 .orb-d {
   width: 14px;
   height: 14px;
-  left: 12%;
-  bottom: 18%;
+  left: 36px;
+  bottom: 16%;
   background: linear-gradient(180deg, #fb7185, #fbbf24);
-  filter: blur(0.5px);
+  filter: blur(0.4px);
 }
 .welcome-hero {
   position: relative;
@@ -317,7 +323,7 @@ body:has(.welcome-screen) {
   margin: 8px auto 0;
   width: min(100%, 380px);
   padding: 22px 22px 18px;
-  background: var(--glass-fill);
+  background: rgba(14, 10, 24, 0.38);
   border: 1px solid var(--glass-stroke);
   border-radius: 28px;
   backdrop-filter: blur(22px) saturate(1.35);
@@ -374,9 +380,7 @@ body:has(.welcome-screen) {
   position: sticky;
   top: 0;
   z-index: 3;
-  background: rgba(14, 10, 24, 0.82);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: transparent;
 }
 .welcome-card .lang-switch span { color: rgba(237, 233, 254, 0.72); }
 .welcome-card .lang-switch select {
