@@ -733,6 +733,19 @@ test('chat DM surfaces use glass neon chrome and keep bubble clustering', () => 
   assert.match(settingsSlice, /id="chat-view-lang"/);
   assert.equal(settingsSlice.includes('askEachChat'), false);
   assert.equal(settingsSlice.includes('value="ask"'), false);
+  assert.equal(appJs.includes('chooseChatLang'), false);
+  assert.equal(appJs.includes('chatLangHint'), false);
+  assert.equal(appJs.includes('useThisLang'), false);
+  assert.equal(appJs.includes('changeChatLang'), false);
+  assert.equal(appJs.includes('askEachChat'), false);
+  for (const code of ['en', 'my', 'th', 'zh', 'ko', 'ja']) {
+    const catalog = I18n.catalogs[code];
+    assert.equal(Object.prototype.hasOwnProperty.call(catalog, 'chooseChatLang'), false, `${code} still has chooseChatLang`);
+    assert.equal(Object.prototype.hasOwnProperty.call(catalog, 'chatLangHint'), false, `${code} still has chatLangHint`);
+    assert.equal(Object.prototype.hasOwnProperty.call(catalog, 'useThisLang'), false, `${code} still has useThisLang`);
+    assert.equal(Object.prototype.hasOwnProperty.call(catalog, 'changeChatLang'), false, `${code} still has changeChatLang`);
+    assert.equal(Object.prototype.hasOwnProperty.call(catalog, 'askEachChat'), false, `${code} still has askEachChat`);
+  }
   assert.equal(sakaSvg.includes('#10b981'), false);
   assert.match(sakaSvg, /#7c3aed/);
 });
