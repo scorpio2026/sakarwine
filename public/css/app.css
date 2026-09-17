@@ -214,17 +214,19 @@ body {
 .welcome-hero {
   position: relative;
   flex: 0 0 auto;
-  min-height: min(30dvh, 220px);
-  padding: 22px 22px 48px;
+  min-height: 0;
+  padding: 12px 20px 28px;
   color: #f7fffb;
   background: linear-gradient(160deg, var(--hero-a) 0%, var(--hero-b) 52%, var(--hero-c) 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
+  justify-content: flex-end;
+  gap: 0;
   text-align: center;
 }
+.welcome-hero .brand-lockup { padding: 8px 0 0; }
+.welcome-hero .brand-logo { width: min(62%, 220px); }
 .welcome-hero h1 {
   margin: 0;
   font-size: 0;
@@ -248,14 +250,14 @@ body {
   right: 0;
   bottom: -1px;
   width: 100%;
-  height: 56px;
+  height: 32px;
   display: block;
 }
 .welcome-card {
-  margin-top: -8px;
-  padding: 4px 22px calc(28px + var(--safe-bottom));
+  margin-top: -4px;
+  padding: 0 22px calc(16px + var(--safe-bottom));
   background: var(--card);
-  flex: 1 0 auto;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -267,11 +269,20 @@ body {
 }
 .welcome-card .field { margin-bottom: 0; }
 .welcome-card .lang-switch {
-  margin-top: 4px;
-  padding-bottom: 2px;
+  margin: 0;
+  padding: 4px 0 8px;
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--card);
 }
 .welcome-card .btn.block { border-radius: 999px; }
+.welcome-card .btn.ghost {
+  min-height: 36px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
 
 .logo-3d {
   width: 86px;
@@ -1735,25 +1746,25 @@ button:disabled, .btn:disabled, .icon-btn:disabled, .chat-tool:disabled, .chat-s
   .user-row.gender-female { border-width: 4px; }
   .composer { gap: 6px; }
   .chat-head .meta .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .welcome-hero { min-height: min(26dvh, 188px); padding-bottom: 40px; }
 }
 
-@media (max-height: 740px) {
-  .welcome-hero {
-    min-height: min(24dvh, 168px);
-    padding-top: 16px;
-    padding-bottom: 40px;
-  }
-  .welcome-hero .brand-logo { width: min(78%, 280px); }
-}
-
-@media (max-height: 640px) {
+@media (max-height: 800px) {
   .welcome-hero {
     min-height: 0;
-    padding-top: 12px;
-    padding-bottom: 36px;
+    padding: 10px 16px 26px;
   }
-  .welcome-hero .brand-logo { width: min(68%, 240px); }
+  .welcome-hero .brand-logo { width: min(56%, 200px); }
+}
+
+@media (max-height: 700px) {
+  .welcome-hero {
+    padding: 8px 16px 22px;
+  }
+  .welcome-hero .brand-logo { width: min(50%, 180px); }
+  .hero-wave { height: 26px; }
+  .welcome-card { gap: 6px; }
+  .welcome-card.stack { gap: 6px; }
+  .welcome-card .field label { margin-bottom: 4px; }
 }
 
 @media (min-width: 900px) {

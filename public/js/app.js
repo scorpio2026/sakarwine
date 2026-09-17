@@ -461,6 +461,7 @@ function showWelcome() {
         </svg>
       </div>
       <div class="welcome-card stack">
+        ${I18n.switcherHtml('lang-switch')}
         <div class="field">
           <label>${t('username')}</label>
           <input id="login-user" autocomplete="username" />
@@ -472,7 +473,6 @@ function showWelcome() {
         <button class="btn block" id="login-btn">${t('enterLounge')}</button>
         <button class="btn secondary block" id="goto-reg">${t('createAccount')}</button>
         <button class="btn ghost" id="goto-help">${t('forgotPin')}</button>
-        ${I18n.switcherHtml('lang-switch')}
       </div>
     </section>`;
   $('#login-btn').onclick = login;
