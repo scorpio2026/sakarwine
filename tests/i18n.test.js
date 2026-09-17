@@ -355,6 +355,28 @@ test('bottom nav has Home, Chat, Group, Profile, and Help — no Upgrade tab', (
   assert.match(adminJs, /class="badge-lv"/);
 });
 
+test('Lv, Host, and Admin chips use frosted glass neon edges', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const appCss = fs.readFileSync(path.join(__dirname, '../public/css/app.css'), 'utf8');
+  const adminCss = fs.readFileSync(path.join(__dirname, '../public/css/admin.css'), 'utf8');
+  const appJs = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
+  assert.match(appCss, /\.badge-lv,\s*\.badge-neon\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(adminCss, /\.badge-lv,\s*\.badge-neon\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(appCss, /--badge-glow:\s*rgba\(52, 211, 153/);
+  assert.match(appCss, /--badge-glow:\s*rgba\(232, 121, 249/);
+  assert.match(appCss, /--badge-glow:\s*rgba\(34, 211, 238/);
+  assert.match(adminCss, /--badge-glow:\s*rgba\(52, 211, 153/);
+  assert.match(adminCss, /--badge-glow:\s*rgba\(34, 211, 238/);
+  const lvBlock = appCss.match(/(?:^|\n)\.badge-lv\s*\{[^}]*\}/)[0];
+  assert.match(lvBlock, /filter:\s*none/);
+  assert.match(lvBlock, /box-shadow:\s*none/);
+  assert.match(lvBlock, /text-shadow:\s*none/);
+  assert.match(appJs, /class="badge-lv"/);
+  assert.match(appJs, /badge-host/);
+  assert.match(appJs, /data-badge="host"/);
+});
+
 test('settings PIN change is translated and separate from Help recovery', () => {
   const fs = require('fs');
   const path = require('path');
