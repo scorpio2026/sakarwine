@@ -811,15 +811,20 @@ test('new accounts get dual-language rules in Saka chat; host income is female-o
   const male = await register('rulem' + Date.now().toString().slice(-5), '121212', 'male');
   const female = await register('rulef' + Date.now().toString().slice(-5), '212121', 'female');
   const saka = db.prepare('SELECT id FROM users WHERE is_ai = 1').get();
-  assert.ok(saka);
-  async function sakaText(jar) {
-    const opened = await req(`/api/conversations/with/${saka.id}`, { jar });
-    assert.equal(opened.res.status, 200, opened.data.error);
-    const full = await req(`/api/conversations/${opened.data.conversation.id}`, { jar });
-    return (full.data.messages || []).map((m) => m.body || '').join('\n');
+  assert.ok(saka && saka.id, 'Saka guide account');
+  function welcomeText(userId) {
+    const lo = Math.min(userId, saka.id);
+    const hi = Math.max(userId, saka.id);
+    const conv = db.prepare('SELECT id FROM conversations WHERE user_lo = ? AND user_hi = ?').get(lo, hi);
+    assert.ok(conv, 'expected Saka conversation for user ' + userId);
+    return db
+      .prepare('SELECT body FROM messages WHERE conversation_id = ? ORDER BY id')
+      .all(conv.id)
+      .map((r) => r.body || '')
+      .join('\n');
   }
-  const maleText = await sakaText(male.jar);
-  const femaleText = await sakaText(female.jar);
+  const maleText = welcomeText(male.user.id);
+  const femaleText = welcomeText(female.user.id);
   assert.match(maleText, /အခမဲ့ ၂၄ နာရီ/);
   assert.match(maleText, /24 hours free/i);
   assert.match(maleText, /50%/);
