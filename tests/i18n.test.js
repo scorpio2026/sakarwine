@@ -51,6 +51,8 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   assert.match(css, /#3d7eff/);
   assert.match(css, /\.user-row\.gender-male\s*\{[^}]*#2563eb/);
   assert.match(css, /\.user-row\.gender-female\s*\{[^}]*#ec4899/);
+  assert.match(css, /\.user-row\.gender-male\s*\{[^}]*border:\s*4px solid #2563eb/);
+  assert.match(css, /\.user-row\.gender-female\s*\{[^}]*border:\s*4px solid #ec4899/);
   const js = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
   assert.match(js, /logo-aura/);
   assert.match(js, /gender-female/);
