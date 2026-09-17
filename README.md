@@ -1,6 +1,6 @@
 # sakarwine
 
-Premium real-time chatting for the web — glassmorphism lounge, 24-hour free chats, admin-approved upgrades, and a separate `/admin` dashboard.
+Premium real-time chatting for the web — green messenger-style lounge, 24-hour free chats, admin-approved upgrades, and a separate `/admin` dashboard.
 
 ## Run locally
 
@@ -31,12 +31,14 @@ Copy `.env.example` into your shell or Render dashboard. The app reads standard 
 | `HOST_CREDIT_AMOUNT` | Credit per qualifying visitor (default 500) |
 | `HOST_WITHDRAW_MIN` | Balance that enables Withdraw (default 100000) |
 | `OFFLINE_PURGE_MS` | Auto-close accounts with no activity this long (default 30 days) |
+| `TRANSLATE_API_KEY` | Optional Google Cloud Translation (or LibreTranslate) key. If unset, chat falls back to MyMemory then original text |
+| `TRANSLATE_URL` | Optional LibreTranslate base URL (used with `TRANSLATE_API_KEY`) |
 
 `npm test` runs filter, pricing, and API flow checks.
 
 ## What users get
 
-- Register with username, **exactly 6-digit PIN**, profile photo, male/female, birth year, and phone. A unique `SW########` account ID is assigned.
+- Register with username (**max 12 characters**, English or Myanmar **letters and digits only** — no spaces or symbols), **exactly 6-digit PIN**, profile photo, male/female, birth year, and phone. A unique `SW########` account ID is assigned. Members with no uploaded photo show a **default avatar**: female on a **pink** background (`/assets/default-female.png`), male on a **black** background (`/assets/default-male.png`) until a custom male asset is provided.
 - **Female accounts** include an **income form** (occupation, monthly income in MMK, source) and must upload **Myanmar NRC front + back** at registration. Admin approves that verification. After approval, a blue neon **host** label sits beside the level (or special) badge. NRC images are stored on disk and served only to `/admin` (no public or member URLs).
 - **Host income:** a verified host earns **500** once per upgraded visitor (Lv ≥ 1) who **comes to talk** and stays in a **continuous mutual chat of at least 10 minutes**. Chats the host starts do not qualify. Going **offline** or **blocking** before 10 minutes voids that session. A different qualifying visitor adds another 500 — never per minute, never twice from the same account. Saka does not count. Withdraw lights up at **100,000**; she chooses **KBZ Pay** or **Wave** (name + phone). Balance is deducted immediately; admin **Done** sends the system note `ငွေဝင်ပါပြီ`. Hosts may keep messaging visitors who came to them without the 24-hour gate. Editing the income form after register requires **Lv ≥ 1**. The income section includes a chat-style demo video (admin can replace the URL).
 - Face-scan liveness: turn your head left, then right. On-device camera tracking (skin-pixel centroid) estimates gender. **Limitation:** this is a pragmatic heuristic, not a biometric identity product — lighting, camera angle, makeup, and skin tone strongly affect results.
@@ -50,7 +52,9 @@ Copy `.env.example` into your shell or Render dashboard. The app reads standard 
 - **Chat history is per-user.** Deleting a conversation (trash in the chat header) clears it for you only. The other person — and admin — still keep the full thread. The Saka guide chat cannot be deleted.
 - **Messages cannot be edited** after they are sent (no edit API or UI).
 - **Settings** (Me → gear / Settings): language (မြန်မာ / English / ไทย / 中文 / 한국어 / 日本語), edit photo and username, manage the blocked list, and log out. Gender, birth year, phone, and PIN are not member-editable.
-- The lounge UI (login through Settings) and admin chrome switch among **six languages**. Choice is stored in `localStorage` (`sw_lang`) and defaults to **Myanmar**.
+- The lounge UI (login through Settings) and admin chrome switch among **six languages**. Choice is stored in `localStorage` (`sw_lang`) and on the account (`ui_lang`); default is **Myanmar**.
+- **Chat auto-translate:** when two people use different languages, the recipient is asked **once per chat** which of the six languages to read. Original text is stored with the sender’s language; translations are cached. Tap **Show original** on a translated bubble. Set `TRANSLATE_API_KEY` (Google Cloud Translation or LibreTranslate via `TRANSLATE_URL`) on Render. If the key is missing, sakarwine tries a free MyMemory fallback, then shows the original.
+- The **SAKARWINE** rainbow wordmark (`/assets/sakarwine-logo.png`) is the app **header / masthead**, not a profile avatar.
 - Forgot PIN? There is **no self-serve reset**. Contact admin with the phone used at registration. The Settings PIN note points members there.
 
 ## Upgrades

@@ -19,10 +19,13 @@ const ICONS = {
   wine: `<svg viewBox="0 0 48 48" fill="none"><path d="M16 8h16l-2 16a8 8 0 1 1-12 0L16 8z" fill="#f3d0c4" opacity=".95"/><path d="M22 32v8h-4v2h12v-2h-4v-8" stroke="#f7e7d2" stroke-width="2"/><path d="M18 14h12" stroke="#8b2252" stroke-width="2" opacity=".5"/></svg>`,
   people: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><path d="M3 19c1-3 3.5-5 6-5s5 2 6 5"/><circle cx="17" cy="9" r="2.4"/><path d="M16 19c.4-1.6 1.6-3 3.4-3.6"/></svg>`,
   chat: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 6h14v9H8l-3 3V6z"/></svg>`,
+  bubble: `<svg viewBox="0 0 48 48" fill="none"><rect x="8" y="10" width="32" height="22" rx="8" fill="#fff"/><path d="M18 32l-6 8 2-8h4z" fill="#fff"/></svg>`,
+  search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg>`,
+  plus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>`,
+  send: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12l16-8-6 16-2-6-8-2z"/></svg>`,
   gem: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 10l8-6 8 6-8 10L4 10z"/><path d="M4 10h16M12 4v16"/></svg>`,
   me: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.2"/><path d="M5 19c1.4-3.2 3.8-5 7-5s5.6 1.8 7 5"/></svg>`,
   back: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 6l-6 6 6 6"/></svg>`,
-  send: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12l16-7-7 16-2-7-7-2z"/></svg>`,
   image: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M7 17l4-4 3 3 3-3 3 4"/></svg>`,
   mic: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v3"/></svg>`,
   block: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M7 7l10 10"/></svg>`,
@@ -104,10 +107,10 @@ async function api(path, opts = {}) {
 function avatarHtml(user, cls = '') {
   if (!user) return '';
   const tap = user.id != null ? ` data-photo-user="${user.id}"` : '';
-  if (user.isAi || !user.photoUrl) {
-    return `<div class="avatar ai ${cls}"${tap}>🍷</div>`;
-  }
-  return `<img class="avatar ${cls}" alt="" src="${user.photoUrl}"${tap} />`;
+  const fb = user.hasPhoto === false || !user.hasPhoto;
+  const genderClass = user.isAi ? 'ai' : (user.gender === 'female' ? 'fallback-female' : 'fallback-male');
+  const src = user.photoUrl || (user.isAi ? '/assets/saka-guide.svg' : (user.gender === 'female' ? '/assets/default-female.png' : '/assets/default-male.png'));
+  return `<img class="avatar round ${cls} ${fb || user.isAi ? genderClass : ''}" alt="" src="${escapeHtml(src)}"${tap} />`;
 }
 
 async function openProfilePhoto(userId) {
@@ -116,7 +119,7 @@ async function openProfilePhoto(userId) {
     const u = data.user;
     const photo = u.photoUrl
       ? `<img class="profile-lite-photo" src="${escapeHtml(u.photoUrl)}" alt="${escapeHtml(u.username)}" />`
-      : `<div class="avatar ai profile-lite-photo" style="width:120px;height:120px;margin:0 auto;font-size:3rem">🍷</div>`;
+      : avatarHtml(u, 'profile-lite-photo');
     modal(`
       <div class="profile-lite">
         ${photo}
@@ -149,18 +152,15 @@ function statusPill(user) {
   return `<span class="pill">${user && user.paid ? t('paid') : t('free24h')} · ${t('lv', { n: user.level })}</span>`;
 }
 
-function petals() {
-  const layer = document.querySelector('.petal-layer');
-  layer.innerHTML = '';
-  for (let i = 0; i < 14; i++) {
-    const p = document.createElement('div');
-    p.className = 'petal';
-    p.style.left = `${Math.random() * 100}%`;
-    p.style.animationDuration = `${8 + Math.random() * 10}s`;
-    p.style.animationDelay = `${Math.random() * 8}s`;
-    p.style.opacity = String(0.25 + Math.random() * 0.35);
-    layer.appendChild(p);
-  }
+function petals() {}
+
+function syncLang(code) {
+  if (!state.user) return;
+  api('/api/me/lang', { method: 'PUT', json: { lang: code || I18n.lang } }).catch(() => {});
+}
+
+function usernamePatternOk(value) {
+  return /^(?:[A-Za-z0-9\u1000-\u109F\uAA60-\uAA7F\uA9E0-\uA9FF]){1,12}$/.test(String(value || '').trim());
 }
 
 function connectSocket() {
@@ -252,7 +252,10 @@ async function refreshMe() {
 
 async function boot() {
   I18n.init();
-  I18n.onChange(() => rerender());
+  I18n.onChange((code) => {
+    syncLang(code);
+    rerender();
+  });
   petals();
   app.addEventListener('click', (e) => {
     const el = e.target.closest('[data-photo-user]');
@@ -278,14 +281,18 @@ async function boot() {
 
 function showWelcome() {
   state.view = 'welcome';
+  const name = escapeHtml(state.settings.siteName || 'sakarwine');
   app.innerHTML = `
-    <section class="screen">
-      <div class="brand-lockup">
-        <div class="logo-3d">${ICONS.wine}</div>
-        <h1>${state.settings.siteName}</h1>
-        <p class="muted">${t('tagline')}</p>
+    <section class="screen welcome-screen">
+      <div class="welcome-hero">
+        <img class="brand-logo" src="/assets/sakarwine-logo.png" alt="${name}" />
+        <h1>${name}</h1>
+        <div class="hero-mark">${ICONS.bubble}</div>
+        <svg class="hero-wave" viewBox="0 0 375 56" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M0 24C62 52 118 4 188 24C248 42 312 8 375 26V56H0Z" fill="#ffffff"/>
+        </svg>
       </div>
-      <div class="glass-card stack" style="margin-top:auto">
+      <div class="welcome-card stack">
         <div class="field">
           <label>${t('username')}</label>
           <input id="login-user" autocomplete="username" />
@@ -310,7 +317,7 @@ async function login() {
   try {
     const data = await api('/api/login', {
       method: 'POST',
-      json: { username: $('#login-user').value, password: $('#login-pass').value }
+      json: { username: $('#login-user').value, password: $('#login-pass').value, lang: I18n.lang }
     });
     state.user = data.user;
     if (data.user.status === 'pending_liveness') return showScan();
@@ -342,7 +349,7 @@ function showRegister() {
           <div id="photo-preview" class="avatar ai">📷</div>
           <span class="small muted">${t('profilePhoto')}</span>
         </label>
-        <div class="field"><label>${t('username')}</label><input name="username" required minlength="3" maxlength="20" /></div>
+        <div class="field"><label>${t('username')}</label><input name="username" required minlength="1" maxlength="12" /></div>
         <div class="field"><label>${t('pinExactly6')}</label><input name="password" inputmode="numeric" pattern="\\d{6}" maxlength="6" required /></div>
         <div class="row-2">
           <div class="field"><label>${t('gender')}</label>
@@ -425,6 +432,11 @@ function showRegister() {
   $('#reg').onsubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
+    if (!usernamePatternOk(fd.get('username'))) {
+      toast(t('errUsername'));
+      return;
+    }
+    fd.append('lang', I18n.lang);
     try {
       const data = await api('/api/register', { method: 'POST', body: fd });
       state.user = data.user;
@@ -531,17 +543,27 @@ function startAdBanner() {
 async function loadHome() {
   const { users } = await api('/api/users');
   state.users = users;
+  paintHomeList();
+}
+
+function paintHomeList() {
   const list = $('#user-list');
   if (!list) return;
+  const q = (($('#people-search') && $('#people-search').value) || '').trim().toLowerCase();
+  const users = (state.users || []).filter((u) => {
+    if (!q) return true;
+    const hay = `${u.username} ${u.accountId || ''} ${u.badge || ''}`.toLowerCase();
+    return hay.includes(q);
+  });
   list.innerHTML = users.map((u) => `
     <div class="user-row" data-id="${u.id}">
       ${avatarHtml(u)}
       <div class="meta">
-        <div class="name">${u.username} ${u.isAi ? '· ' + t('guide') : ''} ${roleMark(u)}</div>
+        <div class="name">${escapeHtml(u.username)} ${u.isAi ? '· ' + t('guide') : ''} ${roleMark(u)}</div>
         <div class="sub">${u.online ? t('onlineNow') : t('offline')} · ${genderLabel(u.gender)}${u.blocked ? ' · ' + t('blocked') : ''}</div>
       </div>
-      <span class="dot ${u.online ? 'on' : ''}"></span>
-    </div>`).join('');
+      <span class="when">${u.online ? t('onlineNow') : ''}</span>
+    </div>`).join('') || `<p class="settings-empty">${t('loading')}</p>`;
   list.querySelectorAll('.user-row').forEach((row) => {
     row.onclick = () => openChat(Number(row.dataset.id));
   });
@@ -555,17 +577,31 @@ async function showHome(opts = {}) {
       <div class="screen-body">
       <div class="topbar">
         <div>
-          <div class="muted small">${t('helloUser', { name: escapeHtml(u.username) })}</div>
-          <h2 id="home-title">${state.settings.siteName}</h2>
+          <img class="brand-logo" src="/assets/sakarwine-logo.png" alt="${escapeHtml(state.settings.siteName)}" style="width:148px;margin:0 0 4px" />
+          <h2 id="home-title">${t('contactsTitle')}</h2>
         </div>
         <span class="pill-slot">${statusPill(u)}</span>
       </div>
+      <label class="search-bar">
+        ${ICONS.search}
+        <input id="people-search" type="search" placeholder="${t('searchPeople')}" autocomplete="off" />
+      </label>
       <div id="ad-banner" class="ad-banner" hidden></div>
       <div id="user-list" class="user-list"></div>
       </div>
+      <button type="button" class="fab" id="home-fab" aria-label="${t('searchPeople')}">${ICONS.plus}</button>
       ${nav('home')}
     </section>`;
   bindNav();
+  const search = $('#people-search');
+  if (search) search.addEventListener('input', paintHomeList);
+  const fab = $('#home-fab');
+  if (fab) fab.onclick = () => {
+    if (search) {
+      search.focus();
+      search.scrollIntoView({ block: 'nearest' });
+    }
+  };
   startAdBanner();
   await loadHome();
   if (opts.tour && !u.tourCompleted) {
@@ -604,10 +640,23 @@ function formatMsgTime(ts) {
   if (!ts) return '';
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return '';
-  const t = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const loc = I18n.locale();
+  const tstr = d.toLocaleTimeString(loc, { hour: 'numeric', minute: '2-digit' });
   const now = new Date();
-  if (d.toDateString() === now.toDateString()) return t;
-  return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} · ${t}`;
+  if (d.toDateString() === now.toDateString()) return tstr;
+  return `${d.toLocaleDateString(loc, { weekday: 'short', day: 'numeric', month: 'short' })} · ${tstr}`;
+}
+
+function formatDateSep(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return '';
+  const loc = I18n.locale();
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) {
+    return d.toLocaleTimeString(loc, { hour: 'numeric', minute: '2-digit' });
+  }
+  return d.toLocaleDateString(loc, { weekday: 'long', day: 'numeric', month: 'short' });
 }
 
 function shouldShowTime(prev, m) {
@@ -641,9 +690,18 @@ function renderBubble(m, prev, next) {
   } else if (sys) {
     inner = `<span class="sys-note">${escapeHtml(m.body || '')}</span>`;
   } else {
-    inner = escapeHtml(m.body || '');
+    const shown = m._showOrig && m.originalBody ? m.originalBody : (m.body || '');
+    inner = `<span class="bubble-text">${escapeHtml(shown)}</span>`;
+    if (m.translated && m.originalBody && m.originalBody !== m.body) {
+      inner += `<button type="button" class="orig-toggle" data-mid="${m.id}">${m._showOrig ? t('showTranslation') : t('showOriginal')}</button>`;
+    }
   }
-  return `<div class="${cls}" contenteditable="false">${inner}</div>`;
+  if (sys) return `<div class="${cls}" contenteditable="false">${inner}</div>`;
+  const showAva = !mine && (!next || !sameBubbleGroup(m, next));
+  const ava = mine
+    ? ''
+    : `<div class="bubble-ava ${showAva ? '' : 'is-empty'}">${showAva && m.sender ? avatarHtml(m.sender, 'round') : ''}</div>`;
+  return `<div class="bubble-row ${mine ? 'me' : 'them'}">${ava}<div class="${cls}" contenteditable="false">${inner}</div></div>`;
 }
 
 function renderThread(messages) {
@@ -654,7 +712,7 @@ function renderThread(messages) {
     const prev = list[i - 1];
     const next = list[i + 1];
     if (shouldShowTime(prev, m)) {
-      html += `<div class="chat-time">${escapeHtml(formatMsgTime(m.createdAt))}</div>`;
+      html += `<div class="chat-time">${escapeHtml(formatDateSep(m.createdAt))}</div>`;
     }
     html += renderBubble(m, prev, next);
   }
@@ -676,6 +734,9 @@ async function openChat(userId, opts = {}) {
       blocked: full.conversation.blocked,
       canDelete: full.conversation.canDelete,
       mutual: full.conversation.mutual,
+      viewLang: full.conversation.viewLang,
+      askViewLang: full.conversation.askViewLang,
+      peerLang: full.conversation.peerLang,
       messages: full.messages
     };
     renderChat(opts);
@@ -763,6 +824,37 @@ function formatRemain(ms, window) {
   return t('freeLeft', { h, m });
 }
 
+function promptChatLang(c) {
+  if (!c || !c.askViewLang) return;
+  const choices = I18n.LANGS.map((l) =>
+    `<button type="button" class="lang-choice ${l.code === I18n.lang ? 'on' : ''}" data-lang="${l.code}">${l.native}</button>`
+  ).join('');
+  modal(`
+    <h3 style="margin-top:0">${t('chooseChatLang')}</h3>
+    <p class="small muted">${t('chatLangHint', { name: escapeHtml(c.peer.username) })}</p>
+    <div class="lang-choices">${choices}</div>
+    <button class="btn block" id="use-chat-lang">${t('useThisLang')}</button>`);
+  let picked = I18n.lang;
+  modalEl.querySelectorAll('.lang-choice').forEach((btn) => {
+    btn.onclick = () => {
+      picked = btn.dataset.lang;
+      modalEl.querySelectorAll('.lang-choice').forEach((b) => b.classList.toggle('on', b === btn));
+    };
+  });
+  $('#use-chat-lang').onclick = async () => {
+    try {
+      const data = await api(`/api/conversations/${c.id}/view-lang`, { method: 'PUT', json: { lang: picked } });
+      c.viewLang = data.viewLang;
+      c.askViewLang = false;
+      if (data.messages) c.messages = data.messages;
+      closeModal();
+      renderChat();
+    } catch (e) {
+      toastErr(e);
+    }
+  };
+}
+
 function renderChat(opts = {}) {
   state.view = 'chat';
   const c = state.chat;
@@ -772,12 +864,8 @@ function renderChat(opts = {}) {
       <div class="screen-body">
       <div class="topbar chat-head">
         <button class="chat-tool" id="back" aria-label="${t('back')}">${ICONS.back}</button>
-        <div class="chat-ava">
-          ${avatarHtml(c.peer, 'round')}
-          <span class="ava-on ${c.peer.online ? 'on' : ''}"></span>
-        </div>
         <div class="meta">
-          <div class="name">${escapeHtml(c.peer.username)} ${roleMark(c.peer)}</div>
+          <div class="name">${t('chatTitle')} · ${escapeHtml(c.peer.username)} ${roleMark(c.peer)}</div>
           <div class="sub">${c.peer.online ? t('activeNow') : t('offline')} · ${formatRemain(c.window.remainingMs, c.window)}</div>
         </div>
         ${c.peer.isAi ? '' : `<div class="chat-actions">
@@ -791,12 +879,15 @@ function renderChat(opts = {}) {
       <div class="typing" id="typing"></div>
       </div>
       <div class="composer">
-        <button class="chat-tool" id="img-btn" aria-label="${t('photo')}" ${expired ? 'disabled' : ''}>${ICONS.image}</button>
-        <div class="composer-pill">
-          <textarea id="text" rows="1" ${expired ? 'disabled' : ''} placeholder="${t('messagePh')}"></textarea>
-          <button class="chat-send" id="send" hidden ${expired ? 'disabled' : ''}>${t('send')}</button>
+        <button class="composer-plus" id="plus-btn" aria-label="${t('photo')}" ${expired ? 'disabled' : ''}>+</button>
+        <div class="plus-menu" id="plus-menu" hidden>
+          <button type="button" id="img-btn">${t('photo')}</button>
+          <button type="button" id="mic-btn">${t('voice')}</button>
         </div>
-        <button class="chat-tool" id="mic-btn" aria-label="${t('voice')}" ${expired ? 'disabled' : ''}>${ICONS.mic}</button>
+        <div class="composer-pill">
+          <textarea id="text" rows="1" ${expired ? 'disabled' : ''} placeholder="${t('typeHere')}"></textarea>
+        </div>
+        <button class="chat-send" id="send" ${expired ? 'disabled' : ''} aria-label="${t('send')}">${ICONS.send}</button>
         <input id="img-file" class="hidden-file" type="file" accept="image/*" />
       </div>
     </section>`;
@@ -811,6 +902,15 @@ function renderChat(opts = {}) {
     if (e.target.closest('[data-lock]')) {
       modal(`<h3 style="margin-top:0">${t('lockedPhoto')}</h3><p>${t('photosUnlockBody')}</p><button class="btn block" id="m-up">${t('navUpgrade')}</button>`);
       $('#m-up').onclick = () => { closeModal(); showUpgrade(); };
+      return;
+    }
+    const tog = e.target.closest('.orig-toggle');
+    if (tog) {
+      const mid = Number(tog.dataset.mid);
+      const msg = c.messages.find((m) => m.id === mid);
+      if (!msg) return;
+      msg._showOrig = !msg._showOrig;
+      box.innerHTML = renderThread(c.messages);
     }
   };
   if ($('#go-up')) $('#go-up').onclick = () => { stopChatPresence(); showUpgrade(); };
@@ -847,9 +947,6 @@ function renderChat(opts = {}) {
   let sending = false;
   const ta = $('#text');
   const syncComposer = () => {
-    const has = ta.value.trim().length > 0;
-    $('#send').hidden = !has;
-    if ($('#mic-btn')) $('#mic-btn').hidden = has;
     ta.style.height = 'auto';
     ta.style.height = `${Math.min(120, Math.max(24, ta.scrollHeight))}px`;
   };
@@ -893,7 +990,14 @@ function renderChat(opts = {}) {
     typingT = setTimeout(() => state.socket && state.socket.emit('typing', { conversationId: c.id, typing: false }), 800);
   });
   syncComposer();
-  $('#img-btn').onclick = () => $('#img-file').click();
+  const plusMenu = $('#plus-menu');
+  $('#plus-btn').onclick = () => {
+    plusMenu.hidden = !plusMenu.hidden;
+  };
+  $('#img-btn').onclick = () => {
+    plusMenu.hidden = true;
+    $('#img-file').click();
+  };
   $('#img-file').onchange = async () => {
     const f = $('#img-file').files[0];
     if (!f) return;
@@ -910,6 +1014,7 @@ function renderChat(opts = {}) {
   };
   let rec, chunks;
   $('#mic-btn').onclick = async () => {
+    plusMenu.hidden = true;
     if (rec && rec.state === 'recording') {
       rec.stop();
       return;
@@ -941,6 +1046,7 @@ function renderChat(opts = {}) {
       toast(t('noMic'));
     }
   };
+  if (c.askViewLang) promptChatLang(c);
   if (opts.fromTour) {
     setTimeout(() => {
       Tour.start([
@@ -1277,7 +1383,7 @@ function showEditProfile() {
           </label>
           <div class="field" style="width:100%;text-align:left">
             <label for="edit-username">${t('username')}</label>
-            <input id="edit-username" value="${escapeHtml(u.username)}" maxlength="20" autocomplete="username" />
+            <input id="edit-username" value="${escapeHtml(u.username)}" maxlength="12" autocomplete="username" />
           </div>
           <p class="small muted" style="text-align:left;margin:0">${t('usernameHelp')}</p>
         </div>
@@ -1305,6 +1411,11 @@ function showEditProfile() {
     btn.disabled = true;
     const fd = new FormData();
     fd.append('username', $('#edit-username').value.trim());
+    if (!usernamePatternOk($('#edit-username').value.trim())) {
+      toast(t('errUsername'));
+      btn.disabled = false;
+      return;
+    }
     const file = $('#edit-photo').files[0];
     if (file) fd.append('photo', file);
     try {

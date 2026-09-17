@@ -364,7 +364,7 @@ test('settings: members can edit display profile and manage blocked list, not PI
   const hijack = await req('/api/me/profile', {
     method: 'PUT',
     json: {
-      username: 'seta_new' + Date.now().toString().slice(-4),
+      username: 'setanew' + Date.now().toString().slice(-4),
       password: '000000',
       pin: '000000',
       phone: '0999999999',
@@ -376,7 +376,7 @@ test('settings: members can edit display profile and manage blocked list, not PI
     jar: member.jar
   });
   assert.equal(hijack.res.status, 200, hijack.data.error);
-  assert.match(hijack.data.user.username, /^seta_new/);
+  assert.match(hijack.data.user.username, /^setanew/);
   assert.equal(hijack.data.user.level, oldLevel);
   assert.equal(hijack.data.user.gender, oldGender);
   assert.equal(hijack.data.user.birthYear, oldYear);
@@ -909,6 +909,56 @@ test('money, levels, and roles cannot be set from the client', async () => {
     headers: { cookie: jar.header() }
   });
   assert.equal(receiptPeek.status, 401);
+});
+
+test('usernames reject symbols; chat view-lang translates with stub key', async () => {
+  await started;
+  const a = await register('trena' + Date.now().toString().slice(-5), '121212', 'male');
+  const b = await register('trenb' + Date.now().toString().slice(-5), '343434', 'female');
+  const langA = await req('/api/me/lang', { method: 'PUT', json: { lang: 'ja' }, jar: a.jar });
+  assert.equal(langA.res.status, 200, langA.data.error);
+  assert.equal(langA.data.user.uiLang, 'ja');
+  await req('/api/me/lang', { method: 'PUT', json: { lang: 'my' }, jar: b.jar });
+
+  const underscore = await req('/api/me/profile', { method: 'PUT', json: { username: 'bad_name' }, jar: a.jar });
+  assert.equal(underscore.res.status, 400);
+  const tooLong = await req('/api/me/profile', { method: 'PUT', json: { username: 'abcdefghijklm' }, jar: a.jar });
+  assert.equal(tooLong.res.status, 400);
+
+  const opened = await req(`/api/conversations/with/${b.user.id}`, { method: 'POST', jar: a.jar });
+  const convId = opened.data.conversation.id;
+  const sent = await req(`/api/conversations/${convId}/messages`, {
+    method: 'POST',
+    json: { type: 'text', body: 'Hello from Japan' },
+    jar: a.jar
+  });
+  assert.equal(sent.res.status, 200, sent.data.error);
+  assert.equal(sent.data.message.sourceLang, 'ja');
+  assert.equal(sent.data.message.body, 'Hello from Japan');
+
+  const thread = await req(`/api/conversations/${convId}`, { jar: b.jar });
+  assert.equal(thread.res.status, 200, thread.data.error);
+  assert.equal(thread.data.conversation.askViewLang, true);
+  assert.equal(thread.data.messages[0].body, 'Hello from Japan');
+  assert.equal(thread.data.messages[0].originalBody, 'Hello from Japan');
+
+  const prev = process.env.TRANSLATE_API_KEY;
+  process.env.TRANSLATE_API_KEY = 'test';
+  try {
+    const picked = await req(`/api/conversations/${convId}/view-lang`, {
+      method: 'PUT',
+      json: { lang: 'my' },
+      jar: b.jar
+    });
+    assert.equal(picked.res.status, 200, picked.data.error);
+    assert.equal(picked.data.askViewLang, false);
+    assert.equal(picked.data.viewLang, 'my');
+    assert.equal(picked.data.messages[0].translated, true);
+    assert.equal(picked.data.messages[0].originalBody, 'Hello from Japan');
+    assert.equal(picked.data.messages[0].body, '[my] Hello from Japan');
+  } finally {
+    process.env.TRANSLATE_API_KEY = prev;
+  }
 });
 
 after(() => new Promise((resolve) => server.close(resolve)));

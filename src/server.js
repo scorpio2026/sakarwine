@@ -10,6 +10,8 @@ const bcrypt = require('bcryptjs');
 const { Server } = require('socket.io');
 const { openDb, ensureDir, getSetting, setSetting, getBadges, addBadge, publicUser, adminUser, isAdminAccount } = require('./db');
 const { messageFilterError, isAllowedImageMime, isAllowedVoiceMime, isForbiddenVideo } = require('./filters');
+const { usernameError } = require('./username');
+const { translateText, normalizeLang } = require('./translate');
 const { quotePlan, allQuotes, addMonths, isPaid, isSpecial, canChatUnlimited, clampMonths } = require('./pricing');
 const {
   HOST_CREDIT_AMOUNT,
@@ -442,10 +444,10 @@ function startAiWelcome(user) {
     'Forgot your 6-digit PIN? There is no self-serve reset — contact admin and give the phone you registered.'
   ];
   const ins = db.prepare(
-    'INSERT INTO messages (conversation_id, sender_id, type, body, created_at) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO messages (conversation_id, sender_id, type, body, created_at, source_lang) VALUES (?, ?, ?, ?, ?, ?)'
   );
   const now = Date.now();
-  lines.forEach((body, i) => ins.run(conv.id, ai.id, 'text', body, now + i));
+  lines.forEach((body, i) => ins.run(conv.id, ai.id, 'text', body, now + i, 'en'));
   return conv;
 }
 
@@ -456,13 +458,88 @@ function insertSystemMessage(userId, body, mediaPath = null) {
   const type = mediaPath ? 'image' : 'system';
   const info = db
     .prepare(
-      'INSERT INTO messages (conversation_id, sender_id, type, body, media_path, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+      'INSERT INTO messages (conversation_id, sender_id, type, body, media_path, created_at, source_lang) VALUES (?, ?, ?, ?, ?, ?, ?)'
     )
-    .run(conv.id, null, type, body || null, mediaPath, Date.now());
+    .run(conv.id, null, type, body || null, mediaPath, Date.now(), null);
   const msg = db.prepare('SELECT * FROM messages WHERE id = ?').get(info.lastInsertRowid);
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
-  emitToUser(userId, 'message', { conversationId: conv.id, message: serializeMessage(msg, user) });
+  emitTranslated(userId, conv.id, msg, user);
   return msg;
+}
+
+function userLang(user) {
+  return normalizeLang(user && user.ui_lang) || 'my';
+}
+
+function getConversationLang(userId, conversationId) {
+  const row = db
+    .prepare('SELECT lang FROM conversation_langs WHERE user_id = ? AND conversation_id = ?')
+    .get(userId, conversationId);
+  return row ? normalizeLang(row.lang) : null;
+}
+
+function setConversationLang(userId, conversationId, lang) {
+  const code = normalizeLang(lang);
+  if (!code) return null;
+  db.prepare(
+    `INSERT INTO conversation_langs (user_id, conversation_id, lang, created_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(user_id, conversation_id) DO UPDATE SET lang = excluded.lang`
+  ).run(userId, conversationId, code, Date.now());
+  return code;
+}
+
+function conversationViewMeta(user, conv, peer, messages) {
+  const stored = getConversationLang(user.id, conv.id);
+  const ui = userLang(user);
+  const peerLang = userLang(peer);
+  if (stored) return { viewLang: stored, askViewLang: false, peerLang };
+  const otherSources = (messages || [])
+    .filter((m) => m.type === 'text' && m.sender && m.sender.id !== user.id && m.sourceLang)
+    .map((m) => m.sourceLang);
+  const mismatch = (peerLang && peerLang !== ui) || otherSources.some((s) => s && s !== ui);
+  if (!mismatch) return { viewLang: ui, askViewLang: false, peerLang };
+  return { viewLang: null, askViewLang: true, peerLang };
+}
+
+async function cachedTranslate(messageId, original, from, to) {
+  if (!original || !to || from === to) return original;
+  const hit = db
+    .prepare('SELECT body FROM message_translations WHERE message_id = ? AND lang = ?')
+    .get(messageId, to);
+  if (hit) return hit.body;
+  const translated = await translateText(original, from, to);
+  if (!translated || translated === original) return original;
+  db.prepare(
+    'INSERT OR REPLACE INTO message_translations (message_id, lang, body, created_at) VALUES (?, ?, ?, ?)'
+  ).run(messageId, to, translated, Date.now());
+  return translated;
+}
+
+async function applyTranslations(messages, viewLang) {
+  const lang = normalizeLang(viewLang);
+  if (!lang || !messages) return messages || [];
+  for (const m of messages) {
+    if (!m || m.type !== 'text' || !m.body) continue;
+    if (!m.sender) continue;
+    const from = normalizeLang(m.sourceLang);
+    if (!from || from === lang) continue;
+    const original = m.originalBody || m.body;
+    const translated = await cachedTranslate(m.id, original, from, lang);
+    if (translated && translated !== original) {
+      m.body = translated;
+      m.translated = true;
+      m.viewLang = lang;
+    }
+  }
+  return messages;
+}
+
+async function emitTranslated(userId, conversationId, msg, viewer) {
+  const payload = serializeMessage(msg, viewer);
+  const pref = getConversationLang(userId, conversationId);
+  if (pref) await applyTranslations([payload], pref);
+  emitToUser(userId, 'message', { conversationId, message: payload });
 }
 
 function serializeMessage(msg, viewer) {
@@ -506,7 +583,10 @@ function serializeMessage(msg, viewer) {
       : null,
     mediaUrl,
     imageLocked: isImage && !canSeeImage,
-    editable: false
+    editable: false,
+    sourceLang: msg.source_lang || null,
+    originalBody: msg.body,
+    translated: false
   };
 }
 
@@ -606,9 +686,10 @@ app.post(
       unlinkQuiet(nrcFront);
       unlinkQuiet(nrcBack);
     };
-    if (!/^[A-Za-z0-9_]{3,20}$/.test(username)) {
+    const nameErr = usernameError(username);
+    if (nameErr) {
       dropUploads();
-      return res.status(400).json({ error: 'Username must be 3–20 letters, numbers, or underscore.' });
+      return res.status(400).json({ error: nameErr });
     }
     if (!/^\d{6}$/.test(password)) {
       dropUploads();
@@ -666,6 +747,7 @@ app.post(
       dropUploads();
       return res.status(400).json({ error: 'That username is reserved.' });
     }
+    const uiLang = normalizeLang(req.body.lang) || 'my';
     const accountId = uniqueAccountId();
     const hash = bcrypt.hashSync(password, 10);
     const info = db
@@ -673,8 +755,8 @@ app.post(
         `INSERT INTO users (
           account_id, username, password_hash, gender, birth_year, phone,
           photo_path, level, status, occupation, income_monthly, income_source,
-          nrc_front_path, nrc_back_path, host_status, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'pending_liveness', ?, ?, ?, ?, ?, ?, ?)`
+          nrc_front_path, nrc_back_path, host_status, ui_lang, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'pending_liveness', ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         accountId,
@@ -690,6 +772,7 @@ app.post(
         nrcFrontName,
         nrcBackName,
         hostStatus,
+        uiLang,
         Date.now()
       );
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
@@ -730,6 +813,11 @@ app.post('/api/login', rateLimit({ windowMs: 60 * 1000, max: 20, name: 'login' }
     Date.now() + SESSION_MS
   );
   setCookie(res, 'sw_sid', token, SESSION_MS);
+  const lang = normalizeLang(req.body.lang);
+  if (lang) {
+    db.prepare('UPDATE users SET ui_lang = ? WHERE id = ?').run(lang, user.id);
+    user.ui_lang = lang;
+  }
   res.json({ user: serializeMe(user) });
 });
 
@@ -747,6 +835,14 @@ app.get('/api/me', requireUser, (req, res) => {
     hostCreditAmount: HOST_CREDIT_AMOUNT,
     hostChatMs: HOST_CHAT_MS
   });
+});
+
+app.put('/api/me/lang', requireUser, (req, res) => {
+  const lang = normalizeLang(req.body && req.body.lang);
+  if (!lang) return res.status(400).json({ error: 'Choose a supported language.' });
+  db.prepare('UPDATE users SET ui_lang = ? WHERE id = ?').run(lang, req.user.id);
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  res.json({ user: serializeMe(user) });
 });
 
 app.get('/api/me/blocked', requireUser, requireActive, (req, res) => {
@@ -778,9 +874,9 @@ app.put(
     const requestedName = req.body && req.body.username != null ? String(req.body.username).trim() : null;
     let username = req.user.username;
     if (requestedName != null) {
-      if (!/^[A-Za-z0-9_]{3,20}$/.test(requestedName)) {
+      if (usernameError(requestedName)) {
         drop();
-        return res.status(400).json({ error: 'Username must be 3–20 letters, numbers, or underscores.' });
+        return res.status(400).json({ error: usernameError(requestedName) });
       }
       if (requestedName.toLowerCase() === 'saka') {
         drop();
@@ -1017,7 +1113,7 @@ app.post('/api/conversations/with/:userId', requireUser, requireActive, (req, re
   });
 });
 
-app.get('/api/conversations/:id', requireUser, requireActive, (req, res) => {
+app.get('/api/conversations/:id', requireUser, requireActive, async (req, res) => {
   const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(Number(req.params.id));
   if (!conv || (conv.user_lo !== req.user.id && conv.user_hi !== req.user.id)) {
     return res.status(404).json({ error: 'Conversation not found.' });
@@ -1027,6 +1123,10 @@ app.get('/api/conversations/:id', requireUser, requireActive, (req, res) => {
     db.prepare('SELECT 1 FROM blocks WHERE blocker_id = ? AND blocked_id = ?').get(req.user.id, peer.id) != null;
   const tick = blocked ? null : touchPresence(conv, req.user.id, 'ping');
   const messages = listMessagesForViewer(conv.id, req.user);
+  const view = conversationViewMeta(req.user, conv, peer, messages);
+  if (view.viewLang && !view.askViewLang) {
+    await applyTranslations(messages, view.viewLang);
+  }
   res.json({
     conversation: {
       id: conv.id,
@@ -1036,10 +1136,32 @@ app.get('/api/conversations/:id', requireUser, requireActive, (req, res) => {
       canDelete: !peer.is_ai,
       messagesEditable: false,
       hiddenAt: (hiddenFor(conv.id, req.user.id) || {}).hidden_at || null,
-      mutual: mutualSnapshot(db, conv, req.user, peer)
+      mutual: mutualSnapshot(db, conv, req.user, peer),
+      viewLang: view.viewLang,
+      askViewLang: view.askViewLang,
+      peerLang: view.peerLang
     },
     messages,
     credited: tick ? tick.credited : []
+  });
+});
+
+app.put('/api/conversations/:id/view-lang', requireUser, requireActive, async (req, res) => {
+  const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(Number(req.params.id));
+  if (!conv || (conv.user_lo !== req.user.id && conv.user_hi !== req.user.id)) {
+    return res.status(404).json({ error: 'Conversation not found.' });
+  }
+  const lang = setConversationLang(req.user.id, conv.id, req.body && req.body.lang);
+  if (!lang) return res.status(400).json({ error: 'Choose a supported language.' });
+  const peer = db.prepare('SELECT * FROM users WHERE id = ?').get(otherUserId(conv, req.user.id));
+  const messages = listMessagesForViewer(conv.id, req.user);
+  await applyTranslations(messages, lang);
+  res.json({
+    ok: true,
+    viewLang: lang,
+    askViewLang: false,
+    peerLang: userLang(peer),
+    messages
   });
 });
 
@@ -1085,7 +1207,7 @@ app.post(
   requireUser,
   requireActive,
   multerSingle(uploadChat, 'file'),
-  (req, res) => {
+  async (req, res) => {
     const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(Number(req.params.id));
     if (!conv || (conv.user_lo !== req.user.id && conv.user_hi !== req.user.id)) {
       return res.status(404).json({ error: 'Conversation not found.' });
@@ -1137,12 +1259,24 @@ app.post(
     }
     const info = db
       .prepare(
-        'INSERT INTO messages (conversation_id, sender_id, type, body, media_path, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        'INSERT INTO messages (conversation_id, sender_id, type, body, media_path, created_at, source_lang) VALUES (?, ?, ?, ?, ?, ?, ?)'
       )
-      .run(conv.id, req.user.id, type, body || null, mediaPath, Date.now());
+      .run(
+        conv.id,
+        req.user.id,
+        type,
+        body || null,
+        mediaPath,
+        Date.now(),
+        type === 'text' ? userLang(req.user) : null
+      );
     const msg = db.prepare('SELECT * FROM messages WHERE id = ?').get(info.lastInsertRowid);
     const forMe = serializeMessage(msg, req.user);
     const forPeer = serializeMessage(msg, peer);
+    const myView = getConversationLang(req.user.id, conv.id);
+    const peerView = getConversationLang(peerId, conv.id);
+    if (myView) await applyTranslations([forMe], myView);
+    if (peerView) await applyTranslations([forPeer], peerView);
     emitToUser(peerId, 'message', { conversationId: conv.id, message: forPeer });
     emitToUser(req.user.id, 'message', { conversationId: conv.id, message: forMe });
     const tick = touchPresence(conv, req.user.id, 'ping');
@@ -1461,8 +1595,8 @@ app.post('/api/admin/accounts', requireAdmin, multerSingle(uploadProfile, 'photo
     const birthYear = Number(req.body.birthYear);
     const phone = String(req.body.phone || '').trim();
     let badge = String(req.body.badge || '').trim();
-    if (!/^[A-Za-z0-9_]{3,20}$/.test(username)) {
-      return res.status(400).json({ error: 'Username must be 3–20 letters, numbers, or underscore.' });
+    if (usernameError(username)) {
+      return res.status(400).json({ error: usernameError(username) });
     }
     if (username.toLowerCase() === 'saka') {
       return res.status(400).json({ error: 'That username is reserved.' });

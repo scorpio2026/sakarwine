@@ -131,6 +131,25 @@ function migrate(db) {
     CREATE INDEX IF NOT EXISTS idx_hides_user ON conversation_hides(user_id, conversation_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_upgrades_status ON upgrades(status);
+
+    CREATE TABLE IF NOT EXISTS message_translations (
+      message_id INTEGER NOT NULL,
+      lang TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (message_id, lang),
+      FOREIGN KEY (message_id) REFERENCES messages(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS conversation_langs (
+      user_id INTEGER NOT NULL,
+      conversation_id INTEGER NOT NULL,
+      lang TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (user_id, conversation_id),
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+    );
   `);
   ensureColumn(db, 'users', 'is_special', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'users', 'badge', 'TEXT');
@@ -147,6 +166,8 @@ function migrate(db) {
   ensureColumn(db, 'users', 'host_reviewed_at', 'INTEGER');
   ensureColumn(db, 'users', 'last_seen', 'INTEGER');
   ensureColumn(db, 'conversations', 'opened_by', 'INTEGER');
+  ensureColumn(db, 'users', 'ui_lang', "TEXT NOT NULL DEFAULT 'my'");
+  ensureColumn(db, 'messages', 'source_lang', 'TEXT');
   db.exec('CREATE INDEX IF NOT EXISTS idx_users_host ON users(host_status)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_users_last_seen ON users(last_seen)');
   const { ensureHostIncomeTables } = require('./hostIncome');
@@ -242,6 +263,12 @@ function isAdminAccount(row) {
   return String((row && row.badge) || '').toLowerCase() === 'admin';
 }
 
+function defaultAvatarUrl(row) {
+  if (row && row.is_ai) return '/assets/saka-guide.svg';
+  if (row && String(row.gender || '') === 'female') return '/assets/default-female.png';
+  return '/assets/default-male.png';
+}
+
 function publicUser(row, { online = false, includePrivate = false, includePhone = false, viewer = null, includeNrc = false } = {}) {
   if (!row) return null;
   const hide = Boolean(row.hide_account_id);
@@ -249,6 +276,7 @@ function publicUser(row, { online = false, includePrivate = false, includePhone 
   const showAccountId = includePrivate || isSelf || !hide;
   const isHost = Boolean(row.is_host);
   const isAdmin = isAdminAccount(row);
+  const hasPhoto = Boolean(row.photo_path);
   const out = {
     id: row.id,
     accountId: showAccountId ? row.account_id : null,
@@ -257,7 +285,10 @@ function publicUser(row, { online = false, includePrivate = false, includePhone 
     gender: row.gender,
     estimatedGender: row.estimated_gender,
     birthYear: row.birth_year,
-    photoUrl: row.photo_path ? `/api/media/profile/${path.basename(row.photo_path)}` : null,
+    hasPhoto,
+    photoUrl: hasPhoto
+      ? `/api/media/profile/${path.basename(row.photo_path)}`
+      : defaultAvatarUrl(row),
     level: row.level,
     badge: row.badge || null,
     isSpecial: Boolean(row.is_special),
@@ -273,6 +304,9 @@ function publicUser(row, { online = false, includePrivate = false, includePhone 
     online,
     createdAt: row.created_at
   };
+  if (isSelf || includePrivate) {
+    out.uiLang = row.ui_lang || 'my';
+  }
   if (includePrivate) {
     out.hostStatus = row.host_status || 'none';
     out.occupation = row.occupation || null;
