@@ -1373,12 +1373,33 @@ function remainingPaidHours(paidUntil, now = Date.now()) {
   return Math.ceil((until - now) / 3600000);
 }
 
+function remainingPaidParts(paidUntil, now = Date.now()) {
+  const until = Number(paidUntil);
+  const ms = until > now ? until - now : 0;
+  return {
+    ms,
+    hours: Math.floor(ms / 3600000),
+    minutes: Math.floor((ms % 3600000) / 60000),
+    seconds: Math.floor((ms % 60000) / 1000)
+  };
+}
+
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+function paidCountdownLabel(paidUntil, now = Date.now()) {
+  const parts = remainingPaidParts(paidUntil, now);
+  if (!parts.ms) return '';
+  return t('paidCountdown', { h: parts.hours, m: pad2(parts.minutes), s: pad2(parts.seconds) });
+}
+
 function paidStatusText(u, now = Date.now()) {
   if (u && u.isSpecial) return t('specialChat');
   const until = u && u.paidUntil;
-  const hours = remainingPaidHours(until, now);
-  if (!hours) return t('notPaidYet');
-  return `${t('paidUntil', { when: I18n.formatWhen(until) })} · ${t('paidHoursLeft', { hours })}`;
+  const label = paidCountdownLabel(until, now);
+  if (!label) return t('notPaidYet');
+  return `${t('paidUntil', { when: I18n.formatWhen(until) })} · ${label}`;
 }
 
 function tickPaidRemain(paidUntil) {
@@ -1396,13 +1417,13 @@ function tickPaidRemain(paidUntil) {
       return;
     }
     el.textContent = paidStatusText({ paidUntil, isSpecial: false });
-    if (!remainingPaidHours(paidUntil) && state.paidTick) {
+    if (!remainingPaidParts(paidUntil).ms && state.paidTick) {
       clearInterval(state.paidTick);
       state.paidTick = null;
     }
   };
   paint();
-  if (remainingPaidHours(paidUntil)) state.paidTick = setInterval(paint, 30000);
+  if (remainingPaidParts(paidUntil).ms) state.paidTick = setInterval(paint, 1000);
 }
 
 function promptChatLang(c, opts = {}) {
@@ -1693,7 +1714,7 @@ async function showUpgrade() {
           <p>${t('specialUnlimited')}</p>
           <p class="small muted">${t('loungeBadge')} ${roleMark(state.user)}.</p>
         ` : `
-        ${remainingPaidHours(state.user.paidUntil) ? `<p class="small" id="paid-remain">${escapeHtml(paidStatusText(state.user))}</p>` : ''}
+        ${remainingPaidParts(state.user.paidUntil).ms ? `<p class="small" id="paid-remain">${escapeHtml(paidStatusText(state.user))}</p>` : ''}
         <p class="small muted">${t('upgradeHelp')}</p>
         <div class="field"><label>${t('upgradeTargetId')}</label><input id="acc" value="${state.user.accountId}" autocomplete="off" /></div>
         <p class="small muted">${t('upgradeTargetHelp')}</p>
@@ -1720,7 +1741,7 @@ async function showUpgrade() {
   const upBack = $('#up-back');
   if (upBack) upBack.onclick = showHome;
   bindMeButton();
-  if (!state.user.isSpecial && remainingPaidHours(state.user.paidUntil)) tickPaidRemain(state.user.paidUntil);
+  if (!state.user.isSpecial && remainingPaidParts(state.user.paidUntil).ms) tickPaidRemain(state.user.paidUntil);
   if (state.user.isSpecial) return;
   const paint = () => {
     const q = pub.quotes.find((x) => x.months === Number($('#months').value));

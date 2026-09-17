@@ -57,6 +57,17 @@ function isPaid(user, now = Date.now()) {
   return paidUntilMs(user) > now;
 }
 
+function remainingPaidBreakdown(userOrUntil, now = Date.now()) {
+  const until = paidUntilMs(userOrUntil);
+  const ms = until > now ? until - now : 0;
+  return {
+    ms,
+    hours: Math.floor(ms / 3600000),
+    minutes: Math.floor((ms % 3600000) / 60000),
+    seconds: Math.floor((ms % 60000) / 1000)
+  };
+}
+
 function remainingPaidHours(userOrUntil, now = Date.now()) {
   const until = paidUntilMs(userOrUntil);
   if (!until || until <= now) return 0;
@@ -75,6 +86,7 @@ module.exports = {
   addMonths,
   isPaid,
   remainingPaidHours,
+  remainingPaidBreakdown,
   isSpecial,
   canChatUnlimited
 };

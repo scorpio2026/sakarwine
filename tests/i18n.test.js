@@ -168,7 +168,9 @@ test('bottom nav has Home, Chat, Group, Profile, and Help — no Upgrade tab', (
   assert.equal(I18n.t('navGroup'), 'Group');
   assert.equal(I18n.t('noChats'), 'No conversations yet.');
   assert.equal(I18n.t('paidHoursLeft', { hours: 48 }), '48 hours remaining');
-  assert.match(js, /paidRemainingHours|paidHoursLeft|tickPaidRemain/);
+  assert.equal(I18n.t('paidCountdown', { h: 12, m: '04', s: '09' }), '12h 04m 09s remaining');
+  assert.match(js, /setInterval\(paint, 1000\)/);
+  assert.match(js, /paidCountdown/);
 });
 
 test('settings PIN change is translated and separate from Help recovery', () => {

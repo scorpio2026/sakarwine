@@ -32,9 +32,23 @@ function remainingPaidHours(paidUntil, now = Date.now()) {
   return Math.ceil((until - now) / 3600000);
 }
 
+function remainingPaidParts(paidUntil, now = Date.now()) {
+  const until = Number(paidUntil);
+  const ms = until > now ? until - now : 0;
+  return {
+    ms,
+    hours: Math.floor(ms / 3600000),
+    minutes: Math.floor((ms % 3600000) / 60000),
+    seconds: Math.floor((ms % 60000) / 1000)
+  };
+}
+
 function paidHoursLabel(paidUntil) {
-  const hours = remainingPaidHours(paidUntil);
-  return hours > 0 ? t('paidHoursLeft', { hours }) : '';
+  const parts = remainingPaidParts(paidUntil);
+  if (!parts.ms) return '';
+  const m = String(parts.minutes).padStart(2, '0');
+  const s = String(parts.seconds).padStart(2, '0');
+  return t('paidCountdown', { h: parts.hours, m, s });
 }
 
 function esc(s) {
@@ -234,7 +248,7 @@ async function bootDash() {
     focusAccountId = a.accountId;
     lookupQ = a.accountId;
     const hoursLeft = paidHoursLabel(a.paidUntil);
-    const paidLine = remainingPaidHours(a.paidUntil)
+    const paidLine = remainingPaidParts(a.paidUntil).ms
       ? `${new Date(a.paidUntil).toLocaleString()} · ${hoursLeft}`
       : 'Not paid';
     panel.innerHTML = `
@@ -449,7 +463,7 @@ async function bootDash() {
             <button class="ghost" data-open-id="${esc(a.accountId)}">${esc(a.accountId)}</button>
             ${a.isSpecial ? `<br><span class="badge-neon">${esc(a.badge || 'special')}</span>` : ''}${a.isHost ? `<br><span class="badge-neon badge-host" data-badge="host">host</span>` : ''}${a.hostStatus === 'pending' ? '<br><span class="muted">NRC pending</span>' : ''}</td>
           <td>${esc(a.phone)}<br><span class="muted">${esc(a.gender)} · ${a.birthYear}</span></td>
-          <td>${a.isSpecial ? `Unlimited · ${esc(a.badge || 'special')}` : `Lv ${a.level}<br>${remainingPaidHours(a.paidUntil) ? `${new Date(a.paidUntil).toLocaleDateString()} · ${esc(paidHoursLabel(a.paidUntil))}` : '—'}`}</td>
+          <td>${a.isSpecial ? `Unlimited · ${esc(a.badge || 'special')}` : `Lv ${a.level}<br>${remainingPaidParts(a.paidUntil).ms ? `${new Date(a.paidUntil).toLocaleDateString()} · ${esc(paidHoursLabel(a.paidUntil))}` : '—'}`}</td>
           <td>${a.accountIdHidden ? t('hiddenFromLounge') : t('visible')}</td>
           <td><span class="badge ${a.status}">${a.status}</span> ${a.online ? '· online' : ''}${a.createdByAdmin ? '<br><span class="muted">admin-created</span>' : ''}</td>
           <td class="actions">${moderationButtons(a)}</td>

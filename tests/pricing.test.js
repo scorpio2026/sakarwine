@@ -2,7 +2,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { quotePlan, allQuotes, isPaid, addMonths, canChatUnlimited, isSpecial, remainingPaidHours } = require('../src/pricing');
+const { quotePlan, allQuotes, isPaid, addMonths, canChatUnlimited, isSpecial, remainingPaidHours, remainingPaidBreakdown } = require('../src/pricing');
 
 test('6 months is 30% off and 12 months is 50% off', () => {
   const m = quotePlan(10000, 1);
@@ -34,4 +34,8 @@ test('paid helper, special unlimited, and month rolling', () => {
   assert.equal(remainingPaidHours(now + 1, now), 1);
   assert.equal(remainingPaidHours({ paid_until: now + 5 * 3600000 }, now), 5);
   assert.equal(remainingPaidHours({ paidUntil: now - 1 }, now), 0);
+  const parts = remainingPaidBreakdown(now + (2 * 3600000) + (3 * 60000) + 4000, now);
+  assert.equal(parts.hours, 2);
+  assert.equal(parts.minutes, 3);
+  assert.equal(parts.seconds, 4);
 });
