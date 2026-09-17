@@ -81,7 +81,7 @@ Login-protected. Admins can:
 - Configure site name, **free-trial days for future new accounts**, payment instructions, and monthly pricing
 - **Look up any account ID** from the search box: typing surfaces matching IDs, and opening one shows a dossier (profile, chats, upgrades, blocks, NRC/passport ID for female hosts, hide/unhide) so you can manage that account in one place.
 - Review **female host / NRC** submissions (ID photos only) and approve/reject. Approval grants the blue host badge.
-- Review **host payouts**, mark Done after transfer, **broadcast** a system message/image to everyone, and manage **home ad banners**.
+- Review **host payouts**, mark Done after transfer, **broadcast** a system message/image to **everyone** or to **selected account IDs**, and manage **home ad banners**.
 
 Pending upgrades show as a dashboard notice / badge.
 

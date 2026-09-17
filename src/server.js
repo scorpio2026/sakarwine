@@ -2930,6 +2930,39 @@ app.post('/api/admin/pin-recovery/:id/done', requireAdmin, (req, res) => {
   res.json({ ok: true, request: serializePinRecovery({ ...row, status: 'done', reviewed_at: Date.now() }) });
 });
 
+function collectAccountIds(raw) {
+  if (raw == null || raw === '') return [];
+  if (Array.isArray(raw)) {
+    const out = [];
+    for (const item of raw) out.push(...collectAccountIds(item));
+    return out;
+  }
+  const s = String(raw).trim();
+  if (!s) return [];
+  if (s.startsWith('[')) {
+    try {
+      return collectAccountIds(JSON.parse(s));
+    } catch {
+      /* fall through */
+    }
+  }
+  return s.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+}
+
+function parseBroadcastRequest(body) {
+  const modeRaw = String((body && body.mode) || 'all').trim().toLowerCase();
+  const mode = modeRaw === 'ids' ? 'ids' : 'all';
+  const seen = new Set();
+  const accountIds = [];
+  for (const id of collectAccountIds(body && body.accountIds)) {
+    const key = id.toUpperCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    accountIds.push(id.trim());
+  }
+  return { mode, accountIds };
+}
+
 app.post(
   '/api/admin/broadcast',
   requireAdmin,
@@ -2940,17 +2973,40 @@ app.post(
     const image = req.file ? req.file.filename : null;
     if (!body && !image) return res.status(400).json({ error: 'Write a system message or attach an image.' });
     if (body && body.length > 2000) return res.status(400).json({ error: 'Message is too long.' });
+    const { mode, accountIds } = parseBroadcastRequest(req.body || {});
+    let users;
+    if (mode === 'ids') {
+      if (!accountIds.length) return res.status(400).json({ error: 'Choose at least one account ID.' });
+      if (accountIds.length > 100) return res.status(400).json({ error: 'Too many account IDs.' });
+      users = [];
+      for (const accountId of accountIds) {
+        const row = db
+          .prepare(
+            "SELECT * FROM users WHERE account_id = ? COLLATE NOCASE AND is_ai = 0"
+          )
+          .get(accountId);
+        if (!row || row.status !== 'active') {
+          return res.status(400).json({ error: 'No active account found for that ID.', accountId });
+        }
+        users.push(row);
+      }
+    } else {
+      users = db.prepare("SELECT * FROM users WHERE is_ai = 0 AND status = 'active'").all();
+    }
     const info = db
       .prepare('INSERT INTO broadcasts (body, media_path, created_at) VALUES (?, ?, ?)')
       .run(body || null, image, Date.now());
-    const users = db.prepare("SELECT id FROM users WHERE is_ai = 0 AND status = 'active'").all();
+    const payload = { body: body || null, hasImage: Boolean(image), mode };
     let sent = 0;
     for (const u of users) {
       insertSystemMessage(u.id, body || null, image);
+      if (mode === 'ids') emitToUser(u.id, 'broadcast', payload);
       sent += 1;
     }
-    io.emit('broadcast', { body: body || null, hasImage: Boolean(image) });
-    res.json({ ok: true, id: info.lastInsertRowid, sent });
+    if (mode === 'all') io.emit('broadcast', payload);
+    const out = { ok: true, id: info.lastInsertRowid, sent, mode };
+    if (mode === 'ids') out.accountIds = users.map((u) => u.account_id);
+    res.json(out);
   }
 );
 

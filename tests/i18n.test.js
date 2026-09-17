@@ -226,6 +226,14 @@ test('admin dashboard paints paid accounts green and badges extra upgrades', () 
   assert.equal(I18n.error('Invalid free trial days.'), I18n.t('errFreeTrialDays'));
   I18n.setLang('my');
   assert.notEqual(I18n.t('freeTrialDays'), I18n.catalogs.en.freeTrialDays);
+  I18n.setLang('en');
+  assert.equal(I18n.t('broadcastToAll'), 'Everyone');
+  assert.equal(I18n.t('broadcastToIds'), 'Selected accounts');
+  assert.equal(I18n.t('sendToSelected'), 'Send to selected');
+  assert.equal(I18n.error('Choose at least one account ID.'), I18n.t('errBroadcastTargets'));
+  assert.match(js, /name="bc-mode"/);
+  assert.match(js, /accountIds/);
+  assert.match(js, /\/api\/admin\/search/);
 });
 
 test('admin-badge chats block first contact and expose a live gate', () => {
@@ -403,6 +411,8 @@ test('UI language pack covers Saka rules, Help, errors, and does not translate t
   assert.match(admin, /t\('createSpecialTitle'\)/);
   assert.match(admin, /t\('adminNoticeUpgrades'\)/);
   assert.match(admin, /t\('approveHost'\)/);
+  assert.match(admin, /name="bc-mode"/);
+  assert.match(admin, /sendToSelected/);
   const codes = I18n.LANGS.map((l) => l.code);
   for (const code of codes) {
     assert.ok(I18n.catalogs[code].sakaRules, `${code} missing sakaRules`);

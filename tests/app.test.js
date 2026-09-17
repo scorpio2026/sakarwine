@@ -2197,4 +2197,71 @@ test('Saka guide chat is a restricted FAQ helper', async () => {
   assert.match(String(photo.data.error || ''), /four FAQ topics/i);
 });
 
+test('admin broadcast can target selected account IDs without sending to everyone', async () => {
+  await started;
+  const a = await register('bca' + Date.now().toString().slice(-5), '121212', 'male');
+  const b = await register('bcb' + Date.now().toString().slice(-5), '232323', 'female');
+  const admin = await loginAdmin();
+  const saka = db.prepare('SELECT id FROM users WHERE is_ai = 1').get();
+  function sakaBodies(userId) {
+    const lo = Math.min(userId, saka.id);
+    const hi = Math.max(userId, saka.id);
+    const conv = db.prepare('SELECT id FROM conversations WHERE user_lo = ? AND user_hi = ?').get(lo, hi);
+    if (!conv) return [];
+    return db.prepare('SELECT body FROM messages WHERE conversation_id = ? ORDER BY id').all(conv.id).map((m) => m.body);
+  }
+
+  const note = 'secret-only-a-' + Date.now();
+  const targeted = await req('/api/admin/broadcast', {
+    method: 'POST',
+    json: { body: note, mode: 'ids', accountIds: [a.user.accountId] },
+    jar: admin
+  });
+  assert.equal(targeted.res.status, 200, targeted.data.error);
+  assert.equal(targeted.data.sent, 1);
+  assert.equal(targeted.data.mode, 'ids');
+  assert.deepEqual(targeted.data.accountIds, [a.user.accountId]);
+  assert.equal(sakaBodies(a.user.id).includes(note), true);
+  assert.equal(sakaBodies(b.user.id).includes(note), false);
+
+  const empty = await req('/api/admin/broadcast', {
+    method: 'POST',
+    json: { body: 'no one', mode: 'ids', accountIds: [] },
+    jar: admin
+  });
+  assert.equal(empty.res.status, 400);
+  assert.equal(empty.data.error, 'Choose at least one account ID.');
+
+  const unknown = await req('/api/admin/broadcast', {
+    method: 'POST',
+    json: { body: 'ghost', mode: 'ids', accountIds: ['SWNOPE000'] },
+    jar: admin
+  });
+  assert.equal(unknown.res.status, 400);
+  assert.equal(unknown.data.error, 'No active account found for that ID.');
+
+  const formNote = 'form-only-b-' + Date.now();
+  const fd = new FormData();
+  fd.set('body', formNote);
+  fd.set('mode', 'ids');
+  fd.set('accountIds', JSON.stringify([b.user.accountId]));
+  const formHit = await req('/api/admin/broadcast', { method: 'POST', form: fd, jar: admin });
+  assert.equal(formHit.res.status, 200, formHit.data.error);
+  assert.equal(formHit.data.sent, 1);
+  assert.equal(sakaBodies(b.user.id).includes(formNote), true);
+  assert.equal(sakaBodies(a.user.id).includes(formNote), false);
+
+  const allNote = 'for-everyone-' + Date.now();
+  const all = await req('/api/admin/broadcast', {
+    method: 'POST',
+    json: { body: allNote },
+    jar: admin
+  });
+  assert.equal(all.res.status, 200, all.data.error);
+  assert.equal(all.data.mode, 'all');
+  assert.ok(all.data.sent >= 2);
+  assert.equal(sakaBodies(a.user.id).includes(allNote), true);
+  assert.equal(sakaBodies(b.user.id).includes(allNote), true);
+});
+
 after(() => new Promise((resolve) => server.close(resolve)));
