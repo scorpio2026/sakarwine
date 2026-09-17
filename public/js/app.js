@@ -333,7 +333,7 @@ function showWelcome() {
     </section>`;
   $('#login-btn').onclick = login;
   $('#goto-reg').onclick = showRegister;
-  $('#goto-help').onclick = showHelp;
+  $('#goto-help').onclick = () => showHelp(false);
   I18n.bindSwitcher('lang-switch');
 }
 
