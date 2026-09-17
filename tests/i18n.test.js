@@ -16,6 +16,7 @@ test('i18n catalogs share the same keys and default to Myanmar', () => {
   }
   I18n.setLang('en');
   assert.equal(I18n.t('enterLounge'), 'Enter lounge');
+  assert.equal(I18n.t('upgradePromoTitle'), 'Upgrade and save up to 50%');
   I18n.setLang('my');
   assert.equal(I18n.lang, 'my');
   assert.notEqual(I18n.t('enterLounge'), 'Enter lounge');
@@ -30,7 +31,6 @@ test('i18n catalogs share the same keys and default to Myanmar', () => {
     'Message the sakarwine admin with the phone number you used at registration. There is no self-serve password reset.'
   );
   assert.equal(I18n.t('backHome'), 'မူလစာမျက်နှာ');
-  assert.match(I18n.t('upgradePromoTitle'), /50%/);
   assert.equal(I18n.error('Wrong username or password.'), I18n.t('errWrongLogin'));
 });
 
