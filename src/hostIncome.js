@@ -119,19 +119,26 @@ function findHostByCode(db, raw) {
     .get(code);
 }
 
-function creditHostForUpgrade(db, { host, member, upgradeId, now, emit }) {
+function creditAmountForMonths(months) {
+  const n = Number(months);
+  const units = Number.isInteger(n) && n >= 1 && n <= 12 ? n : 1;
+  return HOST_CREDIT_AMOUNT * units;
+}
+
+function creditHostForUpgrade(db, { host, member, upgradeId, now, emit, months }) {
   if (!host || !host.is_host || host.is_ai) return null;
   const exists = db.prepare('SELECT id FROM host_income_ledger WHERE upgrade_id = ?').get(upgradeId);
   if (exists) return null;
+  const amount = creditAmountForMonths(months);
   db.prepare(
     `INSERT INTO host_income_ledger (host_id, partner_id, conversation_id, upgrade_id, amount, created_at)
      VALUES (?, ?, NULL, ?, ?, ?)`
-  ).run(host.id, member ? member.id : null, upgradeId, HOST_CREDIT_AMOUNT, now);
+  ).run(host.id, member ? member.id : null, upgradeId, amount, now);
   const total = hostEarningsTotal(db, host.id);
   const available = hostAvailableBalance(db, host.id);
   if (typeof emit === 'function') {
     emit(host.id, 'host:income', {
-      amount: HOST_CREDIT_AMOUNT,
+      amount,
       total,
       available,
       partnerUsername: member ? member.username : null,
@@ -139,7 +146,7 @@ function creditHostForUpgrade(db, { host, member, upgradeId, now, emit }) {
       upgradeId
     });
   }
-  return { hostId: host.id, amount: HOST_CREDIT_AMOUNT, total, available };
+  return { hostId: host.id, amount, total, available };
 }
 
 function visitorStarted(conv, partner) {
@@ -390,6 +397,7 @@ module.exports = {
   mutualSnapshot,
   assignHostCode,
   findHostByCode,
+  creditAmountForMonths,
   creditHostForUpgrade,
   requestPayout,
   listPayouts

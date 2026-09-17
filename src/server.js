@@ -585,12 +585,12 @@ function startAiWelcome(user) {
   const hostNotice = [
     'Host (မိန်းကလေးသာ)',
     'ပရိုဖိုင် ဆက်တင်မှ Host လျှောက်နိုင်သည်။ အက်ဒမင် အတည်ပြုပြီး ကိုယ်ပိုင် ရည်ညွှန်းကုဒ် ၈ လုံး ရသည်။',
-    'အဆင့်မြှင့်သူများ ထိုကုဒ်ကို ထည့်ရန် မဖြစ်မနေ မဟုတ်။ မှန်ကန်သော ကုဒ်ဖြင့် အတည်ပြုသော အဆင့်မြှင့်တိုင်း host က +၅၀၀ ရသည်။ စကားပြောချိန်ဖြင့် +၅၀၀ မရတော့ပါ။',
+    'အဆင့်မြှင့်သူများ ထိုကုဒ်ကို ထည့်ရန် မဖြစ်မနေ မဟုတ်။ မှန်ကန်သော ကုဒ်ဖြင့် အတည်ပြုသော အဆင့်မြှင့်တိုင်း host က လတစ်လလျှင် +၅၀၀ ရသည် (၁ လ → +၅၀၀၊ ၆ လ → +၃၀၀၀၊ ၁၂ လ → +၆၀၀၀)။ စကားပြောချိန်ဖြင့် +၅၀၀ မရတော့ပါ။',
     '၁၀၀,၀၀၀ တွင် KBZ Pay သို့မဟုတ် Wave ဖြင့် ထုတ်ယူနိုင်သည်။',
     '',
     'Female host',
     'Apply to become a host from Profile Settings. After admin approval you get your own personal 8-digit referral code.',
-    'Members may optionally enter that code when upgrading. Each time a valid code is used on an approved upgrade, you earn +500. Chat time no longer pays +500.',
+    'Members may optionally enter that code when upgrading. Each time a valid code is used on an approved upgrade, you earn +500 × months (1 month → +500, 6 → +3000, 12 → +6000). Chat time no longer pays +500.',
     'Withdraw from 100,000 via KBZ Pay or Wave.'
   ].join('\n');
   const ins = db.prepare(
@@ -2839,6 +2839,7 @@ app.post('/api/admin/upgrades/:id/approve', requireAdmin, (req, res) => {
       host,
       member: updated,
       upgradeId: up.id,
+      months: up.months,
       now,
       emit: emitToUser
     });

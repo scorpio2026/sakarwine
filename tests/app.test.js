@@ -1309,7 +1309,7 @@ test('new accounts get dual-language rules in Saka chat; host income is female-o
   assert.equal(welcomeRows(female.user.id).length, 3);
 });
 
-test('hosts earn 500 per approved upgrade that used their code', async () => {
+test('hosts earn 500 per month of an approved upgrade that used their code', async () => {
   await started;
   const admin = await loginAdmin();
   const host = await register('earny' + Date.now().toString().slice(-5), '777777', 'female');
@@ -1370,10 +1370,23 @@ test('hosts earn 500 per approved upgrade that used their code', async () => {
   const me2 = await req('/api/me', { jar: host.jar });
   assert.equal(me2.data.user.hostEarnings, 1500);
 
+  const six = new FormData();
+  six.set('targetAccountId', paid2.user.accountId);
+  six.set('months', '6');
+  six.set('hostCode', code);
+  six.set('receipt', new Blob([PNG], { type: 'image/png' }), 'pay.png');
+  const sixSub = await req('/api/upgrade', { method: 'POST', form: six, jar: paid2.jar });
+  assert.equal(sixSub.res.status, 200, sixSub.data.error);
+  const sixOk = await req(`/api/admin/upgrades/${sixSub.data.id}/approve`, { method: 'POST', jar: admin });
+  assert.equal(sixOk.res.status, 200, sixOk.data.error);
+  const me6 = await req('/api/me', { jar: host.jar });
+  assert.equal(me6.data.user.hostEarnings, 4500);
+  assert.equal(me6.data.user.hostIncomeLedger[0].amount, 3000);
+
   const withFree = await req(`/api/conversations/with/${host.user.id}`, { method: 'POST', jar: free.jar });
   await sitTogether(withFree.data.conversation.id, host.jar, free.jar, 120);
   const still = await req('/api/me', { jar: host.jar });
-  assert.equal(still.data.user.hostEarnings, 1500);
+  assert.equal(still.data.user.hostEarnings, 4500);
 
   const people = await req('/api/users', { jar: host.jar });
   const listed = people.data.users.find((u) => u.username === host.user.username);
@@ -1383,8 +1396,8 @@ test('hosts earn 500 per approved upgrade that used their code', async () => {
 
   const dossier = await req(`/api/admin/dossier?q=${host.user.accountId}`, { jar: admin });
   assert.equal(dossier.data.user.hostCode, code);
-  assert.equal(dossier.data.hostIncome.hostEarnings, 1500);
-  assert.equal(dossier.data.hostIncome.hostIncomeLedger.length, 3);
+  assert.equal(dossier.data.hostIncome.hostEarnings, 4500);
+  assert.equal(dossier.data.hostIncome.hostIncomeLedger.length, 4);
 
   const notHost = await register('plain' + Date.now().toString().slice(-5), '555555', 'female');
   assert.equal(notHost.user.hostCode, undefined);
@@ -1395,7 +1408,7 @@ test('hosts earn 500 per approved upgrade that used their code', async () => {
   assert.equal(plainMe.data.user.hostEarnings, 0);
 
   const ready = await req('/api/me', { jar: host.jar });
-  assert.equal(ready.data.user.hostBalance, 1500);
+  assert.equal(ready.data.user.hostBalance, 4500);
   assert.equal(ready.data.user.canWithdraw, true);
   const tooSoon = await req('/api/me/withdraw', {
     method: 'POST',
@@ -1403,10 +1416,10 @@ test('hosts earn 500 per approved upgrade that used their code', async () => {
     jar: host.jar
   });
   assert.equal(tooSoon.res.status, 200, tooSoon.data.error);
-  assert.equal(tooSoon.data.payout.amount, 1500);
+  assert.equal(tooSoon.data.payout.amount, 4500);
   const held = await req('/api/me', { jar: host.jar });
   assert.equal(held.data.user.hostBalance, 0);
-  assert.equal(held.data.user.hostEarnings, 1500);
+  assert.equal(held.data.user.hostEarnings, 4500);
 
   const sakaList = await req('/api/users', { jar: host.jar });
   const saka = sakaList.data.users.find((u) => u.isAi);

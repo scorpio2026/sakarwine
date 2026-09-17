@@ -273,7 +273,7 @@ async function bootDash() {
           ${a.gender === 'female' ? `<h3>ID verification</h3>${nrcBlock(a)}` : ''}
           ${data.hostIncome ? `<h3>Host earnings</h3>
             <p><strong>${Number(data.hostIncome.hostBalance != null ? data.hostIncome.hostBalance : data.hostIncome.hostEarnings || 0).toLocaleString()} MMK</strong> available
-              <span class="muted"> · earned ${Number(data.hostIncome.hostEarnings || 0).toLocaleString()} · ${data.hostIncome.hostCreditAmount} per approved upgrade that used their host code</span></p>
+              <span class="muted"> · earned ${Number(data.hostIncome.hostEarnings || 0).toLocaleString()} · ${data.hostIncome.hostCreditAmount} × months of approved upgrades that used their host code</span></p>
             ${(data.hostIncome.hostIncomeLedger || []).length
               ? data.hostIncome.hostIncomeLedger.map((row) => `<div class="muted">+${row.amount} · ${esc(row.partner && row.partner.username ? row.partner.username : 'upgrade')} · Lv ${row.partner && row.partner.level != null ? row.partner.level : '—'} · ${new Date(row.createdAt).toLocaleString()}</div>`).join('')
               : '<p class="muted">No qualifying upgrades credited yet.</p>'}
