@@ -122,6 +122,8 @@ body {
   padding: 10px 16px 12px;
   overflow: hidden;
   background: transparent;
+  background-color: transparent;
+  isolation: isolate;
 }
 .brand-lockup {
   text-align: center;
@@ -162,7 +164,8 @@ body {
   height: auto;
   margin: 0 auto;
   border-radius: 0;
-  background: transparent;
+  background: none;
+  background-color: transparent;
   filter:
     drop-shadow(0 -1px 0 rgba(255, 255, 255, 0.55))
     drop-shadow(0 1px 0 rgba(90, 20, 120, 0.28))
@@ -181,7 +184,8 @@ body {
   height: auto;
   margin: 0;
   border-radius: 0;
-  background: transparent;
+  background: none;
+  background-color: transparent;
   filter:
     drop-shadow(0 -1px 0 rgba(255, 255, 255, 0.55))
     drop-shadow(0 1px 0 rgba(90, 20, 120, 0.28))
@@ -455,7 +459,7 @@ body {
   overflow: auto;
   min-height: 0;
   min-width: 0;
-  padding-right: 2px;
+  padding: 2px 4px 10px;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
@@ -474,6 +478,27 @@ body {
   min-width: 0;
 }
 .user-row:hover { background: #f4fbf7; }
+.user-row.gender-male,
+.user-row.gender-female {
+  border-radius: 18px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border-bottom-width: 3px;
+}
+.user-row.gender-male {
+  border: 3px solid #2563eb;
+}
+.user-row.gender-female {
+  border: 3px solid #ec4899;
+}
+.user-row.gender-male:hover { background: #eff6ff; }
+.user-row.gender-female:hover { background: #fdf2f8; }
+.user-row.gender-male .avatar.round {
+  box-shadow: 0 0 0 3px #2563eb;
+}
+.user-row.gender-female .avatar.round {
+  box-shadow: 0 0 0 3px #ec4899;
+}
 .avatar {
   width: 52px;
   height: 52px;
@@ -1403,6 +1428,8 @@ button:disabled, .btn:disabled, .icon-btn:disabled, .chat-tool:disabled, .chat-s
   .brand-lockup h1 { font-size: 1.7rem; }
   .logo-3d { width: 72px; height: 72px; border-radius: 22px; }
   .user-row .avatar { width: 48px; height: 48px; }
+  .user-row.gender-male,
+  .user-row.gender-female { border-width: 3px; }
   .composer { gap: 6px; }
   .chat-head .meta .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .welcome-hero { min-height: 38dvh; padding-bottom: 40px; }

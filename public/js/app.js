@@ -523,7 +523,7 @@ function paintHomeList() {
     return hay.includes(q);
   });
   list.innerHTML = users.map((u) => `
-    <div class="user-row" data-id="${u.id}">
+    <div class="user-row ${u.isAi ? '' : (u.gender === 'female' ? 'gender-female' : 'gender-male')}" data-id="${u.id}">
       ${avatarHtml(u)}
       <div class="meta">
         <div class="name">${escapeHtml(u.username)} ${u.isAi ? '· ' + t('guide') : ''} ${roleMark(u)}</div>

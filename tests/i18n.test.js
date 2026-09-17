@@ -32,3 +32,24 @@ test('i18n catalogs share the same keys and default to Myanmar', () => {
   assert.equal(I18n.t('backHome'), 'မူလစာမျက်နှာ');
   assert.equal(I18n.error('Wrong username or password.'), I18n.t('errWrongLogin'));
 });
+
+test('masthead wordmark is unfilled and home rows use gender frames', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const css = fs.readFileSync(path.join(__dirname, '../public/css/app.css'), 'utf8');
+  assert.match(css, /\.app-masthead\s*\{[^}]*background:\s*transparent/);
+  assert.match(css, /\.masthead-logo\s*\{[^}]*background-color:\s*transparent/);
+  assert.match(css, /\.user-row\.gender-male\s*\{[^}]*#2563eb/);
+  assert.match(css, /\.user-row\.gender-female\s*\{[^}]*#ec4899/);
+  const js = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
+  assert.match(js, /gender-female/);
+  assert.match(js, /gender-male/);
+  assert.match(js, /function showHelp/);
+  assert.match(js, /pin-recovery-form/);
+  assert.match(js, /back-home-btn/);
+  assert.match(js, /function showRegister/);
+  assert.equal(js.includes('nrcFront'), true);
+  const registerSlice = js.slice(js.indexOf('function showRegister'), js.indexOf('function showScan'));
+  assert.equal(registerSlice.includes('nrcFront'), false);
+  assert.match(js, /settingsRow\('go-host'/);
+});
