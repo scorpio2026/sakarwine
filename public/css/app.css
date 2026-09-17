@@ -553,6 +553,14 @@ body {
 .avatar.fallback-female { background: #ffc2d4; }
 .avatar[data-photo-user] { cursor: pointer; }
 .profile-lite { text-align: center; }
+.profile-lite-roles {
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
+.profile-lite-roles .badge-lv,
+.profile-lite-roles .badge-neon {
+  font-size: 0.78rem;
+}
 .profile-lite-photo {
   width: 100%;
   max-height: 62vh;

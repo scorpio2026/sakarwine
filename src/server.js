@@ -1301,6 +1301,9 @@ app.get('/api/users/:id/card', requireUser, requireActive, (req, res) => {
       isAi: Boolean(target.is_ai),
       isAdmin: isAdminAccount(target),
       badge: target.badge || null,
+      level: Number(target.level) || 0,
+      isSpecial: Boolean(target.is_special),
+      isHost: Boolean(target.is_host),
       bio: target.bio ? String(target.bio) : ''
     }
   });

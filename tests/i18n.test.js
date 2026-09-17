@@ -74,6 +74,10 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   assert.match(js, /function showHelp/);
   assert.match(js, /pin-recovery-form/);
   assert.match(js, /back-home-btn/);
+  const photoFn = js.slice(js.indexOf('async function openProfilePhoto'), js.indexOf('function roleMark'));
+  assert.match(photoFn, /roleMark\(u\)/);
+  assert.match(photoFn, /profile-lite-roles/);
+  assert.match(css, /\.profile-lite-roles/);
   assert.match(js, /function showRegister/);
   assert.equal(js.includes('nrcFront'), true);
   const registerSlice = js.slice(js.indexOf('function showRegister'), js.indexOf('function showScan'));

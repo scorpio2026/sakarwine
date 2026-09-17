@@ -211,6 +211,7 @@ async function openProfilePhoto(userId) {
       <div class="profile-lite">
         ${photo}
         <h3 style="margin:12px 0 4px">${escapeHtml(u.username)}</h3>
+        <div class="profile-lite-roles">${roleMark(u)}</div>
         <p class="profile-id">${escapeHtml(u.accountId || '—')}</p>
         ${u.bio ? `<p class="profile-bio">${escapeHtml(u.bio)}</p>` : ''}
         <button class="btn secondary block" id="photo-close">${t('close')}</button>

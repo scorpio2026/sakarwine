@@ -183,6 +183,8 @@ test('owner /api/me exposes freeUntil; public users and profile cards do not', a
   assert.equal(card.res.status, 200);
   assert.equal(Object.prototype.hasOwnProperty.call(card.data.user, 'freeUntil'), false);
   assert.equal(card.data.user.freeUntil, undefined);
+  assert.equal(card.data.user.level, other.user.level);
+  assert.equal(card.data.user.isHost, false);
 });
 
 test('two users chat, filters, image lock, upgrade path', async () => {
@@ -1246,6 +1248,12 @@ test('female registration matches male; host apply is later from Settings', asyn
   assert.equal(host.isHost, true);
   assert.equal(host.nrcFrontUrl, undefined);
   assert.equal(host.occupation, undefined);
+
+  const hostCard = await req(`/api/users/${female.user.id}/card`, { jar: male.jar });
+  assert.equal(hostCard.res.status, 200);
+  assert.equal(hostCard.data.user.isHost, true);
+  assert.equal(hostCard.data.user.level, female.user.level);
+  assert.equal(Object.prototype.hasOwnProperty.call(hostCard.data.user, 'freeUntil'), false);
 
   const goneIncome = await req('/api/me/income', {
     method: 'PUT',
