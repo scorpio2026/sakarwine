@@ -11,38 +11,56 @@
   --display: "Fraunces", Georgia, serif;
 }
 * { box-sizing: border-box; }
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  color-scheme: dark;
+}
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
   font-family: var(--font);
   color: var(--cream);
   background:
     radial-gradient(900px 500px at 0% 0%, #4a1830 0%, transparent 50%),
     linear-gradient(180deg, #1a0a12, var(--bg));
 }
-#admin-app { max-width: 1120px; margin: 0 auto; padding: 24px 16px 48px; }
-h1, h2 { font-family: var(--display); margin: 0 0 8px; }
+#admin-app {
+  max-width: 1120px;
+  width: 100%;
+  margin: 0 auto;
+  padding: max(16px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(32px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
+}
+h1, h2 { font-family: var(--display); margin: 0 0 8px; overflow-wrap: anywhere; }
 .card {
   background: var(--panel);
   border: 1px solid var(--stroke);
   border-radius: 20px;
-  padding: 18px;
+  padding: 16px;
   backdrop-filter: blur(22px);
   box-shadow: 0 16px 40px rgba(0,0,0,.3);
+  min-width: 0;
+  max-width: 100%;
 }
 .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 16px 0; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr)); gap: 10px; margin: 16px 0; }
 .stat { padding: 14px; border-radius: 16px; background: rgba(0,0,0,.2); border: 1px solid var(--stroke); }
 .stat b { display: block; font-size: 1.4rem; color: var(--gold); }
-html { color-scheme: dark; }
 input, select, textarea, button {
   font: inherit;
+  font-size: 16px;
   border-radius: 12px;
   border: 1px solid var(--stroke);
   background: rgba(255,244,236,.12);
   color: var(--cream);
   padding: 10px 12px;
+  min-height: 44px;
+  max-width: 100%;
 }
+input, select, textarea { width: 100%; }
 input:-webkit-autofill {
   -webkit-text-fill-color: #fff4ec;
   box-shadow: 0 0 0 1000px #3a1522 inset;
@@ -54,13 +72,34 @@ button {
   font-weight: 800;
   border: 0;
   box-shadow: 0 5px 0 #7a5430;
+  min-width: 44px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
+button.block { width: 100%; }
 button.ghost { background: transparent; color: var(--rose); box-shadow: none; }
 button.warn { background: linear-gradient(180deg, #c45, #812); color: white; box-shadow: 0 5px 0 #501018; }
 button.danger { background: linear-gradient(180deg, #a22, #611); color: white; box-shadow: 0 5px 0 #300; }
-.tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
-.tabs button { box-shadow: none; background: rgba(255,255,255,.06); color: var(--cream); }
+.tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+.tabs button {
+  box-shadow: none;
+  background: rgba(255,255,255,.06);
+  color: var(--cream);
+  min-height: 44px;
+  padding: 10px 14px;
+}
 .tabs button.on { background: linear-gradient(180deg, #f3d7b0, #d4a574); color: #2a0f18; }
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+  margin: 0 -4px;
+}
 table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--stroke); vertical-align: top; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; }
@@ -76,12 +115,13 @@ th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--stro
 }
 .chat-log { max-height: 420px; overflow: auto; display: grid; gap: 8px; }
 .msg { padding: 8px 10px; border-radius: 12px; background: rgba(255,255,255,.06); }
-img.thumb { max-width: 220px; border-radius: 12px; }
+img.thumb { max-width: min(220px, 100%); height: auto; border-radius: 12px; }
+audio { width: 100%; max-width: 100%; }
 .field { margin: 10px 0; }
 .field label { display: block; font-size: 0.78rem; color: var(--rose); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 4px; }
-.login { max-width: 380px; margin: 12vh auto; }
+.login { max-width: min(380px, 100%); margin: 8vh auto 24px; width: 100%; }
 .muted { color: rgba(255,244,236,.65); }
-.actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .badge-neon {
   display: inline-block;
   font-weight: 800;
@@ -114,7 +154,9 @@ img.thumb { max-width: 220px; border-radius: 12px; }
   align-items: flex-end;
   margin: 14px 0 4px;
 }
-.lookup input { width: 100%; }
+.lookup .field { min-width: min(100%, 220px); }
+.lookup input { width: 100%; min-height: 44px; }
+.lookup button { flex: 0 0 auto; }
 .lookup-hits {
   position: absolute;
   left: 0;
@@ -137,9 +179,40 @@ img.thumb { max-width: 220px; border-radius: 12px; }
   box-shadow: none;
   border-radius: 0;
   border-bottom: 1px solid var(--stroke);
+  min-height: 44px;
 }
 .lookup-hits .hit:hover { background: rgba(255,244,236,.08); }
 .nrc-pair { display: flex; gap: 10px; flex-wrap: wrap; margin: 8px 0; }
-.nrc-thumb { width: 160px; height: 100px; object-fit: cover; border-radius: 10px; border: 1px solid var(--stroke); }
+.nrc-thumb { width: min(160px, 100%); height: 100px; object-fit: cover; border-radius: 10px; border: 1px solid var(--stroke); }
 .dossier section { margin: 18px 0; }
 .dossier h3 { font-family: var(--display); margin: 0 0 8px; }
+.notice, .msg, .muted { overflow-wrap: anywhere; }
+
+@media (max-width: 720px) {
+  h1 { font-size: 1.55rem; }
+  .card { padding: 14px; }
+  .table-scroll thead { display: none; }
+  .table-scroll tr {
+    display: grid;
+    gap: 4px;
+    padding: 12px;
+    margin-bottom: 10px;
+    border: 1px solid var(--stroke);
+    border-radius: 14px;
+    background: rgba(0, 0, 0, 0.18);
+  }
+  .table-scroll td {
+    display: block;
+    border: 0;
+    padding: 4px 0;
+  }
+  .table-scroll td.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .upgrade-banner, .notice .row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

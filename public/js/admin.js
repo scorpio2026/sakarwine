@@ -39,7 +39,7 @@ function showLogin() {
       <p class="muted">Protected lounge controls</p>
       <div class="field"><label>Username</label><input id="u" /></div>
       <div class="field"><label>Password</label><input id="p" type="password" /></div>
-      <button id="go">Sign in</button>
+      <button id="go" class="block">Sign in</button>
       <p id="err" class="muted"></p>
     </div>`;
   $('#go').onclick = async () => {
@@ -387,7 +387,7 @@ async function bootDash() {
     }
     if (tab === 'accounts') {
       const { accounts } = await api('/api/admin/accounts');
-      panel.innerHTML = `<table><thead><tr><th>Account</th><th>Phone</th><th>Role / paid</th><th>ID visibility</th><th>Status</th><th></th></tr></thead><tbody>${accounts.map((a) => `
+      panel.innerHTML = `<div class="table-scroll"><table><thead><tr><th>Account</th><th>Phone</th><th>Role / paid</th><th>ID visibility</th><th>Status</th><th></th></tr></thead><tbody>${accounts.map((a) => `
         <tr>
           <td><strong>${esc(a.username)}</strong><br>
             <button class="ghost" data-open-id="${esc(a.accountId)}">${esc(a.accountId)}</button>
@@ -397,7 +397,7 @@ async function bootDash() {
           <td>${a.accountIdHidden ? 'Hidden from lounge' : 'Visible'}</td>
           <td><span class="badge ${a.status}">${a.status}</span> ${a.online ? '· online' : ''}${a.createdByAdmin ? '<br><span class="muted">admin-created</span>' : ''}</td>
           <td class="actions">${moderationButtons(a)}</td>
-        </tr>`).join('')}</tbody></table>`;
+        </tr>`).join('')}</tbody></table></div>`;
       panel.onclick = async (e) => {
         const open = e.target.closest('[data-open-id]');
         if (open) {

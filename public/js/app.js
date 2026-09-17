@@ -511,7 +511,7 @@ async function showHome(opts = {}) {
   state.view = 'home';
   const u = state.user;
   app.innerHTML = `
-    <section class="screen">
+    <section class="screen home-screen">
       <div class="topbar">
         <div>
           <div class="muted small">Hello, ${u.username}</div>
@@ -670,7 +670,7 @@ function renderChat(opts = {}) {
   const c = state.chat;
   const expired = c.window.expired;
   app.innerHTML = `
-    <section class="screen">
+    <section class="screen chat-screen">
       <div class="topbar chat-head">
         <button class="icon-btn" id="back">${ICONS.back}</button>
         ${avatarHtml(c.peer)}
