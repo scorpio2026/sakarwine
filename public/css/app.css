@@ -29,8 +29,6 @@ body {
   overflow-x: hidden;
   overflow-y: auto;
 }
-body:has(.welcome-screen) .sw-canvas-glow,
-body:has(.auth-screen) .sw-canvas-glow,
 body.is-maintenance .sw-canvas-glow {
   display: none;
 }
@@ -186,7 +184,7 @@ body.is-maintenance .sw-canvas-glow {
 body:has(.welcome-screen),
 body:has(.auth-screen) {
   color-scheme: dark;
-  background: var(--auth-bg);
+  background: var(--sw-canvas);
 }
 .app:has(.welcome-screen),
 .app:has(.auth-screen) {
@@ -203,57 +201,6 @@ body:has(.auth-screen) {
   -webkit-overflow-scrolling: touch;
   position: relative;
   align-items: center;
-}
-.welcome-orbs {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  bottom: 0;
-  width: min(560px, 100%);
-  transform: translateX(-50%);
-  overflow: visible;
-  pointer-events: none;
-  z-index: 0;
-}
-.orb {
-  position: absolute;
-  border-radius: 50%;
-}
-.orb-a {
-  width: 240px;
-  height: 240px;
-  left: -72px;
-  top: 22%;
-  background: radial-gradient(circle at 32% 28%, #f0abfc, #d946ef 46%, #a21caf 72%);
-  filter: blur(6px);
-  opacity: 0.95;
-}
-.orb-b {
-  width: 270px;
-  height: 270px;
-  right: -88px;
-  bottom: 4%;
-  left: auto;
-  background: radial-gradient(circle at 40% 36%, #fb7185, #f97316 52%, #f59e0b 74%);
-  filter: blur(6px);
-  opacity: 0.92;
-}
-.orb-c {
-  width: 22px;
-  height: 22px;
-  right: 28px;
-  top: 18%;
-  background: #e879f9;
-  filter: blur(0.6px);
-  box-shadow: 0 0 18px #e879f9;
-}
-.orb-d {
-  width: 14px;
-  height: 14px;
-  left: 36px;
-  bottom: 16%;
-  background: linear-gradient(180deg, #fb7185, #fbbf24);
-  filter: blur(0.4px);
 }
 .welcome-hero {
   position: relative;
@@ -363,6 +310,16 @@ body:has(.auth-screen) {
   color: var(--auth-ink);
   border: 1px solid rgba(255, 255, 255, 0.16);
 }
+.auth-card .lang-switch {
+  margin: 0 0 10px;
+  padding: 0;
+}
+.auth-card .lang-switch span { color: rgba(237, 233, 254, 0.72); }
+.auth-card .lang-switch select {
+  background: rgba(8, 6, 16, 0.55);
+  color: var(--auth-ink);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
 .welcome-card .btn.block { border-radius: 14px; }
 .welcome-login-btn,
 .welcome-card #login-btn {
@@ -445,10 +402,6 @@ body:has(.auth-screen) {
   border-color: rgba(255, 255, 255, 0.22);
   background: rgba(8, 6, 16, 0.35);
 }
-@media (prefers-reduced-motion: reduce) {
-  .orb { filter: blur(12px); }
-}
-
 .logo-3d {
   width: 86px;
   height: 86px;
@@ -736,6 +689,20 @@ body:has(.auth-screen) {
     0 0 0 3px rgba(236, 72, 153, 0.38),
     0 0 12px rgba(236, 72, 153, 0.36);
 }
+.row-ava {
+  position: relative;
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+}
+.row-ava .avatar {
+  width: 52px;
+  height: 52px;
+}
+.row-ava .ava-on {
+  right: 1px;
+  bottom: 1px;
+}
 .avatar {
   width: 52px;
   height: 52px;
@@ -758,6 +725,9 @@ body:has(.auth-screen) {
 .profile-lite-roles {
   margin: 0 0 8px;
   line-height: 1.4;
+}
+.profile-lite-photo + .profile-lite-roles {
+  margin-top: 10px;
 }
 .profile-lite-roles .badge-lv,
 .profile-lite-roles .badge-neon {
@@ -1336,7 +1306,7 @@ body:has(.auth-screen) {
   background: rgba(237, 233, 254, 0.28);
   border: 2px solid var(--sw-deep);
 }
-.ava-on.on { background: var(--ok); }
+.ava-on.on { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
 
 .chat-screen {
   padding: 0;
@@ -2302,32 +2272,14 @@ button:disabled, .btn:disabled, .icon-btn:disabled, .chat-tool:disabled, .chat-s
   position: relative;
   z-index: 8;
 }
-.lang-choices {
-  display: grid;
-  gap: 8px;
-  margin: 12px 0;
-}
-.lang-choice {
-  border: 1px solid var(--stroke);
-  background: rgba(8, 6, 16, 0.45);
-  border-radius: 14px;
-  min-height: var(--tap);
-  font: inherit;
-  font-weight: 800;
-  color: var(--ink);
-  cursor: pointer;
-}
-.lang-choice:active, .lang-choice.on {
-  border-color: var(--green);
-  background: var(--surface);
-  color: var(--green-deep);
-}
 
 @media (max-width: 399px) {
   .row-2 { grid-template-columns: 1fr; }
   .brand-lockup h1 { font-size: 1.7rem; }
   .logo-3d { width: 72px; height: 72px; border-radius: 22px; }
-  .user-row .avatar { width: 48px; height: 48px; }
+  .user-row .avatar,
+  .row-ava,
+  .row-ava .avatar { width: 48px; height: 48px; }
   .user-row.gender-male,
   .user-row.gender-female { border-width: 1px; }
   .composer { gap: 6px; }

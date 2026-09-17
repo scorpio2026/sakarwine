@@ -612,13 +612,7 @@ function conversationViewMeta(user, conv, peer, messages) {
   const ui = userLang(user);
   const chosen = chosenViewLang(user, conv.id);
   const peerLang = userLang(peer);
-  const otherSources = (messages || [])
-    .filter((m) => m.sender && m.sender.id !== user.id && m.sourceLang)
-    .map((m) => m.sourceLang);
-  const mismatch = (peerLang && peerLang !== ui) || otherSources.some((s) => s && s !== ui);
-  if (chosen) return { viewLang: chosen, askViewLang: false, peerLang };
-  if (!mismatch) return { viewLang: ui, askViewLang: false, peerLang };
-  return { viewLang: null, askViewLang: true, peerLang };
+  return { viewLang: chosen || ui, askViewLang: false, peerLang };
 }
 
 async function cachedTranslate(messageId, original, from, to) {
@@ -1324,16 +1318,18 @@ app.get('/api/users', requireUser, requireActive, (req, res) => {
 app.get('/api/users/:id/card', requireUser, requireActive, (req, res) => {
   const target = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(req.params.id));
   if (!target || target.status === 'closed') return res.status(404).json({ error: 'User not found.' });
+  const isSelf = Number(req.user.id) === Number(target.id);
+  const hideAdminIdentity = isAdminAccount(target) && !isSelf;
   res.json({
     user: {
       id: target.id,
-      username: target.username,
+      username: hideAdminIdentity ? '' : target.username,
       photoUrl: target.photo_path
         ? `/api/media/profile/${path.basename(target.photo_path)}`
         : defaultAvatarUrl(target),
       hasPhoto: Boolean(target.photo_path),
       gender: target.gender,
-      accountId: target.account_id,
+      accountId: hideAdminIdentity ? null : target.account_id,
       isAi: Boolean(target.is_ai),
       isAdmin: isAdminAccount(target),
       badge: target.badge || null,

@@ -36,7 +36,6 @@ const ICONS = {
   block: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M7 7l10 10"/></svg>`,
   trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 7h14M10 7V5h4v2M8 7l1 12h6l1-12"/></svg>`,
   gear: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z"/></svg>`,
-  lang: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c3 3.2 3 12.8 0 16M12 4c-3 3.2-3 12.8 0 16"/></svg>`,
   chevron: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 6l6 6-6 6"/></svg>`
 };
 
@@ -207,19 +206,26 @@ function avatarHtml(user, cls = '') {
   return `<img class="avatar round ${cls} ${fb || user.isAi ? genderClass : ''}" alt="" src="${escapeHtml(src)}"${tap} />`;
 }
 
+function isOtherAdminProfile(user) {
+  return Boolean(user && user.isAdmin && !(state.user && Number(state.user.id) === Number(user.id)));
+}
+
 async function openProfilePhoto(userId) {
   try {
     const data = await api(`/api/users/${userId}/card`);
     const u = data.user;
+    const hideAdminIdentity = isOtherAdminProfile(u);
+    const displayName = hideAdminIdentity ? '' : (u.username || '');
+    const displayId = hideAdminIdentity ? '' : (u.accountId || '');
     const photo = u.hasPhoto && u.photoUrl
-      ? `<img class="profile-lite-photo" src="${escapeHtml(u.photoUrl)}" alt="${escapeHtml(u.username)}" />`
+      ? `<img class="profile-lite-photo" src="${escapeHtml(u.photoUrl)}" alt="${escapeHtml(displayName)}" />`
       : avatarHtml(u, 'profile-lite-photo');
     modal(`
       <div class="profile-lite">
         ${photo}
-        <h3 class="profile-lite-name">${escapeHtml(u.username)}</h3>
+        ${displayName ? `<h3 class="profile-lite-name">${escapeHtml(displayName)}</h3>` : ''}
         <div class="profile-lite-roles">${roleMark(u)}</div>
-        <p class="profile-id">${escapeHtml(u.accountId || '—')}</p>
+        ${displayId ? `<p class="profile-id">${escapeHtml(displayId)}</p>` : ''}
         ${u.bio ? `<p class="profile-bio">${escapeHtml(u.bio)}</p>` : ''}
         <button class="btn block" id="photo-close">${t('close')}</button>
       </div>`);
@@ -244,6 +250,24 @@ function roleMark(user) {
     core += ` <span class="badge-neon badge-host" data-badge="host">${t('host')}</span>`;
   }
   return core;
+}
+
+function hasRoleTag(user) {
+  if (!user) return false;
+  if (user.isAi || user.isAdmin || user.isHost || user.isSpecial) return true;
+  return Boolean(String(user.badge || '').trim());
+}
+
+function presenceDotHtml(user) {
+  if (hasRoleTag(user)) return '';
+  const on = Boolean(user && user.online);
+  const label = on ? t('onlineNow') : t('offline');
+  return `<span class="ava-on${on ? ' on' : ''}" role="img" aria-label="${escapeHtml(label)}"></span>`;
+}
+
+function rowAvatarHtml(user) {
+  if (!user) return '';
+  return `<span class="row-ava">${avatarHtml(user)}${presenceDotHtml(user)}</span>`;
 }
 
 function statusPill(user) {
@@ -462,12 +486,6 @@ function showWelcome() {
   state.view = 'welcome';
   app.innerHTML = `
     <section class="screen welcome-screen">
-      <div class="welcome-orbs" aria-hidden="true">
-        <span class="orb orb-a"></span>
-        <span class="orb orb-b"></span>
-        <span class="orb orb-c"></span>
-        <span class="orb orb-d"></span>
-      </div>
       <div class="welcome-hero">
         <div class="brand-lockup">
           <span class="logo-aura" aria-hidden="true"></span>
@@ -523,17 +541,12 @@ function showRegister() {
   state.view = 'register';
   app.innerHTML = `
     <section class="screen register-screen auth-screen">
-      <div class="welcome-orbs" aria-hidden="true">
-        <span class="orb orb-a"></span>
-        <span class="orb orb-b"></span>
-        <span class="orb orb-c"></span>
-        <span class="orb orb-d"></span>
-      </div>
       <div class="topbar auth-topbar">
         <button class="icon-btn" id="back">${ICONS.back}</button>
         <h2>${t('joinTitle')}</h2>
       </div>
       <form id="reg" class="glass-card auth-card" style="overflow:auto">
+        ${I18n.switcherHtml('lang-switch')}
         <label class="photo-pick">
           <input class="hidden-file" type="file" name="photo" accept="image/*" required />
           <div id="photo-preview" class="avatar ai">📷</div>
@@ -561,6 +574,7 @@ function showRegister() {
       </form>
     </section>`;
   $('#back').onclick = showWelcome;
+  I18n.bindSwitcher('lang-switch');
   const pick = $('input[name=photo]');
   pick.onchange = () => {
     const f = pick.files[0];
@@ -590,12 +604,6 @@ function showScan() {
   state.view = 'scan';
   app.innerHTML = `
     <section class="screen scan-screen auth-screen">
-      <div class="welcome-orbs" aria-hidden="true">
-        <span class="orb orb-a"></span>
-        <span class="orb orb-b"></span>
-        <span class="orb orb-c"></span>
-        <span class="orb orb-d"></span>
-      </div>
       <div class="topbar auth-topbar"><h2>${t('faceScan')}</h2></div>
       <div class="glass-card auth-card">
       <p class="muted small">${t('scanHelp')}</p>
@@ -719,15 +727,17 @@ function paintHomeList() {
   if (!list) return;
   const gender = peopleGenderFilter();
   const users = (state.users || []).filter((u) => gender === 'all' || u.gender === gender);
-  list.innerHTML = users.map((u) => `
+  list.innerHTML = users.map((u) => {
+    const sub = u.blocked ? `<div class="sub">${escapeHtml(t('blocked'))}</div>` : '';
+    return `
     <div class="user-row ${u.isAi ? '' : (u.gender === 'female' ? 'gender-female' : 'gender-male')}" data-id="${u.id}">
-      ${avatarHtml(u)}
+      ${rowAvatarHtml(u)}
       <div class="meta">
         <div class="name">${escapeHtml(u.username)} ${roleMark(u)}</div>
-        <div class="sub">${u.online ? t('onlineNow') : t('offline')} · ${genderLabel(u.gender)}${u.blocked ? ' · ' + t('blocked') : ''}</div>
+        ${sub}
       </div>
-      <span class="when">${u.online ? t('onlineNow') : ''}</span>
-    </div>`).join('') || `<p class="settings-empty">${t('noPeople')}</p>`;
+    </div>`;
+  }).join('') || `<p class="settings-empty">${t('noPeople')}</p>`;
   list.querySelectorAll('.user-row').forEach((row) => {
     row.onclick = () => openChat(Number(row.dataset.id), { from: 'home' });
   });
@@ -1590,43 +1600,7 @@ function tickPaidRemain(paidUntil, freeUntil) {
   }
 }
 
-function promptChatLang(c, opts = {}) {
-  if (!c) return;
-  if (!opts.force && !c.askViewLang) return;
-  if (!opts.force && c._askedViewLang) return;
-  c._askedViewLang = true;
-  const current = c.viewLang || I18n.lang;
-  const choices = I18n.LANGS.map((l) =>
-    `<button type="button" class="lang-choice ${l.code === current ? 'on' : ''}" data-lang="${l.code}">${l.native}</button>`
-  ).join('');
-  modal(`
-    <h3 style="margin-top:0">${t('chooseChatLang')}</h3>
-    <p class="small muted">${t('chatLangHint', { name: escapeHtml(c.peer.username) })}</p>
-    <div class="lang-choices">${choices}</div>
-    <button class="btn block" id="use-chat-lang">${t('useThisLang')}</button>`);
-  let picked = current;
-  modalEl.querySelectorAll('.lang-choice').forEach((btn) => {
-    btn.onclick = () => {
-      picked = btn.dataset.lang;
-      modalEl.querySelectorAll('.lang-choice').forEach((b) => b.classList.toggle('on', b === btn));
-    };
-  });
-  $('#use-chat-lang').onclick = async () => {
-    try {
-      const data = await api(`/api/conversations/${c.id}/view-lang`, { method: 'PUT', json: { lang: picked } });
-      c.viewLang = data.viewLang;
-      c.askViewLang = false;
-      if (data.messages) c.messages = data.messages;
-      closeModal();
-      renderChat();
-    } catch (e) {
-      toastErr(e);
-    }
-  };
-}
-
 function renderChat(opts = {}) {
-  state.view = 'chat';
   const c = state.chat;
   const expired = c.window.expired;
   const gate = c.adminGate || {};
@@ -1651,7 +1625,6 @@ function renderChat(opts = {}) {
           <div class="sub">${escapeHtml(chatSub)}</div>
         </div>
         <div class="chat-actions">
-          <button class="chat-tool" id="chat-lang" title="${t('changeChatLang')}" aria-label="${t('changeChatLang')}">${ICONS.lang}</button>
           ${c.peer.isAi ? '' : `${c.peer.isAdmin || c.peer.blockable === false ? '' : `<button class="chat-tool" id="block" title="${t('blockBtn')}" aria-label="${t('blockBtn')}">${ICONS.block}</button>`}
           ${state.user.isAdmin && !c.peer.isAi ? `<button class="chat-tool" id="toggle-msg" title="${gate.messagingOpen === false ? t('reopenMessaging') : t('closeMessaging')}">${gate.messagingOpen === false ? t('reopenMessaging') : t('closeMessaging')}</button>` : ''}
           <button class="chat-tool" id="delete-chat" title="${t('deleteForMe')}" aria-label="${t('deleteForMe')}">${ICONS.trash}</button>`}
@@ -1703,7 +1676,6 @@ function renderChat(opts = {}) {
       box.innerHTML = renderThread(c.messages);
     }
   };
-  if ($('#chat-lang')) $('#chat-lang').onclick = () => promptChatLang(c, { force: true });
   if ($('#toggle-msg')) {
     $('#toggle-msg').onclick = async () => {
       try {
@@ -1872,7 +1844,6 @@ function renderChat(opts = {}) {
     }
   };
   }
-  if (c.askViewLang && !c.peer.isAi) promptChatLang(c);
   if (opts.fromTour) {
     setTimeout(() => {
       const steps = c.peer.isAi
@@ -2348,8 +2319,7 @@ function showSettings() {
           <label class="lang-switch">
             <span>${t('chatViewLang')}</span>
             <select id="chat-view-lang" aria-label="${t('chatViewLang')}">
-              <option value="ask" ${state.user && state.user.chatViewLang ? '' : 'selected'}>${t('askEachChat')}</option>
-              ${I18n.LANGS.map((l) => `<option value="${l.code}" ${state.user && state.user.chatViewLang === l.code ? 'selected' : ''}>${l.native}</option>`).join('')}
+              ${I18n.LANGS.map((l) => `<option value="${l.code}" ${(state.user && state.user.chatViewLang ? state.user.chatViewLang : I18n.lang) === l.code ? 'selected' : ''}>${l.native}</option>`).join('')}
             </select>
           </label>
           <p class="muted settings-lang-help">${t('chatViewLangHelp')}</p>
@@ -2550,10 +2520,9 @@ async function showBlocked() {
     }
     box.innerHTML = data.users.map((u) => `
       <div class="user-row blocked-row" data-id="${u.id}">
-        ${avatarHtml(u, 'round')}
+        ${rowAvatarHtml(u)}
         <div class="meta">
           <div class="name">${escapeHtml(u.username)}</div>
-          <div class="sub">${u.online ? t('onlineNow') : t('offline')} · ${escapeHtml(genderLabel(u.gender))}</div>
         </div>
         <button type="button" class="btn secondary unblock" data-unblock="${u.id}">${t('unblock')}</button>
       </div>`).join('');
