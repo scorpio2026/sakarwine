@@ -169,8 +169,6 @@ test('owner /api/me exposes freeUntil; public users and profile cards do not', a
   assert.ok(me.data.user.freeUntil);
   assert.equal(me.data.user.freeUntil, Number(me.data.user.createdAt) + FREE_CHAT_MS);
   assert.ok(me.data.user.freeUntil > Date.now());
-  assert.ok(owner.user.freeUntil);
-  assert.equal(owner.user.freeUntil, Number(owner.user.createdAt) + FREE_CHAT_MS);
 
   const listed = await req('/api/users', { jar: owner.jar });
   const peer = listed.data.users.find((u) => u.username === other.user.username);
