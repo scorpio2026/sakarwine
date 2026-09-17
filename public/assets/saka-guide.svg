@@ -1,7 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
-  <rect width="128" height="128" rx="64" fill="#10b981"/>
+  <rect width="128" height="128" rx="64" fill="url(#sakaGlow)"/>
+  <defs>
+    <linearGradient id="sakaGlow" x1="16" y1="8" x2="112" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7c3aed"/>
+      <stop offset=".52" stop-color="#ec4899"/>
+      <stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+  </defs>
   <path d="M34 40h60a12 12 0 0 1 12 12v28a12 12 0 0 1-12 12H62l-18 14v-14H34a12 12 0 0 1-12-12V52a12 12 0 0 1 12-12z" fill="#fff"/>
-  <circle cx="52" cy="66" r="5" fill="#059669"/>
-  <circle cx="64" cy="66" r="5" fill="#059669"/>
-  <circle cx="76" cy="66" r="5" fill="#059669"/>
+  <circle cx="52" cy="66" r="5" fill="#8b5cf6"/>
+  <circle cx="64" cy="66" r="5" fill="#e879f9"/>
+  <circle cx="76" cy="66" r="5" fill="#22d3ee"/>
 </svg>

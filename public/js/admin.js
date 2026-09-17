@@ -98,8 +98,9 @@ let paintUi = null;
 
 function setAdminLoginChrome(on) {
   document.body.classList.toggle('is-admin-login', on);
+  document.body.classList.toggle('is-admin-dash', !on);
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = on ? '#0b0714' : '#047857';
+  if (meta) meta.content = '#0b0714';
 }
 
 function showLogin() {
@@ -448,7 +449,7 @@ async function bootDash() {
           <p>
             <strong>${esc(a.username)}</strong>
             ${a.extraUpgrade ? `<span class="extra-upgrade-badge">${esc(t('extraUpgrade'))}</span>` : ''}
-            ${a.badge ? `<span class="badge-neon">${esc(a.badge)}</span>` : ''}
+            ${a.badge ? `<span class="badge-neon" data-badge="${esc(a.badge)}">${esc(a.badge)}</span>` : ''}
             ${hostMark(a)}
             <span class="badge ${a.status}">${esc(st(a.status))}</span>
             ${a.online ? `· ${t('onlineShort')}` : ''}
@@ -581,15 +582,18 @@ async function bootDash() {
     const stats = await api('/api/admin/stats');
     document.title = t('adminTitle');
     root.innerHTML = `
-      <div class="row">
-        <div>
-          <h1>${t('adminTitle')}</h1>
-          <div class="muted">${t('signedInAs', { name: me.username })}</div>
-        </div>
-        ${I18n.switcherHtml('admin-lang')}
-        <button class="ghost" id="out">${t('signOut')}</button>
-      </div>
-      ${desk ? deskWorkHtml(stats) : deskHomeHtml(stats)}`;
+      <div class="admin-dash">
+        <div class="admin-dash-glow" aria-hidden="true"></div>
+        <header class="admin-head">
+          <div>
+            <h1>${t('adminTitle')}</h1>
+            <div class="muted">${t('signedInAs', { name: me.username })}</div>
+          </div>
+          ${I18n.switcherHtml('admin-lang')}
+          <button class="ghost" id="out">${t('signOut')}</button>
+        </header>
+        ${desk ? deskWorkHtml(stats) : deskHomeHtml(stats)}
+      </div>`;
     I18n.bindSwitcher('admin-lang');
     $('#out').onclick = async () => {
       await api('/api/admin/logout', { method: 'POST' });
@@ -631,7 +635,7 @@ async function bootDash() {
         <tr class="${a.paidActive ? 'paid-active' : ''}">
           <td><strong>${esc(a.username)}</strong>${a.extraUpgrade ? ` <span class="extra-upgrade-badge">${esc(t('extraUpgrade'))}</span>` : ''}<br>
             <button class="ghost" data-open-id="${esc(a.accountId)}">${esc(a.accountId)}</button>
-            ${a.isSpecial ? `<br><span class="badge-neon">${esc(a.badge || 'special')}</span>` : ''}${a.isHost ? `<br><span class="badge-neon badge-host" data-badge="host">${t('host')}</span>` : ''}${a.hostStatus === 'pending' ? `<br><span class="muted">${t('nrcPending')}</span>` : ''}</td>
+            ${a.isSpecial ? `<br><span class="badge-neon" data-badge="${esc(a.badge || 'special')}">${esc(a.badge || 'special')}</span>` : ''}${a.isHost ? `<br><span class="badge-neon badge-host" data-badge="host">${t('host')}</span>` : ''}${a.hostStatus === 'pending' ? `<br><span class="muted">${t('nrcPending')}</span>` : ''}</td>
           <td>${esc(a.phone)}<br><span class="muted">${esc(gLabel(a.gender))} · ${a.birthYear}</span></td>
           <td>${a.isSpecial ? `${t('unlimitedChat')} · ${esc(a.badge || 'special')}` : `<span class="badge-lv">${t('lv', { n: a.level })}</span><br>${remainingPaidParts(a.paidUntil).ms ? `${new Date(a.paidUntil).toLocaleDateString(I18n.locale())} · ${esc(paidHoursLabel(a.paidUntil))}` : '—'}`}</td>
           <td>${a.accountIdHidden ? t('hiddenFromLounge') : t('visible')}</td>
@@ -683,7 +687,7 @@ async function bootDash() {
             <input id="custom-badge" maxlength="24" placeholder="${esc(t('customBadgePh'))}" />
           </div>
           <div class="field"><label>${t('photoOptional')}</label><input name="photo" type="file" accept="image/*" /></div>
-          <p class="muted">${t('previewLabel')}: <span class="badge-neon" id="badge-preview">${esc(badges[0] || 'VVIP')}</span></p>
+          <p class="muted">${t('previewLabel')}: <span class="badge-neon" id="badge-preview" data-badge="${esc(badges[0] || 'VVIP')}">${esc(badges[0] || 'VVIP')}</span></p>
           <button type="submit">${t('createUnlimited')}</button>
           <p id="create-msg" class="muted"></p>
         </form>`;
@@ -694,6 +698,7 @@ async function bootDash() {
       const syncPreview = () => {
         const v = select.value === '__custom' ? (custom.value || 'custom') : select.value;
         preview.textContent = v;
+        preview.dataset.badge = v;
         customWrap.hidden = select.value !== '__custom';
       };
       select.onchange = syncPreview;

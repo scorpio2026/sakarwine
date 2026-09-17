@@ -203,11 +203,11 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   assert.equal(I18n.t('errBioRestricted'), 'ကန့်သတ်စာလုံးများ မရပါ။');
 });
 
-test('admin dashboard paints paid accounts green and badges extra upgrades', () => {
+test('admin dashboard highlights paid accounts and badges extra upgrades', () => {
   const fs = require('fs');
   const path = require('path');
   const css = fs.readFileSync(path.join(__dirname, '../public/css/admin.css'), 'utf8');
-  assert.match(css, /tr\.paid-active td\s*\{[^}]*#bbf7d0/);
+  assert.match(css, /tr\.paid-active td\s*\{[^}]*--paid-glow/);
   assert.match(css, /\.extra-upgrade-badge/);
   const js = fs.readFileSync(path.join(__dirname, '../public/js/admin.js'), 'utf8');
   assert.match(js, /a\.paidActive \? 'paid-active'/);
@@ -353,6 +353,34 @@ test('bottom nav has Home, Chat, Group, Profile, and Help — no Upgrade tab', (
   assert.equal(/drop-shadow/.test(adminNeon), false);
   const adminJs = fs.readFileSync(path.join(__dirname, '../public/js/admin.js'), 'utf8');
   assert.match(adminJs, /class="badge-lv"/);
+});
+
+test('Lv, Host, and Admin chips use frosted glass neon edges', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const appCss = fs.readFileSync(path.join(__dirname, '../public/css/app.css'), 'utf8');
+  const adminCss = fs.readFileSync(path.join(__dirname, '../public/css/admin.css'), 'utf8');
+  const appJs = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
+  assert.match(appCss, /\.badge-lv,\s*\.badge-neon\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(adminCss, /\.badge-lv,\s*\.badge-neon\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(appCss, /\.badge-lv::after,\s*\.badge-neon::after/);
+  assert.match(adminCss, /\.badge-lv::after,\s*\.badge-neon::after/);
+  assert.equal(/\.badge-lv,\s*\.badge-neon\s*\{[^}]*animation:\s*none/.test(appCss), false);
+  assert.equal(/\.badge-lv,\s*\.badge-neon\s*\{[^}]*animation:\s*none/.test(adminCss), false);
+  assert.match(appCss, /animation:\s*neon-run 2\.2s linear infinite/);
+  assert.match(adminCss, /animation:\s*neon-run 2\.2s linear infinite/);
+  assert.match(appCss, /--badge-glow:\s*rgba\(52, 211, 153/);
+  assert.match(appCss, /--badge-glow:\s*rgba\(232, 121, 249/);
+  assert.match(appCss, /--badge-glow:\s*rgba\(34, 211, 238/);
+  assert.match(adminCss, /--badge-glow:\s*rgba\(52, 211, 153/);
+  assert.match(adminCss, /--badge-glow:\s*rgba\(34, 211, 238/);
+  const lvBlock = appCss.match(/(?:^|\n)\.badge-lv\s*\{[^}]*\}/)[0];
+  assert.match(lvBlock, /filter:\s*none/);
+  assert.match(lvBlock, /box-shadow:\s*none/);
+  assert.match(lvBlock, /text-shadow:\s*none/);
+  assert.match(appJs, /class="badge-lv"/);
+  assert.match(appJs, /badge-host/);
+  assert.match(appJs, /data-badge="host"/);
 });
 
 test('settings PIN change is translated and separate from Help recovery', () => {
@@ -559,4 +587,132 @@ test('auth login screens use glass neon chrome and keep existing login wiring', 
   assert.match(adminCss, /body\.is-admin-login/);
   assert.match(adminCss, /backdrop-filter:\s*blur/);
   assert.match(adminCss, /underline-field/);
+});
+
+test('logged-in app and admin shells share glass neon tokens; create-account forms use auth glass', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const themeCss = fs.readFileSync(path.join(__dirname, '../public/css/theme.css'), 'utf8');
+  const appCss = fs.readFileSync(path.join(__dirname, '../public/css/app.css'), 'utf8');
+  const adminCss = fs.readFileSync(path.join(__dirname, '../public/css/admin.css'), 'utf8');
+  const appJs = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
+  const indexHtml = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
+  const adminHtml = fs.readFileSync(path.join(__dirname, '../public/admin.html'), 'utf8');
+  assert.match(themeCss, /--neon-cyan:\s*#22d3ee/);
+  assert.match(themeCss, /--neon-magenta:\s*#e879f9/);
+  assert.match(themeCss, /--glass-fill:/);
+  assert.match(themeCss, /--sw-canvas:/);
+  assert.match(themeCss, /--sw-cta:/);
+  assert.match(indexHtml, /href="\/css\/theme\.css"/);
+  assert.match(adminHtml, /href="\/css\/theme\.css"/);
+  assert.match(appCss, /\.glass-card\s*\{[^}]*backdrop-filter:/);
+  assert.match(appCss, /\.auth-card\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(appCss, /\.register-screen/);
+  assert.match(appCss, /\.scan-screen/);
+  assert.match(appCss, /body:has\(\.auth-screen\)/);
+  assert.match(adminCss, /background:\s*var\(--sw-canvas\)/);
+  assert.match(adminCss, /\.card\s*\{[^}]*backdrop-filter:/);
+  const registerSlice = appJs.slice(appJs.indexOf('function showRegister'), appJs.indexOf('function showScan'));
+  const scanSlice = appJs.slice(appJs.indexOf('function showScan'), appJs.indexOf('function nav('));
+  assert.match(registerSlice, /register-screen auth-screen/);
+  assert.match(registerSlice, /welcome-orbs/);
+  assert.match(registerSlice, /auth-card/);
+  assert.match(registerSlice, /name="username"/);
+  assert.match(registerSlice, /name="password"/);
+  assert.match(registerSlice, /name="gender"/);
+  assert.match(registerSlice, /name="birthYear"/);
+  assert.match(registerSlice, /name="phone"/);
+  assert.match(registerSlice, /name="photo"/);
+  assert.equal(registerSlice.includes("switcherHtml('lang-switch')"), false);
+  assert.match(scanSlice, /scan-screen auth-screen/);
+  assert.match(scanSlice, /auth-card/);
+  assert.match(scanSlice, /id="cam"/);
+  assert.match(scanSlice, /id="start-scan"/);
+  assert.match(scanSlice, /\/api\/me\/liveness/);
+});
+
+test('chat DM surfaces use glass neon chrome and keep bubble clustering', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const appCss = fs.readFileSync(path.join(__dirname, '../public/css/app.css'), 'utf8');
+  const appJs = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
+  const sakaSvg = fs.readFileSync(path.join(__dirname, '../public/assets/saka-guide.svg'), 'utf8');
+  assert.match(appCss, /\.chat-screen\s*\{[^}]*radial-gradient/);
+  assert.match(appCss, /\.chat-screen \.chat-head\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(appCss, /\.bubble\.me\s*\{[^}]*--cta-a/);
+  assert.match(appCss, /\.bubble\.them\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(appCss, /\.composer-pill\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(appCss, /\.chat-send\s*\{[^}]*--sw-cta/);
+  assert.match(appCss, /\.saka-faq-chip\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(appCss, /\.chat-screen \.bubble\.first\.me/);
+  assert.match(appCss, /\.chat-screen \.bubble\.mid\.me/);
+  assert.match(appCss, /\.chat-screen \.bubble\.last\.them/);
+  assert.match(appJs, /function stackClass/);
+  assert.match(appJs, /sameBubbleGroup/);
+  assert.match(appJs, /class="composer-pill"/);
+  assert.match(appJs, /id="plus-btn"/);
+  assert.match(appJs, /id="mic-btn"/);
+  assert.match(appJs, /class="composer-mic"/);
+  assert.equal(sakaSvg.includes('#10b981'), false);
+  assert.match(sakaSvg, /#7c3aed/);
+});
+
+test('profile cards use overlapping glass avatar, real-field stats, and pill CTA', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const appCss = fs.readFileSync(path.join(__dirname, '../public/css/app.css'), 'utf8');
+  const appJs = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
+  const profileFn = appJs.slice(appJs.indexOf('async function showProfile'), appJs.indexOf('function settingsRow'));
+  const photoFn = appJs.slice(appJs.indexOf('async function openProfilePhoto'), appJs.indexOf('function roleMark'));
+  assert.match(profileFn, /profile-screen/);
+  assert.match(profileFn, /profile-orbs/);
+  assert.match(profileFn, /me-identity/);
+  assert.match(profileFn, /me-ava/);
+  assert.match(profileFn, /me-stats/);
+  assert.match(profileFn, /id="edit-profile"/);
+  assert.match(profileFn, /id="paid-remain"/);
+  assert.match(profileFn, /u\.birthYear/);
+  assert.match(profileFn, /roleMark\(u\)/);
+  assert.equal(profileFn.includes('Followers'), false);
+  assert.equal(profileFn.includes('Uploaded designs'), false);
+  assert.match(photoFn, /profile-lite/);
+  assert.match(photoFn, /profile-lite-roles/);
+  assert.match(photoFn, /roleMark\(u\)/);
+  assert.match(appCss, /\.profile-screen \.me-identity \.me-ava\s*\{[^}]*margin-top:\s*-72px/);
+  assert.match(appCss, /\.me-stats\s*\{/);
+  assert.match(appCss, /\.profile-lite-photo\s*\{[^}]*border-radius:\s*50%/);
+  assert.match(appCss, /\.composer-pill\s*\{[^}]*border-radius:\s*999px/);
+});
+
+test('admin dashboard interior uses glass neon chrome and keeps desk wiring', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const adminCss = fs.readFileSync(path.join(__dirname, '../public/css/admin.css'), 'utf8');
+  const adminJs = fs.readFileSync(path.join(__dirname, '../public/js/admin.js'), 'utf8');
+  const renderAt = adminJs.indexOf('async function render()');
+  const dashSlice = adminJs.slice(renderAt, renderAt + 1600);
+  assert.match(dashSlice, /admin-dash/);
+  assert.match(dashSlice, /admin-dash-glow/);
+  assert.match(dashSlice, /admin-head/);
+  assert.match(dashSlice, /id="out"/);
+  assert.match(dashSlice, /I18n\.switcherHtml\('admin-lang'\)/);
+  assert.match(adminJs, /is-admin-dash/);
+  assert.match(adminJs, /data-desk="money"/);
+  assert.match(adminJs, /data-desk="other"/);
+  assert.match(adminJs, /id="desk-back"/);
+  assert.match(adminJs, /\/api\/admin\/stats/);
+  assert.match(adminJs, /\/api\/admin\/accounts/);
+  assert.match(adminJs, /\/api\/admin\/login/);
+  assert.match(adminCss, /\.admin-head\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(adminCss, /\.desk-card\s*\{[^}]*border-radius:\s*28px/);
+  assert.match(adminCss, /\.desk-card\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(adminCss, /\.tabs\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(adminCss, /\.notice\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(adminCss, /\.lookup-hits\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(adminCss, /\.stat\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(adminCss, /\.badge\.approved/);
+  assert.match(adminCss, /--neon-cyan/);
+  assert.equal(adminCss.includes('rgba(125,255,195'), false);
+  assert.equal(adminCss.includes('#1a0a12'), false);
+  assert.equal(adminCss.includes('#10b981'), false);
 });
