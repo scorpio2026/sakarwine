@@ -174,7 +174,7 @@ button.danger {
 }
 .desk-card-help {
   font-weight: 600;
-  color: var(--sw-muted);
+  color: rgba(244, 241, 255, 0.84);
   line-height: 1.45;
 }
 .desk-card-meta {
@@ -183,7 +183,10 @@ button.danger {
   gap: 8px 14px;
   font-size: 0.85rem;
   font-weight: 700;
+  color: rgba(244, 241, 255, 0.9);
 }
+.desk-card[data-desk="money"] .desk-card-meta b { color: var(--neon-magenta); }
+.desk-card[data-desk="other"] .desk-card-meta b { color: var(--neon-cyan); }
 .desk-badge {
   display: inline-flex;
   align-items: center;
