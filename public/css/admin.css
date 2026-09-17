@@ -377,7 +377,12 @@ body.is-admin-login .err-msg {
   color: #fda4af;
   text-align: center;
 }
-.muted { color: rgba(255,244,236,.65); }
+.muted { color: rgba(18, 48, 38, 0.62); }
+#bc-msg:empty { display: none; }
+#bc-msg.is-error {
+  border-color: rgba(225, 29, 72, 0.28);
+  color: var(--danger);
+}
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .badge-lv {
   display: inline-block;
@@ -446,12 +451,13 @@ body.is-admin-login .err-msg {
   right: 0;
   top: 100%;
   z-index: 8;
-  background: #1a0a12;
+  background: #ffffff;
   border: 1px solid var(--stroke);
   border-radius: 12px;
   overflow: hidden;
   max-height: 280px;
   overflow-y: auto;
+  box-shadow: 0 12px 28px rgba(5, 150, 105, 0.14);
 }
 .lookup-hits .hit {
   display: block;
@@ -464,7 +470,7 @@ body.is-admin-login .err-msg {
   border-bottom: 1px solid var(--stroke);
   min-height: 44px;
 }
-.lookup-hits .hit:hover { background: rgba(255,244,236,.08); }
+.lookup-hits .hit:hover { background: #ecfdf5; }
 .nrc-pair { display: flex; gap: 10px; flex-wrap: wrap; margin: 8px 0; }
 .nrc-thumb { width: min(160px, 100%); height: 100px; object-fit: cover; border-radius: 10px; border: 1px solid var(--stroke); }
 .dossier section { margin: 18px 0; }

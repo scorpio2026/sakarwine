@@ -907,7 +907,13 @@ async function bootDash() {
         <div class="field"><label>${t('systemMessage')}</label><textarea id="bc-body" rows="4" placeholder="${esc(t('optionalText'))}"></textarea></div>
         <div class="field"><label>${t('imageOptional')}</label><input id="bc-img" type="file" accept="image/*" /></div>
         <button id="bc-go">${broadcastMode === 'ids' ? t('sendToSelected') : t('sendEveryone')}</button>
-        <p id="bc-msg" class="muted"></p>`;
+        <p id="bc-msg"></p>`;
+      const paintBcStatus = (text, isError) => {
+        const el = $('#bc-msg');
+        if (!el) return;
+        el.textContent = text || '';
+        el.className = text ? `notice${isError ? ' is-error' : ''}` : '';
+      };
       const paintBcTargets = () => {
         const list = $('#bc-id-list');
         if (!list) return;
@@ -940,7 +946,7 @@ async function bootDash() {
           const matches = data.matches || [];
           const exact = matches.find((m) => String(m.accountId).toLowerCase() === id.toLowerCase()) || matches[0];
           if (!exact || !exact.accountId) {
-            $('#bc-msg').textContent = I18n.error('Account not found.');
+            paintBcStatus(I18n.error('Account not found.'), true);
             return;
           }
           if (!broadcastTargets.some((x) => x.accountId === exact.accountId)) {
@@ -954,7 +960,7 @@ async function bootDash() {
             hits.innerHTML = '';
           }
         } catch (err) {
-          $('#bc-msg').textContent = I18n.error(err.message);
+          paintBcStatus(I18n.error(err.message), true);
         }
       };
       paintBcTargets();
@@ -1014,7 +1020,7 @@ async function bootDash() {
       }
       $('#bc-go').onclick = async () => {
         if (broadcastMode === 'ids' && !broadcastTargets.length) {
-          $('#bc-msg').textContent = t('errBroadcastTargets');
+          paintBcStatus(t('errBroadcastTargets'), true);
           return;
         }
         const fd = new FormData();
@@ -1025,11 +1031,17 @@ async function bootDash() {
         }
         const file = $('#bc-img').files[0];
         if (file) fd.append('image', file);
+        const go = $('#bc-go');
+        if (go) go.disabled = true;
         try {
           const data = await api('/api/admin/broadcast', { method: 'POST', body: fd });
-          $('#bc-msg').textContent = t('sentToMembers', { n: data.sent });
+          $('#bc-body').value = '';
+          $('#bc-img').value = '';
+          paintBcStatus(t('sentToMembers', { n: data.sent }));
         } catch (err) {
-          $('#bc-msg').textContent = I18n.error(err.message);
+          paintBcStatus(I18n.error(err.message), true);
+        } finally {
+          if (go) go.disabled = false;
         }
       };
     } else if (tab === 'ads') {

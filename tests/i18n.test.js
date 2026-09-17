@@ -234,6 +234,10 @@ test('admin dashboard paints paid accounts green and badges extra upgrades', () 
   assert.match(js, /name="bc-mode"/);
   assert.match(js, /accountIds/);
   assert.match(js, /\/api\/admin\/search/);
+  assert.match(js, /const paintBcStatus/);
+  assert.match(js, /paintBcStatus\(t\('sentToMembers'/);
+  assert.match(css, /#bc-msg\.is-error/);
+  assert.match(css, /\.muted\s*\{\s*color:\s*rgba\(18,\s*48,\s*38/);
 });
 
 test('admin-badge chats block first contact and expose a live gate', () => {
