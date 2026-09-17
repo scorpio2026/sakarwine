@@ -671,17 +671,6 @@ body.is-admin-login .err-msg {
   position: relative;
   z-index: 1;
 }
-.admin-dash-glow {
-  position: fixed;
-  inset: -12% -10%;
-  pointer-events: none;
-  z-index: 0;
-  background:
-    radial-gradient(circle at 12% 0%, rgba(236, 72, 153, 0.3), transparent 42%),
-    radial-gradient(circle at 88% 8%, rgba(99, 102, 241, 0.34), transparent 44%),
-    radial-gradient(circle at 70% 100%, rgba(34, 211, 238, 0.18), transparent 40%);
-  filter: blur(28px);
-}
 .admin-dash > *:not(.admin-dash-glow) {
   position: relative;
   z-index: 1;

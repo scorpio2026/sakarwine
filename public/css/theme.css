@@ -25,6 +25,10 @@
     radial-gradient(820px 480px at 92% 4%, rgba(99, 102, 241, 0.5), transparent 52%),
     radial-gradient(720px 520px at 70% 100%, rgba(34, 211, 238, 0.2), transparent 50%),
     linear-gradient(180deg, #1c1230, #0b0714 58%, #15102a);
+  --sw-glow:
+    radial-gradient(circle at 12% 0%, rgba(236, 72, 153, 0.3), transparent 42%),
+    radial-gradient(circle at 88% 8%, rgba(99, 102, 241, 0.34), transparent 44%),
+    radial-gradient(circle at 70% 100%, rgba(34, 211, 238, 0.18), transparent 40%);
   --sw-cta: linear-gradient(90deg, var(--cta-a), var(--cta-b) 52%, var(--cta-c));
   --sw-cta-shadow: 0 12px 28px rgba(124, 58, 237, 0.38);
 
@@ -58,4 +62,15 @@
 
 html {
   color-scheme: dark;
+}
+
+/* Shared orbs/blur overlay used by logged-in admin and app shells. */
+.admin-dash-glow,
+.sw-canvas-glow {
+  position: fixed;
+  inset: -12% -10%;
+  pointer-events: none;
+  z-index: 0;
+  background: var(--sw-glow);
+  filter: blur(28px);
 }

@@ -29,6 +29,11 @@ body {
   overflow-x: hidden;
   overflow-y: auto;
 }
+body:has(.welcome-screen) .sw-canvas-glow,
+body:has(.auth-screen) .sw-canvas-glow,
+body.is-maintenance .sw-canvas-glow {
+  display: none;
+}
 
 .petal-layer { display: none; }
 .petal { display: none; }
@@ -47,9 +52,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: linear-gradient(180deg, rgba(22, 16, 40, 0.82), rgba(11, 7, 20, 0.94));
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background: transparent;
   box-shadow: 0 0 0 1px var(--stroke), var(--shadow);
   padding-top: var(--safe-top);
   padding-left: var(--safe-left);
