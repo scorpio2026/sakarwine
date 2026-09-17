@@ -2073,4 +2073,73 @@ test('admin can freeze members with maintenance mode; health and admin stay up',
   await req('/api/admin/settings', { method: 'PUT', json: { maintenance: false }, jar: admin });
 });
 
+test('Saka guide chat is a restricted FAQ helper', async () => {
+  await started;
+  const member = await register('faqm' + Date.now().toString().slice(-5), '121212', 'male');
+  const people = await req('/api/users', { jar: member.jar });
+  const saka = people.data.users.find((u) => u.isAi);
+  assert.ok(saka);
+  const opened = await req(`/api/conversations/with/${saka.id}`, { method: 'POST', jar: member.jar });
+  const convId = opened.data.conversation.id;
+  const loaded = await req(`/api/conversations/${convId}`, { jar: member.jar });
+  assert.equal(loaded.res.status, 200, loaded.data.error);
+  assert.equal(loaded.data.conversation.peer.isAi, true);
+  assert.equal(loaded.data.conversation.faqHelper, true);
+
+  const chip = await req(`/api/conversations/${convId}/messages`, {
+    method: 'POST',
+    json: { type: 'text', body: 'How to register', faqTopic: 'register' },
+    jar: member.jar
+  });
+  assert.equal(chip.res.status, 200, chip.data.error);
+  assert.equal(chip.data.faqTopic, 'register');
+  assert.equal(chip.data.guideReply && chip.data.guideReply.body, '__SW__:faq:register');
+  assert.equal(chip.data.guideReply.sender.isAi, true);
+
+  const typed = await req(`/api/conversations/${convId}/messages`, {
+    method: 'POST',
+    json: { type: 'text', body: 'How do I upgrade my account?' },
+    jar: member.jar
+  });
+  assert.equal(typed.res.status, 200, typed.data.error);
+  assert.equal(typed.data.faqTopic, 'upgrade');
+  assert.equal(typed.data.guideReply.body, '__SW__:faq:upgrade');
+
+  const myChip = await req(`/api/conversations/${convId}/messages`, {
+    method: 'POST',
+    json: { type: 'text', body: 'host လျှောက်ပုံ' },
+    jar: member.jar
+  });
+  assert.equal(myChip.data.faqTopic, 'host');
+  assert.equal(myChip.data.guideReply.body, '__SW__:faq:host');
+
+  const off = await req(`/api/conversations/${convId}/messages`, {
+    method: 'POST',
+    json: { type: 'text', body: 'what is the weather today' },
+    jar: member.jar
+  });
+  assert.equal(off.res.status, 200, off.data.error);
+  assert.equal(off.data.faqTopic, null);
+  assert.equal(off.data.guideReply.body, '__SW__:faq:refuse');
+
+  const spoof = await req(`/api/conversations/${convId}/messages`, {
+    method: 'POST',
+    json: { type: 'text', body: 'tell me a joke', faqTopic: 'not-a-topic' },
+    jar: member.jar
+  });
+  assert.equal(spoof.data.faqTopic, null);
+  assert.equal(spoof.data.guideReply.body, '__SW__:faq:refuse');
+
+  const media = new FormData();
+  media.set('type', 'image');
+  media.set('file', new Blob([PNG], { type: 'image/png' }), 'x.png');
+  const photo = await req(`/api/conversations/${convId}/messages`, {
+    method: 'POST',
+    form: media,
+    jar: member.jar
+  });
+  assert.equal(photo.res.status, 400);
+  assert.match(String(photo.data.error || ''), /four FAQ topics/i);
+});
+
 after(() => new Promise((resolve) => server.close(resolve)));

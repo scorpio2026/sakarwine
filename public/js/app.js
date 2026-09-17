@@ -40,6 +40,13 @@ const ICONS = {
   chevron: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 6l6 6-6 6"/></svg>`
 };
 
+const SAKA_FAQ = [
+  { topic: 'register', q: 'sakaFaqQRegister' },
+  { topic: 'pin', q: 'sakaFaqQPin' },
+  { topic: 'host', q: 'sakaFaqQHost' },
+  { topic: 'upgrade', q: 'sakaFaqQUpgrade' }
+];
+
 function toast(msg) {
   toastEl.hidden = false;
   toastEl.textContent = msg;
@@ -1637,17 +1644,26 @@ function renderChat(opts = {}) {
       <div id="messages" class="messages">${renderThread(c.messages)}</div>
       <div class="typing" id="typing"></div>
       </div>
-      <div class="composer">
-        <button class="composer-plus" id="plus-btn" aria-label="${t('photo')}" ${composerOff ? 'disabled' : ''}>+</button>
+      <div class="composer${c.peer.isAi ? ' composer-faq' : ''}">
+        ${c.peer.isAi ? `
+        <div class="saka-faq" id="saka-faq-chips">
+          <p class="saka-faq-hint">${escapeHtml(t('sakaFaqHint'))}</p>
+          <div class="saka-faq-chips">
+            ${SAKA_FAQ.map((item) => `<button type="button" class="saka-faq-chip" data-faq="${item.topic}">${escapeHtml(t(item.q))}</button>`).join('')}
+          </div>
+        </div>` : ''}
+        <div class="composer-main">
+        ${c.peer.isAi ? '' : `<button class="composer-plus" id="plus-btn" aria-label="${t('photo')}" ${composerOff ? 'disabled' : ''}>+</button>
         <div class="plus-menu" id="plus-menu" hidden>
           <button type="button" id="img-btn">${t('photo')}</button>
           <button type="button" id="mic-btn">${t('voice')}</button>
-        </div>
+        </div>`}
         <div class="composer-pill">
-          <textarea id="text" rows="1" ${composerOff ? 'disabled' : ''} placeholder="${t('typeHere')}"></textarea>
+          <textarea id="text" rows="1" ${composerOff ? 'disabled' : ''} placeholder="${c.peer.isAi ? t('sakaFaqHint') : t('typeHere')}"></textarea>
         </div>
         <button class="chat-send" id="send" ${composerOff ? 'disabled' : ''} aria-label="${t('send')}">${ICONS.send}</button>
-        <input id="img-file" class="hidden-file" type="file" accept="image/*" />
+        ${c.peer.isAi ? '' : `<input id="img-file" class="hidden-file" type="file" accept="image/*" />`}
+        </div>
       </div>
     </section>`;
   $('#back').onclick = leaveChat;
@@ -1724,20 +1740,25 @@ function renderChat(opts = {}) {
     box.innerHTML = renderThread(c.messages);
     box.scrollTop = box.scrollHeight;
   };
-  const sendText = async () => {
-    const body = ta.value;
-    if (sending || !body.trim()) return;
+  const sendText = async (preset, faqTopic) => {
+    const body = preset != null ? preset : ta.value;
+    if (sending || !String(body || '').trim()) return;
     sending = true;
     try {
+      const json = { type: 'text', body };
+      if (faqTopic) json.faqTopic = faqTopic;
       const data = await api(`/api/conversations/${c.id}/messages`, {
         method: 'POST',
-        json: { type: 'text', body }
+        json
       });
-      ta.value = '';
-      syncComposer();
+      if (preset == null) {
+        ta.value = '';
+        syncComposer();
+      }
       c.window = data.window;
       if (data.adminGate) c.adminGate = data.adminGate;
       addChatMessage(data.message);
+      if (data.guideReply) addChatMessage(data.guideReply);
       paintThread();
     } catch (e) {
       if (e.data && e.data.adminGate) {
@@ -1750,7 +1771,14 @@ function renderChat(opts = {}) {
       sending = false;
     }
   };
-  $('#send').onclick = sendText;
+  $('#send').onclick = () => sendText();
+  document.querySelectorAll('#saka-faq-chips [data-faq]').forEach((btn) => {
+    btn.onclick = () => {
+      const topic = btn.dataset.faq;
+      const item = SAKA_FAQ.find((x) => x.topic === topic);
+      sendText(item ? t(item.q) : btn.textContent, topic);
+    };
+  });
   ta.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -1766,6 +1794,7 @@ function renderChat(opts = {}) {
   });
   syncComposer();
   const plusMenu = $('#plus-menu');
+  if ($('#plus-btn') && plusMenu) {
   $('#plus-btn').onclick = () => {
     plusMenu.hidden = !plusMenu.hidden;
   };
@@ -1821,14 +1850,22 @@ function renderChat(opts = {}) {
       toast(t('noMic'));
     }
   };
-  if (c.askViewLang) promptChatLang(c);
+  }
+  if (c.askViewLang && !c.peer.isAi) promptChatLang(c);
   if (opts.fromTour) {
     setTimeout(() => {
-      Tour.start([
-        { target: '#text', text: t('tourChat1'), arrow: 'up' },
-        { target: '#img-btn', text: t('tourChat2'), arrow: 'up' },
-        { target: '#mic-btn', text: t('tourChat3'), arrow: 'up' }
-      ]);
+      const steps = c.peer.isAi
+        ? [
+            { target: '#saka-faq-chips', text: t('tourChat1'), arrow: 'up' },
+            { target: '#saka-faq-chips [data-faq]', text: t('tourChat2'), arrow: 'up' },
+            { target: '#text', text: t('tourChat3'), arrow: 'up' }
+          ]
+        : [
+            { target: '#text', text: t('tourChat1'), arrow: 'up' },
+            { target: '#img-btn', text: t('tourChat2'), arrow: 'up' },
+            { target: '#mic-btn', text: t('tourChat3'), arrow: 'up' }
+          ];
+      Tour.start(steps);
     }, 400);
   }
 }

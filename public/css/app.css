@@ -881,8 +881,9 @@ body {
 }
 .composer {
   display: flex;
+  flex-direction: column;
   gap: 8px;
-  align-items: flex-end;
+  align-items: stretch;
   flex-shrink: 0;
   min-width: 0;
   position: sticky;
@@ -890,6 +891,47 @@ body {
   z-index: 8;
   padding: 8px 12px calc(10px + var(--safe-bottom));
   background: #fff;
+}
+.composer-main {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  min-width: 0;
+}
+.saka-faq {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.saka-faq-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+.saka-faq-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.saka-faq-chip {
+  appearance: none;
+  border: 1px solid rgba(16, 64, 48, 0.16);
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: var(--green-deep);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.2;
+  padding: 8px 12px;
+  min-height: 36px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.saka-faq-chip:active {
+  background: #d1fae5;
 }
 .composer textarea {
   flex: 1 1 auto;

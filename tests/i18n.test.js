@@ -96,6 +96,11 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   assert.equal(I18n.t('guide'), 'guide');
   I18n.setLang('my');
   assert.equal(I18n.t('guide'), 'လမ်းညွှန်');
+  assert.match(js, /id="saka-faq-chips"/);
+  assert.match(js, /data-faq=/);
+  assert.match(js, /SAKA_FAQ/);
+  assert.match(js, /faqTopic/);
+  assert.match(css, /\.saka-faq-chip/);
   assert.match(js, /function showRegister/);
   assert.equal(js.includes('nrcFront'), true);
   const registerSlice = js.slice(js.indexOf('function showRegister'), js.indexOf('function showScan'));
@@ -388,6 +393,9 @@ test('UI language pack covers Saka rules, Help, errors, and does not translate t
     assert.ok(I18n.catalogs[code].sakaRules, `${code} missing sakaRules`);
     assert.ok(I18n.catalogs[code].sakaHostNotice, `${code} missing sakaHostNotice`);
     assert.ok(I18n.catalogs[code].sakaWelcome, `${code} missing sakaWelcome`);
+    assert.ok(I18n.catalogs[code].sakaFaqQRegister, `${code} missing sakaFaqQRegister`);
+    assert.ok(I18n.catalogs[code].sakaFaqAUpgrade, `${code} missing sakaFaqAUpgrade`);
+    assert.ok(I18n.catalogs[code].sakaFaqRefuse, `${code} missing sakaFaqRefuse`);
     assert.ok(I18n.catalogs[code].maintenanceMsg, `${code} missing maintenanceMsg`);
     assert.equal(/SAKARWINE/.test(I18n.catalogs[code].maintenanceMsg), false, `${code} translated logo into maintenanceMsg`);
     assert.equal(/09/.test(I18n.catalogs[code].sakaRules), false, `${code} sakaRules mentions 09`);
@@ -404,6 +412,17 @@ test('UI language pack covers Saka rules, Help, errors, and does not translate t
   assert.match(I18n.t('sakaWelcome', { name: 'Aung' }), /Aung/);
   assert.match(I18n.localizeChatBody('__SW__:rules'), /24 hours free/i);
   assert.match(I18n.localizeChatBody('__SW__:host'), /500/);
+  assert.equal(I18n.localizeChatBody('__SW__:faq:register'), I18n.t('sakaFaqARegister'));
+  assert.equal(I18n.localizeChatBody('__SW__:faq:pin'), I18n.t('sakaFaqAPin'));
+  assert.equal(I18n.localizeChatBody('__SW__:faq:host'), I18n.t('sakaFaqAHost'));
+  assert.equal(I18n.localizeChatBody('__SW__:faq:upgrade'), I18n.t('sakaFaqAUpgrade'));
+  assert.equal(I18n.localizeChatBody('__SW__:faq:refuse'), I18n.t('sakaFaqRefuse'));
+  assert.equal(I18n.t('sakaFaqQRegister'), 'How to register');
+  I18n.setLang('my');
+  assert.equal(I18n.t('sakaFaqQRegister'), 'အကောင့်ဖွင့်ပုံ');
+  assert.equal(I18n.t('sakaFaqQPin'), 'PIN တောင်းပုံ');
+  assert.equal(I18n.t('sakaFaqQHost'), 'host လျှောက်ပုံ');
+  assert.equal(I18n.t('sakaFaqQUpgrade'), 'upgrade လုပ်ပုံ');
   const oldStored = [
     'Rules\n\nWithout upgrade\n• Each new chat has 24 hours free.\n• Photos stay locked until Level 3.\n• No 09 phone numbers; do not start a message with @. No video.\n\nIf you upgrade\n• Unlimited chatting for the paid period.',
     'စည်းကမ်း\n\nအဆင့်မမြှင့်ရသေးပါက\n• စကားပြောအသစ်တိုင်း အခမဲ့ ၂၄ နာရီသာ ရသည်။\n• 09 ဖုန်းနံပါတ်နှင့် @ ဖြင့် စသော စာ မပို့ရ။ ဗီဒီယို မရပါ။',
