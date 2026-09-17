@@ -2,7 +2,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const I18n = require('../public/js/i18n.js');
+const I18n = require('../public/js/i18n-pack.js');
 
 test('i18n catalogs share the same keys and default to Myanmar', () => {
   const codes = I18n.LANGS.map((l) => l.code);
@@ -254,4 +254,48 @@ test('settings PIN change is translated and separate from Help recovery', () => 
   assert.equal(I18n.error('New PIN and confirmation do not match.'), I18n.t('errPinMismatch'));
   I18n.setLang('my');
   assert.equal(I18n.t('changePin'), 'PIN ပြောင်းရန်');
+});
+
+test('UI language pack covers Saka rules, Help, errors, and does not translate the SAKARWINE wordmark', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const js = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
+  const admin = fs.readFileSync(path.join(__dirname, '../public/js/admin.js'), 'utf8');
+  const html = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
+  const adminHtml = fs.readFileSync(path.join(__dirname, '../public/admin.html'), 'utf8');
+  assert.match(html, /i18n-pack\.js/);
+  assert.match(adminHtml, /i18n-pack\.js/);
+  assert.match(js, /<h1>SAKARWINE<\/h1>/);
+  assert.match(js, /alt="SAKARWINE"/);
+  assert.match(js, /t\('pinRecoveryBody'\)/);
+  assert.equal(js.includes("t('pinRecoveryBodyMy')"), false);
+  assert.match(js, /function chatBody/);
+  assert.match(admin, /t\('createSpecialTitle'\)/);
+  assert.match(admin, /t\('adminNoticeUpgrades'\)/);
+  assert.match(admin, /t\('approveHost'\)/);
+  const codes = I18n.LANGS.map((l) => l.code);
+  for (const code of codes) {
+    assert.ok(I18n.catalogs[code].sakaRules, `${code} missing sakaRules`);
+    assert.ok(I18n.catalogs[code].sakaHostNotice, `${code} missing sakaHostNotice`);
+    assert.ok(I18n.catalogs[code].sakaWelcome, `${code} missing sakaWelcome`);
+  }
+  I18n.setLang('en');
+  assert.match(I18n.t('sakaWelcome', { name: 'Aung' }), /Aung/);
+  assert.match(I18n.localizeChatBody('__SW__:rules'), /24 hours free/i);
+  assert.match(I18n.localizeChatBody('__SW__:host'), /500/);
+  assert.equal(I18n.error('Upload failed.'), I18n.t('errUpload'));
+  assert.equal(I18n.error('Please choose male or female.'), I18n.t('errChooseGender'));
+  assert.equal(I18n.statusLabel('pending'), I18n.t('statusPending'));
+  I18n.setLang('my');
+  assert.match(I18n.localizeChatBody('__SW__:rules'), /အခမဲ့ ၂၄ နာရီ/);
+  assert.notEqual(I18n.t('sakaRules'), I18n.catalogs.en.sakaRules);
+  assert.notEqual(I18n.t('createSpecialTitle'), I18n.catalogs.en.createSpecialTitle);
+  I18n.setLang('th');
+  assert.notEqual(I18n.t('pinRecoveryBody'), I18n.catalogs.en.pinRecoveryBody);
+  I18n.setLang('zh');
+  assert.notEqual(I18n.t('hostApplyTitle'), I18n.catalogs.en.hostApplyTitle);
+  I18n.setLang('ko');
+  assert.notEqual(I18n.t('groupsTitle'), I18n.catalogs.en.groupsTitle);
+  I18n.setLang('ja');
+  assert.notEqual(I18n.t('upgradeTitle'), I18n.catalogs.en.upgradeTitle);
 });

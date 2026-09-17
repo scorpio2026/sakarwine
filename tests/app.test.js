@@ -1235,7 +1235,7 @@ test('host apply accepts passport front only instead of NRC pair', async () => {
   assert.equal(approved.data.user.idDocType, 'passport');
 });
 
-test('new accounts get dual-language rules in Saka chat; host income is female-only', async () => {
+test('new accounts get language-keyed Saka rules; host income is female-only', async () => {
   await started;
   async function registerOnly(name, pin, gender) {
     const jar = cookieJar();
@@ -1261,35 +1261,27 @@ test('new accounts get dual-language rules in Saka chat; host income is female-o
     assert.ok(conv, 'expected Saka conversation for user ' + userId);
     return db.prepare('SELECT type, body FROM messages WHERE conversation_id = ? ORDER BY id').all(conv.id);
   }
-  function welcomeText(userId) {
-    return welcomeRows(userId)
-      .map((r) => r.body || '')
-      .join('\n');
-  }
-  assert.equal(welcomeRows(male.user.id).length, 2);
-  assert.equal(welcomeRows(female.user.id).length, 3);
-  const maleText = welcomeText(male.user.id);
-  const femaleText = welcomeText(female.user.id);
-  assert.match(maleText, /အခမဲ့ ၂၄ နာရီ/);
-  assert.match(maleText, /24 hours free/i);
-  assert.match(maleText, /50%/);
-  assert.match(maleText, /Level 3/);
-  assert.equal(/8-digit|referral code|ကုဒ် ၈ လုံး|ရည်ညွှန်းကုဒ်|Host \(မိန်းကလေး|\+500|\+၅၀၀/i.test(maleText), false);
-  assert.match(femaleText, /24 hours free/i);
-  assert.match(femaleText, /50%/);
-  assert.match(femaleText, /ပရိုဖိုင် ဆက်တင်/);
-  assert.match(femaleText, /ရည်ညွှန်းကုဒ် ၈ လုံး/);
-  assert.match(femaleText, /Profile Settings/);
-  assert.match(femaleText, /8-digit referral code/);
-  assert.match(femaleText, /optionally enter that code when upgrading/i);
-  assert.match(femaleText, /\+500/);
-  assert.match(femaleText, /\+၅၀၀/);
-  assert.match(femaleText, /2 months → \+1000/);
-  assert.match(femaleText, /12 → \+6000/);
-  assert.match(femaleText, /၂ လ → \+၁၀၀၀/);
-  assert.match(femaleText, /၁၂ လ → \+၆၀၀၀/);
-  assert.equal(/Chat time no longer pays|စကားပြောချိန်ဖြင့် \+၅၀၀ မရတော့ပါ/i.test(femaleText), false);
-  assert.match(femaleText, /100,000/);
+  const maleRows = welcomeRows(male.user.id);
+  const femaleRows = welcomeRows(female.user.id);
+  assert.equal(maleRows.length, 2);
+  assert.equal(femaleRows.length, 3);
+  assert.equal(maleRows[0].body, '__SW__:welcome');
+  assert.equal(maleRows[1].body, '__SW__:rules');
+  assert.equal(femaleRows[0].body, '__SW__:welcome');
+  assert.equal(femaleRows[1].body, '__SW__:rules');
+  assert.equal(femaleRows[2].body, '__SW__:host');
+  const I18n = require('../public/js/i18n-pack.js');
+  I18n.setLang('en');
+  assert.match(I18n.t('sakaRules'), /24 hours free/i);
+  assert.match(I18n.t('sakaRules'), /50%/);
+  assert.match(I18n.t('sakaHostNotice'), /optionally enter that code when upgrading/i);
+  assert.match(I18n.t('sakaHostNotice'), /12 → \+6000/);
+  assert.equal(/Chat time no longer pays/i.test(I18n.t('sakaHostNotice')), false);
+  I18n.setLang('my');
+  assert.match(I18n.t('sakaRules'), /အခမဲ့ ၂၄ နာရီ/);
+  assert.match(I18n.t('sakaHostNotice'), /ရည်ညွှန်းကုဒ် ၈ လုံး/);
+  assert.match(I18n.t('sakaHostNotice'), /၁၂ လ → \+၆၀၀၀/);
+  assert.equal(/စကားပြောချိန်ဖြင့် \+၅၀၀ မရတော့ပါ/.test(I18n.t('sakaHostNotice')), false);
   await req('/api/me/liveness', {
     method: 'POST',
     json: { left: true, right: true, estimatedGender: 'male' },

@@ -47,7 +47,7 @@ function paidHoursLabel(paidUntil, now = Date.now()) {
 
 function paidRemainLine(paidUntil, now = Date.now()) {
   const parts = remainingPaidParts(paidUntil, now);
-  if (!parts.ms) return 'Not paid';
+  if (!parts.ms) return t('notPaidYet');
   return `${new Date(paidUntil).toLocaleString()} · ${paidHoursLabel(paidUntil, now)}`;
 }
 
@@ -79,14 +79,23 @@ function esc(s) {
 }
 
 const USERNAME_RE = /^(?:[A-Za-z0-9\u1000-\u109F\uAA60-\uAA7F\uA9E0-\uA9FF]){1,12}$/;
-const USERNAME_HINT = 'Letters and numbers only (English or Myanmar) · max 12. No spaces or symbols.';
 
 const $ = (s, el = document) => el.querySelector(s);
 const t = (k, p) => I18n.t(k, p);
+const st = (s) => (I18n.statusLabel ? I18n.statusLabel(s) : s);
+function gLabel(g) {
+  if (g === 'female') return t('female');
+  if (g === 'male') return t('male');
+  return g || '';
+}
+function monthsLabel(n) {
+  return Number(n) === 1 ? t('planMonths', { n }) : t('planMonthsMany', { n });
+}
 let paintUi = null;
 
 function showLogin() {
   paintUi = showLogin;
+  document.title = t('adminTitle');
   root.innerHTML = `
     <div class="card login">
       <img class="admin-logo" src="/assets/sakarwine-logo.png" alt="SAKARWINE" />
@@ -124,8 +133,8 @@ async function runAccountAction(btn) {
   const id = btn.dataset.id;
   const act = btn.dataset.act;
   if (act === 'reset') {
-    const phone = prompt('Confirm registered phone', btn.dataset.phone);
-    const password = prompt('New 6-digit PIN');
+    const phone = prompt(t('confirmPhone'), btn.dataset.phone);
+    const password = prompt(t('newPinPrompt'));
     if (!password) return;
     await api(`/api/admin/accounts/${id}/reset-password`, { method: 'POST', json: { phone, password } });
     return;
@@ -134,24 +143,24 @@ async function runAccountAction(btn) {
 }
 
 function hostMark(a) {
-  return a.isHost ? ' <span class="badge-neon badge-host" data-badge="host">host</span>' : '';
+  return a.isHost ? ` <span class="badge-neon badge-host" data-badge="host">${t('host')}</span>` : '';
 }
 
 function nrcBlock(a) {
   if (a.gender !== 'female') return '';
   const passport = a.idDocType === 'passport';
-  const docLabel = passport ? 'Passport (front only)' : 'NRC (front + back)';
+  const docLabel = passport ? t('idDocPassportOnly') : t('idDocNrcPair');
   return `
-    <p class="muted">ID document: <strong>${esc(docLabel)}</strong></p>
+    <p class="muted">${t('idDocLabel')}: <strong>${esc(docLabel)}</strong></p>
     <div class="nrc-pair">
-      ${a.nrcFrontUrl ? `<a href="${a.nrcFrontUrl}" target="_blank" rel="noopener"><img class="thumb nrc-thumb" src="${a.nrcFrontUrl}" alt="${passport ? 'Passport front' : 'NRC front'}" /></a>` : `<span class="muted">No ${passport ? 'passport' : 'NRC front'} photo</span>`}
-      ${passport ? '' : a.nrcBackUrl ? `<a href="${a.nrcBackUrl}" target="_blank" rel="noopener"><img class="thumb nrc-thumb" src="${a.nrcBackUrl}" alt="NRC back" /></a>` : '<span class="muted">No NRC back</span>'}
+      ${a.nrcFrontUrl ? `<a href="${a.nrcFrontUrl}" target="_blank" rel="noopener"><img class="thumb nrc-thumb" src="${a.nrcFrontUrl}" alt="${esc(passport ? t('passportFront') : t('nrcFront'))}" /></a>` : `<span class="muted">${esc(t('noPhotoFront'))}</span>`}
+      ${passport ? '' : a.nrcBackUrl ? `<a href="${a.nrcBackUrl}" target="_blank" rel="noopener"><img class="thumb nrc-thumb" src="${a.nrcBackUrl}" alt="${esc(t('nrcBack'))}" /></a>` : `<span class="muted">${esc(t('noNrcBack'))}</span>`}
     </div>
-    <p class="muted">Host status: ${esc(a.hostStatus || 'none')}${a.isHost ? ' · verified host' : ''}</p>
+    <p class="muted">${t('hostStatusLabel')}: ${esc(st(a.hostStatus || 'none'))}${a.isHost ? ` · ${t('verifiedHost')}` : ''}</p>
     ${a.hostStatus === 'pending' || a.hostStatus === 'rejected' || (a.hostStatus === 'approved' && !a.isHost) ? `<div class="actions">
-      <button data-host-ok="${a.id}">Approve host</button>
-      <button class="danger" data-host-no="${a.id}">Reject</button>
-    </div>` : a.hostStatus === 'approved' ? `<div class="actions"><button class="danger" data-host-no="${a.id}">Revoke host</button></div>` : ''}`;
+      <button data-host-ok="${a.id}">${t('approveHost')}</button>
+      <button class="danger" data-host-no="${a.id}">${t('rejectHost')}</button>
+    </div>` : a.hostStatus === 'approved' ? `<div class="actions"><button class="danger" data-host-no="${a.id}">${t('revokeHost')}</button></div>` : ''}`;
 }
 
 function upgradeCard(u) {
@@ -162,20 +171,20 @@ function upgradeCard(u) {
     <div class="notice${u.paidActive ? ' paid-active' : ''}${u.extraUpgrade ? ' extra-upgrade' : ''}">
       <div class="row">
         <div>
-          <span class="badge ${u.status}">${esc(u.status)}</span>
+          <span class="badge ${u.status}">${esc(st(u.status))}</span>
           ${gift ? `<span class="extra-upgrade-badge">${esc(t('upgradeGift'))}</span>` : `<span class="muted">${esc(t('upgradeSelf'))}</span>`}
           ${u.extraUpgrade ? `<span class="extra-upgrade-badge">${esc(t('extraUpgrade'))}</span>` : ''}
           <div><strong>${esc(t('upgradePaidBy'))}</strong> ${esc(payer.accountId)} · ${esc(payer.username)} · ${esc(payer.phone)}</div>
           <div><strong>${esc(t('upgradeFor'))}</strong> ${esc(target.accountId)} · ${esc(target.username)}${target.phone ? ` · ${esc(target.phone)}` : ''}</div>
-          <div>${u.months} month(s) · ${money(u.amount, u.currency)} · target Lv ${target.level != null ? target.level : u.level}</div>
-          ${u.hostCode ? `<div>Host code ${esc(u.hostCode)}</div>` : ''}
-          <div class="muted">${new Date(u.createdAt).toLocaleString()}</div>
+          <div>${esc(monthsLabel(u.months))} · ${money(u.amount, u.currency)} · ${esc(t('targetLv', { lv: t('lv', { n: target.level != null ? target.level : u.level }) }))}</div>
+          ${u.hostCode ? `<div>${esc(t('hostCodeUsed', { code: u.hostCode }))}</div>` : ''}
+          <div class="muted">${new Date(u.createdAt).toLocaleString(I18n.locale())}</div>
         </div>
-        ${u.receiptUrl ? `<a href="${u.receiptUrl}" target="_blank"><img class="thumb" src="${u.receiptUrl}" alt="receipt" /></a>` : ''}
+        ${u.receiptUrl ? `<a href="${u.receiptUrl}" target="_blank"><img class="thumb" src="${u.receiptUrl}" alt="${esc(t('receiptAlt'))}" /></a>` : ''}
       </div>
       ${u.status === 'pending' ? `<div class="actions" style="margin-top:8px">
-        <button data-ok="${u.id}">Approve (start paid period now)</button>
-        <button class="danger" data-no="${u.id}">Reject</button>
+        <button data-ok="${u.id}">${t('approveStartPaid')}</button>
+        <button class="danger" data-no="${u.id}">${t('rejectHost')}</button>
       </div>` : ''}
     </div>`;
 }
@@ -209,7 +218,7 @@ async function bootDash() {
           (m) => `<button type="button" class="hit${m.paidActive ? ' paid-active' : ''}" data-aid="${esc(m.accountId)}">
             <strong>${esc(m.accountId)}</strong> · ${esc(m.username)}
             ${m.extraUpgrade ? `<span class="extra-upgrade-badge">${esc(t('extraUpgrade'))}</span>` : ''}
-            <span class="muted"> · ${esc(m.phone)} · ${m.status}${m.badge ? ` · ${esc(m.badge)}` : ''}${m.paidActive ? ' · paid' : ''}</span>
+            <span class="muted"> · ${esc(m.phone)} · ${st(m.status)}${m.badge ? ` · ${esc(m.badge)}` : ''}${m.paidActive ? ` · ${t('paidShort')}` : ''}</span>
           </button>`
         )
         .join('');
@@ -249,9 +258,9 @@ async function bootDash() {
       data = await api(`/api/admin/dossier?q=${encodeURIComponent(focusAccountId)}`);
     } catch (err) {
       const matches = err.data && err.data.matches;
-      panel.innerHTML = `<p>${esc(err.message)}</p>
+      panel.innerHTML = `<p>${esc(I18n.error(err.message))}</p>
         ${(matches || []).map((m) => `<div class="notice" data-open-id="${esc(m.accountId)}" style="cursor:pointer">${esc(m.accountId)} · ${esc(m.username)}</div>`).join('')}
-        <button data-leave>Back</button>`;
+        <button data-leave>${t('back')}</button>`;
       panel.querySelectorAll('[data-open-id]').forEach((el) => {
         el.onclick = () => openDossier(el.dataset.openId);
       });
@@ -267,64 +276,64 @@ async function bootDash() {
     const paidLine = paidRemainLine(a.paidUntil);
     panel.innerHTML = `
       <div class="row">
-        <button data-leave>← All accounts</button>
-        <h2 style="margin:0">Account ${esc(a.accountId)}</h2>
+        <button data-leave>${t('allAccounts')}</button>
+        <h2 style="margin:0">${t('accountHeading', { id: a.accountId })}</h2>
       </div>
       <div class="dossier${a.paidActive ? ' paid-active' : ''}">
         <section>
-          <h3>Profile</h3>
+          <h3>${t('profileSection')}</h3>
           <p>
             <strong>${esc(a.username)}</strong>
             ${a.extraUpgrade ? `<span class="extra-upgrade-badge">${esc(t('extraUpgrade'))}</span>` : ''}
             ${a.badge ? `<span class="badge-neon">${esc(a.badge)}</span>` : ''}
             ${hostMark(a)}
-            <span class="badge ${a.status}">${esc(a.status)}</span>
-            ${a.online ? '· online' : ''}
-            ${a.createdByAdmin ? '· admin-created' : ''}
-            ${a.isSpecial ? '· unlimited chat' : ''}
+            <span class="badge ${a.status}">${esc(st(a.status))}</span>
+            ${a.online ? `· ${t('onlineShort')}` : ''}
+            ${a.createdByAdmin ? `· ${t('adminCreated')}` : ''}
+            ${a.isSpecial ? `· ${t('unlimitedChat')}` : ''}
           </p>
           ${a.photoUrl ? `<img class="thumb user-ava" src="${a.photoUrl}" alt="" />` : ''}
-          <p class="muted">Phone ${esc(a.phone)} · ${esc(a.gender)} · born ${a.birthYear}<br>
-            Level ${a.level} · Paid until <span id="admin-paid-remain" class="paid-tick">${esc(paidLine)}</span><br>
-            Account ID ${a.accountIdHidden ? 'hidden from lounge' : 'visible to lounge'}
-            ${a.hostCode ? `<br>Host code ${esc(a.hostCode)}` : ''}
-            ${a.bio ? `<br>Bio: ${esc(a.bio)}` : ''}</p>
-          ${a.gender === 'female' ? `<h3>ID verification</h3>${nrcBlock(a)}` : ''}
-          ${data.hostIncome ? `<h3>Host earnings</h3>
-            <p><strong>${Number(data.hostIncome.hostBalance != null ? data.hostIncome.hostBalance : data.hostIncome.hostEarnings || 0).toLocaleString()} MMK</strong> available
-              <span class="muted"> · earned ${Number(data.hostIncome.hostEarnings || 0).toLocaleString()} · ${data.hostIncome.hostCreditAmount} × months of approved upgrades that used their host code</span></p>
+          <p class="muted">${t('phone')} ${esc(a.phone)} · ${esc(gLabel(a.gender))} · ${t('born', { year: a.birthYear })}<br>
+            ${t('levelLabel', { n: a.level })} · ${t('paidUntilLabel')} <span id="admin-paid-remain" class="paid-tick">${esc(paidLine)}</span><br>
+            ${t('accountId')} ${a.accountIdHidden ? t('idHiddenLounge') : t('idVisibleLounge')}
+            ${a.hostCode ? `<br>${t('hostCode')} ${esc(a.hostCode)}` : ''}
+            ${a.bio ? `<br>${t('bio')}: ${esc(a.bio)}` : ''}</p>
+          ${a.gender === 'female' ? `<h3>${t('idVerification')}</h3>${nrcBlock(a)}` : ''}
+          ${data.hostIncome ? `<h3>${t('hostEarnings')}</h3>
+            <p><strong>${Number(data.hostIncome.hostBalance != null ? data.hostIncome.hostBalance : data.hostIncome.hostEarnings || 0).toLocaleString()} MMK</strong> ${t('available')}
+              <span class="muted"> · ${t('earned')} ${Number(data.hostIncome.hostEarnings || 0).toLocaleString()} · ${t('adminHostCreditHelp', { amount: data.hostIncome.hostCreditAmount })}</span></p>
             ${(data.hostIncome.hostIncomeLedger || []).length
-              ? data.hostIncome.hostIncomeLedger.map((row) => `<div class="muted">+${row.amount} · ${esc(row.partner && row.partner.username ? row.partner.username : 'upgrade')} · Lv ${row.partner && row.partner.level != null ? row.partner.level : '—'} · ${new Date(row.createdAt).toLocaleString()}</div>`).join('')
-              : '<p class="muted">No qualifying upgrades credited yet.</p>'}
+              ? data.hostIncome.hostIncomeLedger.map((row) => `<div class="muted">+${row.amount} · ${esc(row.partner && row.partner.username ? row.partner.username : t('upgradeTitle'))} · ${row.partner && row.partner.level != null ? t('lv', { n: row.partner.level }) : '—'} · ${new Date(row.createdAt).toLocaleString(I18n.locale())}</div>`).join('')
+              : `<p class="muted">${t('noHostCredits')}</p>`}
             ${(data.hostIncome.hostPayouts || []).length
-              ? `<h3>Payouts</h3>${data.hostIncome.hostPayouts.map((p) => `<div class="muted">${esc(p.status)} · −${p.amount} · ${p.method === 'kbz' ? 'KBZ Pay' : 'Wave'} · ${esc(p.payeeName)} · ${esc(p.payeePhone)}</div>`).join('')}`
+              ? `<h3>${t('payouts')}</h3>${data.hostIncome.hostPayouts.map((p) => `<div class="muted">${esc(st(p.status))} · −${p.amount} · ${p.method === 'kbz' ? t('kbz') : t('wave')} · ${esc(p.payeeName)} · ${esc(p.payeePhone)}</div>`).join('')}`
               : ''}` : ''}
-          ${a.isSpecial || data.badges ? `<div class="field"><label>Role badge</label>
+          ${a.isSpecial || data.badges ? `<div class="field"><label>${t('roleBadge')}</label>
             <select id="dossier-badge">
-              <option value="">(none / regular level)</option>
+              <option value="">${t('roleBadgeNone')}</option>
               ${data.badges.map((b) => `<option ${a.badge === b ? 'selected' : ''}>${esc(b)}</option>`).join('')}
             </select>
-            <button id="save-badge">Save badge</button>
+            <button id="save-badge">${t('saveBadge')}</button>
           </div>` : ''}
           <div class="actions">${moderationButtons(a)}</div>
         </section>
         <section>
-          <h3>Upgrades</h3>
-          ${data.upgrades.length ? data.upgrades.map(upgradeCard).join('') : '<p class="muted">No upgrade submissions.</p>'}
+          <h3>${t('tabUpgrades')}</h3>
+          ${data.upgrades.length ? data.upgrades.map(upgradeCard).join('') : `<p class="muted">${t('noUpgrades')}</p>`}
         </section>
         <section>
-          <h3>Chats</h3>
+          <h3>${t('tabChats')}</h3>
           ${data.conversations.length ? data.conversations.map((c) => `
             <div class="notice" data-open="${c.id}" style="cursor:pointer">
-              <strong>#${c.id}</strong> with ${esc(c.peer.username)} (${esc(c.peer.accountId)}) · ${c.messageCount} messages
-              <div class="muted">${c.lastMessage ? esc(c.lastMessage.body || c.lastMessage.type) : 'No messages'} · started ${new Date(c.startedAt).toLocaleString()}</div>
-            </div>`).join('') : '<p class="muted">No conversations.</p>'}
+              <strong>#${c.id}</strong> ${t('withUser', { name: c.peer.username })} (${esc(c.peer.accountId)}) · ${t('messagesCount', { n: c.messageCount })}
+              <div class="muted">${c.lastMessage ? esc((I18n.localizeChatBody && I18n.localizeChatBody(c.lastMessage.body, { name: '' })) || c.lastMessage.body || c.lastMessage.type) : t('noMessages')} · ${t('startedLabel')} ${new Date(c.startedAt).toLocaleString(I18n.locale())}</div>
+            </div>`).join('') : `<p class="muted">${t('noConversations')}</p>`}
           <div id="dossier-thread"></div>
         </section>
         <section>
-          <h3>Blocks</h3>
-          <p class="muted">Blocked by this account: ${data.blocked.length ? data.blocked.map((u) => esc(u.username)).join(', ') : 'none'}</p>
-          <p class="muted">Blocked this account: ${data.blockedBy.length ? data.blockedBy.map((u) => esc(u.username)).join(', ') : 'none'}</p>
+          <h3>${t('blocksSection')}</h3>
+          <p class="muted">${t('blockedByThis')}: ${data.blocked.length ? data.blocked.map((u) => esc(u.username)).join(', ') : t('noneLabel')}</p>
+          <p class="muted">${t('blockedThis')}: ${data.blockedBy.length ? data.blockedBy.map((u) => esc(u.username)).join(', ') : t('noneLabel')}</p>
         </section>
       </div>`;
     startPaidTick(panel.querySelector('#admin-paid-remain'), a.paidUntil);
@@ -361,12 +370,12 @@ async function bootDash() {
           const box = $('#dossier-thread');
           box.innerHTML = `
             <div class="chat-log">${thread.messages.map((m) => `
-              <div class="msg"><div class="muted">${m.sender ? esc(m.sender.username) : 'system'} · ${new Date(m.createdAt).toLocaleString()}</div>
+              <div class="msg"><div class="muted">${m.sender ? esc(m.sender.username) : t('systemSender')} · ${new Date(m.createdAt).toLocaleString(I18n.locale())}</div>
               ${m.type === 'image' && m.mediaUrl ? `<img class="thumb" src="${m.mediaUrl}" alt="" />` : ''}
               ${m.type === 'voice' && m.mediaUrl ? `<audio controls src="${m.mediaUrl}"></audio>` : ''}
-              <div>${esc(m.body || m.type)}</div></div>`).join('')}</div>
-            ${thread.conversation.involvesAdmin ? `<button data-msg="${thread.conversation.id}" data-msg-open="${thread.conversation.messagingOpen ? '0' : '1'}">${thread.conversation.messagingOpen ? 'Close messaging' : 'Reopen messaging'}</button>` : ''}
-            <button data-expire="${thread.conversation.id}">Expire 24h free window</button>`;
+              <div>${esc((I18n.localizeChatBody && I18n.localizeChatBody(m.body, { name: a.username })) || m.body || m.type)}</div></div>`).join('')}</div>
+            ${thread.conversation.involvesAdmin ? `<button data-msg="${thread.conversation.id}" data-msg-open="${thread.conversation.messagingOpen ? '0' : '1'}">${thread.conversation.messagingOpen ? t('closeMessaging') : t('reopenMessaging')}</button>` : ''}
+            <button data-expire="${thread.conversation.id}">${t('expireFree')}</button>`;
           const msgBtn = box.querySelector('[data-msg]');
           if (msgBtn) {
             msgBtn.onclick = async (ev) => {
@@ -381,11 +390,11 @@ async function bootDash() {
           box.querySelector('[data-expire]').onclick = async (ev) => {
             ev.stopPropagation();
             await api(`/api/admin/conversations/${thread.conversation.id}/expire-free`, { method: 'POST' });
-            alert('Free window expired for this chat.');
+            alert(t('expireFreeOk'));
           };
         }
       } catch (err) {
-        alert(err.message);
+        alert(I18n.error(err.message));
       }
     };
     const saveBadge = $('#save-badge');
@@ -393,12 +402,12 @@ async function bootDash() {
       saveBadge.onclick = async (e) => {
         e.stopPropagation();
         const badge = $('#dossier-badge').value;
-        if (!badge) return alert('Pick a badge.');
+        if (!badge) return alert(t('errBadge'));
         try {
           await api(`/api/admin/accounts/${a.id}/badge`, { method: 'POST', json: { badge } });
           await render();
         } catch (err) {
-          alert(err.message);
+          alert(I18n.error(err.message));
         }
       };
     }
@@ -407,6 +416,7 @@ async function bootDash() {
   async function render() {
     paintUi = render;
     const stats = await api('/api/admin/stats');
+    document.title = t('adminTitle');
     root.innerHTML = `
       <div class="row">
         <div>
@@ -426,14 +436,14 @@ async function bootDash() {
         <div class="stat"><span>${t('pendingPinRecovery')}</span><b>${stats.pendingPinRecovery || 0}</b></div>
         <div class="stat"><span>${t('chats')}</span><b>${stats.conversations}</b></div>
       </div>
-      ${stats.pendingUpgrades ? `<div class="notice">New payment submissions need review — duration, receipt, account ID, and registered phone are in Upgrades.</div>` : ''}
-      ${stats.pendingHosts ? `<div class="notice">Female host ID verifications need review in Hosts — NRC front/back or a passport photo (admin-only).</div>` : ''}
-      ${stats.pendingPayouts ? `<div class="notice">${stats.pendingPayouts} host payout(s) waiting — transfer then press Done to send ငွေဝင်ပါပြီ.</div>` : ''}
-      ${stats.pendingPinRecovery ? `<div class="notice">${stats.pendingPinRecovery} PIN recovery request(s) in PIN recovery — verify the phone, then Reset PIN from the dossier. There is no self-serve reset.</div>` : ''}
+      ${stats.pendingUpgrades ? `<div class="notice">${t('adminNoticeUpgrades')}</div>` : ''}
+      ${stats.pendingHosts ? `<div class="notice">${t('adminNoticeHosts')}</div>` : ''}
+      ${stats.pendingPayouts ? `<div class="notice">${t('adminNoticePayouts', { n: stats.pendingPayouts })}</div>` : ''}
+      ${stats.pendingPinRecovery ? `<div class="notice">${t('adminNoticePin', { n: stats.pendingPinRecovery })}</div>` : ''}
       <div class="lookup">
         <label class="field" style="margin:0;flex:1">
           <span>${t('findById')}</span>
-          <input id="lookup" value="${esc(lookupQ)}" placeholder="Type SW######## — profile, chats, upgrades, moderation…" autocomplete="off" />
+          <input id="lookup" value="${esc(lookupQ)}" placeholder="${esc(t('lookupPlaceholder'))}" autocomplete="off" />
         </label>
         <button id="lookup-go">${t('openDossier')}</button>
         <div id="lookup-hits" class="lookup-hits" hidden></div>
@@ -476,11 +486,11 @@ async function bootDash() {
         <tr class="${a.paidActive ? 'paid-active' : ''}">
           <td><strong>${esc(a.username)}</strong>${a.extraUpgrade ? ` <span class="extra-upgrade-badge">${esc(t('extraUpgrade'))}</span>` : ''}<br>
             <button class="ghost" data-open-id="${esc(a.accountId)}">${esc(a.accountId)}</button>
-            ${a.isSpecial ? `<br><span class="badge-neon">${esc(a.badge || 'special')}</span>` : ''}${a.isHost ? `<br><span class="badge-neon badge-host" data-badge="host">host</span>` : ''}${a.hostStatus === 'pending' ? '<br><span class="muted">NRC pending</span>' : ''}</td>
-          <td>${esc(a.phone)}<br><span class="muted">${esc(a.gender)} · ${a.birthYear}</span></td>
-          <td>${a.isSpecial ? `Unlimited · ${esc(a.badge || 'special')}` : `Lv ${a.level}<br>${remainingPaidParts(a.paidUntil).ms ? `${new Date(a.paidUntil).toLocaleDateString()} · ${esc(paidHoursLabel(a.paidUntil))}` : '—'}`}</td>
+            ${a.isSpecial ? `<br><span class="badge-neon">${esc(a.badge || 'special')}</span>` : ''}${a.isHost ? `<br><span class="badge-neon badge-host" data-badge="host">${t('host')}</span>` : ''}${a.hostStatus === 'pending' ? `<br><span class="muted">${t('nrcPending')}</span>` : ''}</td>
+          <td>${esc(a.phone)}<br><span class="muted">${esc(gLabel(a.gender))} · ${a.birthYear}</span></td>
+          <td>${a.isSpecial ? `${t('unlimitedChat')} · ${esc(a.badge || 'special')}` : `${t('lv', { n: a.level })}<br>${remainingPaidParts(a.paidUntil).ms ? `${new Date(a.paidUntil).toLocaleDateString(I18n.locale())} · ${esc(paidHoursLabel(a.paidUntil))}` : '—'}`}</td>
           <td>${a.accountIdHidden ? t('hiddenFromLounge') : t('visible')}</td>
-          <td><span class="badge ${a.status}">${a.status}</span> ${a.online ? '· online' : ''}${a.createdByAdmin ? '<br><span class="muted">admin-created</span>' : ''}</td>
+          <td><span class="badge ${a.status}">${st(a.status)}</span> ${a.online ? `· ${t('onlineShort')}` : ''}${a.createdByAdmin ? `<br><span class="muted">${t('adminCreated')}</span>` : ''}</td>
           <td class="actions">${moderationButtons(a)}</td>
         </tr>`).join('')}</tbody></table></div>`;
       panel.onclick = async (e) => {
@@ -495,7 +505,7 @@ async function bootDash() {
           await runAccountAction(btn);
           render();
         } catch (err) {
-          alert(err.message);
+          alert(I18n.error(err.message));
         }
       };
     } else if (tab === 'create') {
@@ -504,32 +514,32 @@ async function bootDash() {
       let years = '';
       for (let i = year - 18; i >= 1950; i--) years += `<option value="${i}">${i}</option>`;
       panel.innerHTML = `
-        <h2>Create special account</h2>
-        <p class="muted">These accounts skip the 24-hour / paid upgrade gate (unlimited chatting). Role badges replace the normal level chip in the lounge with a neon glow. Account IDs are hidden from other members until you unhide them.</p>
+        <h2>${t('createSpecialTitle')}</h2>
+        <p class="muted">${t('createSpecialHelp')}</p>
         <form id="create-special">
           <div class="grid-form">
-            <div class="field"><label>Username</label><input name="username" required minlength="1" maxlength="12" autocomplete="username" spellcheck="false" autocapitalize="none" pattern="[A-Za-z0-9\u1000-\u109F\uAA60-\uAA7F\uA9E0-\uA9FF]{1,12}" title="${esc(USERNAME_HINT)}" /></div>
-            <div class="field"><label>6-digit PIN</label><input name="password" required pattern="\\d{6}" maxlength="6" /></div>
-            <div class="field"><label>Gender</label>
-              <select name="gender"><option value="female">Female</option><option value="male">Male</option></select>
+            <div class="field"><label>${t('username')}</label><input name="username" required minlength="1" maxlength="12" autocomplete="username" spellcheck="false" autocapitalize="none" pattern="[A-Za-z0-9\u1000-\u109F\uAA60-\uAA7F\uA9E0-\uA9FF]{1,12}" title="${esc(t('usernameRule'))}" /></div>
+            <div class="field"><label>${t('pin6')}</label><input name="password" required pattern="\\d{6}" maxlength="6" /></div>
+            <div class="field"><label>${t('gender')}</label>
+              <select name="gender"><option value="female">${t('female')}</option><option value="male">${t('male')}</option></select>
             </div>
-            <div class="field"><label>Birth year</label><select name="birthYear">${years}</select></div>
-            <div class="field"><label>Phone</label><input name="phone" required /></div>
-            <div class="field"><label>Role badge</label>
+            <div class="field"><label>${t('birthYear')}</label><select name="birthYear">${years}</select></div>
+            <div class="field"><label>${t('phone')}</label><input name="phone" required /></div>
+            <div class="field"><label>${t('roleBadge')}</label>
               <select name="badge" id="badge-select">
                 ${badges.map((b) => `<option>${esc(b)}</option>`).join('')}
-                <option value="__custom">Custom…</option>
+                <option value="__custom">${t('customOption')}</option>
               </select>
             </div>
           </div>
-          <p class="muted">${esc(USERNAME_HINT)}</p>
+          <p class="muted">${esc(t('usernameRule'))}</p>
           <div class="field" id="custom-badge-wrap" hidden>
-            <label>Custom badge</label>
-            <input id="custom-badge" maxlength="24" placeholder="e.g. ambassador" />
+            <label>${t('customBadge')}</label>
+            <input id="custom-badge" maxlength="24" placeholder="${esc(t('customBadgePh'))}" />
           </div>
-          <div class="field"><label>Profile photo (optional)</label><input name="photo" type="file" accept="image/*" /></div>
-          <p class="muted">Preview: <span class="badge-neon" id="badge-preview">${esc(badges[0] || 'VVIP')}</span></p>
-          <button type="submit">Create unlimited account</button>
+          <div class="field"><label>${t('photoOptional')}</label><input name="photo" type="file" accept="image/*" /></div>
+          <p class="muted">${t('previewLabel')}: <span class="badge-neon" id="badge-preview">${esc(badges[0] || 'VVIP')}</span></p>
+          <button type="submit">${t('createUnlimited')}</button>
           <p id="create-msg" class="muted"></p>
         </form>`;
       const select = $('#badge-select');
@@ -547,7 +557,7 @@ async function bootDash() {
         e.preventDefault();
         const fd = new FormData(e.target);
         if (!USERNAME_RE.test(String(fd.get('username') || '').trim())) {
-          $('#create-msg').textContent = USERNAME_HINT;
+          $('#create-msg').textContent = t('usernameRule');
           return;
         }
         let badge = fd.get('badge');
@@ -555,10 +565,10 @@ async function bootDash() {
         fd.set('badge', badge);
         try {
           const created = await api('/api/admin/accounts', { method: 'POST', body: fd });
-          $('#create-msg').textContent = `Created ${created.user.username} · ${created.user.accountId} · ID hidden · unlimited chat`;
+          $('#create-msg').textContent = t('createdSpecial', { name: created.user.username, id: created.user.accountId });
           await openDossier(created.user.accountId);
         } catch (err) {
-          $('#create-msg').textContent = err.message;
+          $('#create-msg').textContent = I18n.error(err.message);
         }
       };
     } else if (tab === 'chats') {
@@ -566,23 +576,23 @@ async function bootDash() {
       panel.innerHTML = conversations.map((c) => `
         <div class="notice" style="cursor:pointer" data-open="${c.id}">
           <strong>#${c.id}</strong> ${c.users.map((u) => `${esc(u.username)} (${esc(u.accountId)})`).join(' ↔ ')}
-          <div class="muted">${c.lastMessage ? esc(c.lastMessage.body || c.lastMessage.type) : 'No messages'} · started ${new Date(c.startedAt).toLocaleString()}</div>
-        </div>`).join('') || '<p class="muted">No conversations yet.</p>';
+          <div class="muted">${c.lastMessage ? esc((I18n.localizeChatBody && I18n.localizeChatBody(c.lastMessage.body, { name: '' })) || c.lastMessage.body || c.lastMessage.type) : t('noMessages')} · ${t('startedLabel')} ${new Date(c.startedAt).toLocaleString(I18n.locale())}</div>
+        </div>`).join('') || `<p class="muted">${t('noConversations')}</p>`;
       panel.onclick = async (e) => {
         const n = e.target.closest('[data-open]');
         if (!n) return;
         const data = await api(`/api/admin/conversations/${n.dataset.open}`);
         panel.innerHTML = `
-          <button data-back>← Back</button>
+          <button data-back>${t('back')}</button>
           <p>${data.conversation.users.map((u) => `<button class="ghost" data-open-id="${esc(u.accountId)}">${esc(u.username)} · ${esc(u.accountId)}</button> · ${esc(u.phone)}`).join('<br>')}</p>
-          ${data.conversation.involvesAdmin ? `<p class="muted">Member messaging: ${data.conversation.messagingOpen ? 'open' : 'closed'}
-            <button data-msg="${data.conversation.id}" data-msg-open="${data.conversation.messagingOpen ? '0' : '1'}">${data.conversation.messagingOpen ? 'Close messaging' : 'Reopen messaging'}</button></p>` : ''}
+          ${data.conversation.involvesAdmin ? `<p class="muted">${t('memberMessaging')}: ${data.conversation.messagingOpen ? t('msgOpen') : t('msgClosed')}
+            <button data-msg="${data.conversation.id}" data-msg-open="${data.conversation.messagingOpen ? '0' : '1'}">${data.conversation.messagingOpen ? t('closeMessaging') : t('reopenMessaging')}</button></p>` : ''}
           <div class="chat-log">${data.messages.map((m) => `
-            <div class="msg"><div class="muted">${m.sender ? esc(m.sender.username) : 'system'} · ${new Date(m.createdAt).toLocaleString()}</div>
+            <div class="msg"><div class="muted">${m.sender ? esc(m.sender.username) : t('systemSender')} · ${new Date(m.createdAt).toLocaleString(I18n.locale())}</div>
             ${m.type === 'image' && m.mediaUrl ? `<img class="thumb" src="${m.mediaUrl}" />` : ''}
             ${m.type === 'voice' && m.mediaUrl ? `<audio controls src="${m.mediaUrl}"></audio>` : ''}
-            <div>${esc(m.body || m.type)}</div></div>`).join('')}</div>
-          <button data-expire="${data.conversation.id}">Expire 24h free window (test)</button>`;
+            <div>${esc((I18n.localizeChatBody && I18n.localizeChatBody(m.body, { name: '' })) || m.body || m.type)}</div></div>`).join('')}</div>
+          <button data-expire="${data.conversation.id}">${t('expireFree')}</button>`;
         panel.querySelector('[data-back]').onclick = render;
         panel.querySelectorAll('[data-open-id]').forEach((b) => {
           b.onclick = () => openDossier(b.dataset.openId);
@@ -599,12 +609,12 @@ async function bootDash() {
         }
         panel.querySelector('[data-expire]').onclick = async () => {
           await api(`/api/admin/conversations/${data.conversation.id}/expire-free`, { method: 'POST' });
-          alert('Free window expired for this chat.');
+          alert(t('expireFreeOk'));
         };
       };
     } else if (tab === 'upgrades') {
       const { upgrades } = await api('/api/admin/upgrades');
-      panel.innerHTML = upgrades.map(upgradeCard).join('') || '<p class="muted">No upgrade submissions.</p>';
+      panel.innerHTML = upgrades.map(upgradeCard).join('') || `<p class="muted">${t('noUpgrades')}</p>`;
       panel.onclick = async (e) => {
         const ok = e.target.closest('[data-ok]');
         const no = e.target.closest('[data-no]');
@@ -613,7 +623,7 @@ async function bootDash() {
           if (no) await api(`/api/admin/upgrades/${no.dataset.no}/reject`, { method: 'POST' });
           if (ok || no) render();
         } catch (err) {
-          alert(err.message);
+          alert(I18n.error(err.message));
         }
       };
     } else if (tab === 'hosts') {
@@ -625,19 +635,19 @@ async function bootDash() {
         <div class="notice${a.paidActive ? ' paid-active' : ''}">
           <div class="row">
             <div>
-              <span class="badge ${a.hostStatus}">${esc(a.hostStatus)}</span>
+              <span class="badge ${a.hostStatus}">${esc(st(a.hostStatus))}</span>
               ${hostMark(a)}
               <strong>${esc(a.username)}</strong>
               ${a.extraUpgrade ? `<span class="extra-upgrade-badge">${esc(t('extraUpgrade'))}</span>` : ''}
               <button class="ghost" data-open-id="${esc(a.accountId)}">${esc(a.accountId)}</button><br>
-              Phone ${esc(a.phone)}
+              ${t('phone')} ${esc(a.phone)}
             </div>
           </div>
           ${nrcBlock(a)}
         </div>`
             )
             .join('')
-        : '<p class="muted">No female host verifications yet.</p>';
+        : `<p class="muted">${t('noHostVerifications')}</p>`;
       panel.onclick = async (e) => {
         const open = e.target.closest('[data-open-id]');
         const ok = e.target.closest('[data-host-ok]');
@@ -651,7 +661,7 @@ async function bootDash() {
           if (no) await api(`/api/admin/accounts/${no.dataset.hostNo}/host-reject`, { method: 'POST' });
           if (ok || no) render();
         } catch (err) {
-          alert(err.message);
+          alert(I18n.error(err.message));
         }
       };
     } else if (tab === 'payouts') {
@@ -659,15 +669,15 @@ async function bootDash() {
       panel.innerHTML = payouts.length
         ? payouts.map((p) => `
         <div class="notice">
-          <span class="badge ${p.status}">${esc(p.status)}</span>
+          <span class="badge ${p.status}">${esc(st(p.status))}</span>
           <strong>${esc(p.host && p.host.username)}</strong>
           <button class="ghost" data-open-id="${esc(p.host && p.host.accountId)}">${esc(p.host && p.host.accountId)}</button><br>
-          −${Number(p.amount).toLocaleString()} MMK · ${p.method === 'kbz' ? 'KBZ Pay' : 'Wave'}<br>
+          −${Number(p.amount).toLocaleString()} MMK · ${p.method === 'kbz' ? t('kbz') : t('wave')}<br>
           ${esc(p.payeeName)} · ${esc(p.payeePhone)}
-          <div class="muted">${new Date(p.createdAt).toLocaleString()}</div>
-          ${p.status === 'pending' ? `<div class="actions" style="margin-top:8px"><button data-pay-done="${p.id}">Done (money sent)</button></div>` : ''}
+          <div class="muted">${new Date(p.createdAt).toLocaleString(I18n.locale())}</div>
+          ${p.status === 'pending' ? `<div class="actions" style="margin-top:8px"><button data-pay-done="${p.id}">${t('doneMoneySent')}</button></div>` : ''}
         </div>`).join('')
-        : '<p class="muted">No payout requests yet.</p>';
+        : `<p class="muted">${t('noPayouts')}</p>`;
       panel.onclick = async (e) => {
         const open = e.target.closest('[data-open-id]');
         const done = e.target.closest('[data-pay-done]');
@@ -678,7 +688,7 @@ async function bootDash() {
             render();
           }
         } catch (err) {
-          alert(err.message);
+          alert(I18n.error(err.message));
         }
       };
     } else if (tab === 'pin-recovery') {
@@ -688,27 +698,27 @@ async function bootDash() {
             .map(
               (r) => `
         <div class="notice">
-          <span class="badge ${esc(r.status)}">${esc(r.status)}</span>
+          <span class="badge ${esc(r.status)}">${esc(st(r.status))}</span>
           <strong>${esc(r.accountId)}</strong>
           ${r.username ? ` · ${esc(r.username)}` : ''}
           ${r.accountFound ? `<button class="ghost" data-open-id="${esc(r.accountId)}">${esc(r.accountId)}</button>` : ''}<br>
-          Submitted phone ${esc(r.phone)}
+          ${t('submittedPhone')} ${esc(r.phone)}
           <div class="muted">${
             r.matched
-              ? 'Account ID and phone match a member — verify, then Reset PIN.'
+              ? t('noticePinMatch')
               : r.accountFound
-                ? 'Account found, but the submitted phone does not match. Do not reset until verified.'
-                : 'No matching account. Review manually. Do not reset until verified.'
+                ? t('noticePinPhoneMismatch')
+                : t('noticePinNoAccount')
           }</div>
-          <div class="muted">${new Date(r.createdAt).toLocaleString()}</div>
+          <div class="muted">${new Date(r.createdAt).toLocaleString(I18n.locale())}</div>
           ${r.status === 'pending' ? `<div class="actions" style="margin-top:8px">
             ${r.userId ? `<button data-act="reset" data-id="${r.userId}" data-phone="${esc(r.phone)}">${t('resetPin')}</button>` : ''}
-            <button data-pin-done="${r.id}">Mark reviewed</button>
+            <button data-pin-done="${r.id}">${t('markReviewed')}</button>
           </div>` : ''}
         </div>`
             )
             .join('')
-        : '<p class="muted">No PIN recovery requests yet. Members send account ID + registration phone from Help.</p>';
+        : `<p class="muted">${t('noPinRequests')}</p>`;
       panel.onclick = async (e) => {
         const open = e.target.closest('[data-open-id]');
         const done = e.target.closest('[data-pin-done]');
@@ -725,16 +735,16 @@ async function bootDash() {
             render();
           }
         } catch (err) {
-          alert(err.message);
+          alert(I18n.error(err.message));
         }
       };
     } else if (tab === 'broadcast') {
       panel.innerHTML = `
-        <h2>Broadcast</h2>
-        <p class="muted">Send one system message and/or image to every active member. Chat video is still not allowed.</p>
-        <div class="field"><label>System message</label><textarea id="bc-body" rows="4" placeholder="Optional text"></textarea></div>
-        <div class="field"><label>Image (optional)</label><input id="bc-img" type="file" accept="image/*" /></div>
-        <button id="bc-go">Send to everyone</button>
+        <h2>${t('broadcastTitle')}</h2>
+        <p class="muted">${t('broadcastHelp')}</p>
+        <div class="field"><label>${t('systemMessage')}</label><textarea id="bc-body" rows="4" placeholder="${esc(t('optionalText'))}"></textarea></div>
+        <div class="field"><label>${t('imageOptional')}</label><input id="bc-img" type="file" accept="image/*" /></div>
+        <button id="bc-go">${t('sendEveryone')}</button>
         <p id="bc-msg" class="muted"></p>`;
       $('#bc-go').onclick = async () => {
         const fd = new FormData();
@@ -743,31 +753,31 @@ async function bootDash() {
         if (file) fd.append('image', file);
         try {
           const data = await api('/api/admin/broadcast', { method: 'POST', body: fd });
-          $('#bc-msg').textContent = `Sent to ${data.sent} members.`;
+          $('#bc-msg').textContent = t('sentToMembers', { n: data.sent });
         } catch (err) {
-          $('#bc-msg').textContent = err.message;
+          $('#bc-msg').textContent = I18n.error(err.message);
         }
       };
     } else if (tab === 'ads') {
       const { ads } = await api('/api/admin/ads');
       panel.innerHTML = `
-        <h2>Home ads</h2>
-        <p class="muted">Shown above the people list. Multiple banners rotate every 5 seconds.</p>
-        <div class="field"><label>New banner image</label><input id="ad-file" type="file" accept="image/*" /></div>
-        <button id="ad-add">Add banner</button>
+        <h2>${t('homeAds')}</h2>
+        <p class="muted">${t('adsHelp')}</p>
+        <div class="field"><label>${t('newBanner')}</label><input id="ad-file" type="file" accept="image/*" /></div>
+        <button id="ad-add">${t('addBanner')}</button>
         <div id="ad-list" style="margin-top:16px;display:grid;gap:10px">
-          ${ads.length ? ads.map((a) => `<div class="notice row"><img class="thumb" src="${a.imageUrl}" alt="" /><button class="danger" data-ad-del="${a.id}">Remove</button></div>`).join('') : '<p class="muted">No banners yet.</p>'}
+          ${ads.length ? ads.map((a) => `<div class="notice row"><img class="thumb" src="${a.imageUrl}" alt="" /><button class="danger" data-ad-del="${a.id}">${t('remove')}</button></div>`).join('') : `<p class="muted">${t('noBanners')}</p>`}
         </div>`;
       $('#ad-add').onclick = async () => {
         const file = $('#ad-file').files[0];
-        if (!file) return alert('Choose an image');
+        if (!file) return alert(t('chooseImage'));
         const fd = new FormData();
         fd.append('image', file);
         try {
           await api('/api/admin/ads', { method: 'POST', body: fd });
           render();
         } catch (err) {
-          alert(err.message);
+          alert(I18n.error(err.message));
         }
       };
       panel.onclick = async (e) => {
@@ -777,18 +787,18 @@ async function bootDash() {
           await api(`/api/admin/ads/${del.dataset.adDel}`, { method: 'DELETE' });
           render();
         } catch (err) {
-          alert(err.message);
+          alert(I18n.error(err.message));
         }
       };
     } else if (tab === 'pricing') {
       const s = await api('/api/admin/settings');
       panel.innerHTML = `
-        <div class="field"><label>Monthly price</label><input id="price" type="number" value="${s.monthlyPrice}" /></div>
-        <div class="field"><label>Currency</label><input id="cur" value="${s.currency}" /></div>
-        <button id="savep">Save pricing</button>
-        <table style="margin-top:16px"><thead><tr><th>Plan</th><th>List</th><th>Due</th><th>Discount</th></tr></thead>
-        <tbody>${s.quotes.map((q) => `<tr><td>${q.label}</td><td>${money(q.gross, s.currency)}</td><td>${money(q.amount, s.currency)}</td><td>${q.discountPercent ? q.discountPercent + '%' : '—'}</td></tr>`).join('')}</tbody></table>
-        <p class="muted">6 months prepaid = 30% off. 12 months = 50% off. Other durations are full monthly × months.</p>`;
+        <div class="field"><label>${t('monthlyPrice')}</label><input id="price" type="number" value="${s.monthlyPrice}" /></div>
+        <div class="field"><label>${t('currencyLabel')}</label><input id="cur" value="${s.currency}" /></div>
+        <button id="savep">${t('savePricing')}</button>
+        <table style="margin-top:16px"><thead><tr><th>${t('planCol')}</th><th>${t('listCol')}</th><th>${t('dueCol')}</th><th>${t('discountCol')}</th></tr></thead>
+        <tbody>${s.quotes.map((q) => `<tr><td>${esc(monthsLabel(q.months))}</td><td>${money(q.gross, s.currency)}</td><td>${money(q.amount, s.currency)}</td><td>${q.discountPercent ? q.discountPercent + '%' : '—'}</td></tr>`).join('')}</tbody></table>
+        <p class="muted">${t('pricingHelp')}</p>`;
       $('#savep').onclick = async () => {
         await api('/api/admin/settings', { method: 'PUT', json: { monthlyPrice: Number($('#price').value), currency: $('#cur').value } });
         render();
@@ -796,12 +806,12 @@ async function bootDash() {
     } else {
       const s = await api('/api/admin/settings');
       panel.innerHTML = `
-        <div class="field"><label>Site name</label><input id="sn" value="${esc(s.siteName)}" /></div>
-        <div class="field"><label>Payment instructions</label><textarea id="pi" rows="5">${esc(s.paymentInstructions)}</textarea></div>
-        <div class="field"><label>Admin contact (PIN recovery)</label><textarea id="ac" rows="3">${esc(s.adminContact)}</textarea></div>
-        <div class="field"><label>Income demo video URL</label><input id="dv" value="${esc(s.incomeDemoVideoUrl || '/demo/income-host.mp4')}" /></div>
-        <p class="muted">Shown on the host application screen as a chat-style sample. Default ships with the app. Use a site path or https URL.</p>
-        <button id="saves">Save settings</button>`;
+        <div class="field"><label>${t('siteNameLabel')}</label><input id="sn" value="${esc(s.siteName)}" /></div>
+        <div class="field"><label>${t('paymentInstructions')}</label><textarea id="pi" rows="5">${esc(s.paymentInstructions)}</textarea></div>
+        <div class="field"><label>${t('adminContactLabel')}</label><textarea id="ac" rows="3">${esc(s.adminContact)}</textarea></div>
+        <div class="field"><label>${t('incomeDemoUrl')}</label><input id="dv" value="${esc(s.incomeDemoVideoUrl || '/demo/income-host.mp4')}" /></div>
+        <p class="muted">${t('incomeDemoHelp')}</p>
+        <button id="saves">${t('saveSettings')}</button>`;
       $('#saves').onclick = async () => {
         await api('/api/admin/settings', {
           method: 'PUT',

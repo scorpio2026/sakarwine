@@ -58,7 +58,13 @@ function toastErr(e) {
 function genderLabel(g) {
   if (g === 'female') return t('female');
   if (g === 'male') return t('male');
+  if (g === 'unknown') return t('genderUnknown');
   return g || '';
+}
+
+function chatBody(body, vars) {
+  const name = (vars && vars.name) || (state.user && state.user.username) || '';
+  return I18n.localizeChatBody ? I18n.localizeChatBody(body, { name }) : (body || '');
 }
 
 function planLabel(months) {
@@ -212,7 +218,7 @@ function connectSocket() {
         box.scrollTop = box.scrollHeight;
       }
     } else if (!message.sender) {
-      toast(message.body || t('newSystem'));
+      toast(chatBody(message.body) || t('newSystem'));
     } else if (message.sender && message.sender.id !== state.user.id) {
       toast(t('newMessageFrom', { name: message.sender.username }));
     }
@@ -368,15 +374,14 @@ async function boot() {
 
 function showWelcome() {
   state.view = 'welcome';
-  const name = escapeHtml(state.settings.siteName || 'sakarwine');
   app.innerHTML = `
     <section class="screen welcome-screen">
       <div class="welcome-hero">
         <div class="brand-lockup">
           <span class="logo-aura" aria-hidden="true"></span>
-          <img class="brand-logo" src="/assets/sakarwine-logo.png" alt="${name}" />
+          <img class="brand-logo" src="/assets/sakarwine-logo.png" alt="SAKARWINE" />
         </div>
-        <h1>${name}</h1>
+        <h1>SAKARWINE</h1>
         <svg class="hero-wave" viewBox="0 0 375 56" preserveAspectRatio="none" aria-hidden="true">
           <path d="M0 24C62 52 118 4 188 24C248 42 312 8 375 26V56H0Z" fill="#ffffff"/>
         </svg>
@@ -511,7 +516,7 @@ function showScan() {
       modal(`
         <h3 style="margin-top:0">${t('youreIn')}</h3>
         <p>${t('accountId')} <strong>${data.user.accountId}</strong></p>
-        <p class="small muted">${t('estimatedGender')}: <strong>${result.estimatedGender}</strong> (${match} ${t('yourProfile')}).</p>
+        <p class="small muted">${t('estimatedGender')}: <strong>${escapeHtml(genderLabel(result.estimatedGender))}</strong> (${match} ${t('yourProfile')}).</p>
         <button class="btn block" id="go-in">${t('meetSaka')}</button>`);
       $('#go-in').onclick = () => {
         closeModal();
@@ -520,7 +525,7 @@ function showScan() {
       };
     } catch (err) {
       $('#start-scan').disabled = false;
-      toast(err.message || t('scanFailed'));
+      toast(I18n.error(err.message) || t('scanFailed'));
     }
   };
 }
@@ -579,7 +584,7 @@ function startAdBanner() {
       let i = 0;
       const paint = () => {
         const ad = ads[i % ads.length];
-        box.innerHTML = `<img src="${ad.imageUrl}" alt="ad" />`;
+        box.innerHTML = `<img src="${ad.imageUrl}" alt="${escapeHtml(t('adBanner'))}" />`;
         i += 1;
       };
       paint();
@@ -628,7 +633,7 @@ function inboxPreview(last) {
   if (!last) return '';
   if (last.type === 'image') return t('photo');
   if (last.type === 'voice') return t('voice');
-  return last.body || '';
+  return chatBody(last.body) || '';
 }
 
 function paintInboxList(conversations) {
@@ -1326,9 +1331,10 @@ function renderBubble(m, prev, next) {
   } else if (m.type === 'voice' && m.mediaUrl) {
     inner = `<audio controls src="${m.mediaUrl}"></audio>`;
   } else if (sys) {
-    inner = `<span class="sys-note">${escapeHtml(m.body || '')}</span>`;
+    inner = `<span class="sys-note">${escapeHtml(chatBody(m.body))}</span>`;
   } else {
-    const shown = m._showOrig && m.originalBody ? m.originalBody : (m.body || '');
+    const raw = m._showOrig && m.originalBody ? m.originalBody : (m.body || '');
+    const shown = chatBody(raw);
     inner = `<span class="bubble-text">${escapeHtml(shown)}</span>`;
     if (m.translated && m.originalBody && m.originalBody !== m.body) {
       inner += `<button type="button" class="orig-toggle" data-mid="${m.id}">${m._showOrig ? t('showTranslation') : t('showOriginal')}</button>`;
@@ -1883,7 +1889,7 @@ async function showProfile() {
           <button class="btn ${u.canWithdraw ? '' : 'secondary'} block" id="withdraw" ${u.canWithdraw ? '' : 'disabled'}>${t('withdraw')}</button>
           ${!u.canWithdraw ? `<p class="small muted">${t('withdrawAt', { amount: Number(u.hostWithdrawMin || 100000).toLocaleString() })}</p>` : ''}
           ${(u.hostPayouts || []).length
-            ? `<div class="ledger">${u.hostPayouts.map((p) => `<div class="ledger-row">${p.status} · −${p.amount} · ${p.method === 'kbz' ? t('kbz') : t('wave')} · ${escapeHtml(p.payeeName)}</div>`).join('')}</div>`
+            ? `<div class="ledger">${u.hostPayouts.map((p) => `<div class="ledger-row">${escapeHtml(I18n.statusLabel ? I18n.statusLabel(p.status) : p.status)} · −${p.amount} · ${p.method === 'kbz' ? t('kbz') : t('wave')} · ${escapeHtml(p.payeeName)}</div>`).join('')}</div>`
             : ''}
         </div>` : u.gender === 'female' ? `
         <div class="glass-card stack" style="margin-top:12px;text-align:left">
@@ -2349,8 +2355,7 @@ function showHelp(inApp = false) {
       </div>
       <div class="glass-card">
         <h3 style="margin-top:0">${t('pinRecovery')}</h3>
-        <p>${t('pinRecoveryBodyMy')}</p>
-        <p class="small muted">${t('pinRecoveryBodyEn')}</p>
+        <p>${t('pinRecoveryBody')}</p>
         <form id="pin-recovery-form" class="help-form stack">
           <div class="field">
             <label for="pin-aid">${t('pinRecoveryAccountId')}</label>

@@ -537,52 +537,14 @@ function startAiWelcome(user) {
   const conv = getOrCreateConversation(user.id, ai.id);
   const existing = db.prepare('SELECT COUNT(*) AS n FROM messages WHERE conversation_id = ?').get(conv.id);
   if (existing.n > 0) return conv;
-  const welcome = [
-    `sakarwine မှ ကြိုဆိုပါတယ်၊ ${user.username}။ ကျွန်တော် Saka — လမ်းညွှန်ပေးမည်။`,
-    `Welcome to sakarwine, ${user.username}. I’m Saka — I’ll show you around.`
-  ].join('\n\n');
-  const rules = [
-    'စည်းကမ်း / Rules',
-    '',
-    'အဆင့်မမြှင့်ရသေးပါက',
-    '• စကားပြောအသစ်တိုင်း အခမဲ့ ၂၄ နာရီသာ ရသည်။',
-    '• ဓာတ်ပုံများ အဆင့် ၃ မတိုင်မီ ပိတ်ထားသည်။',
-    '• 09 ဖုန်းနံပါတ်နှင့် @ ဖြင့် စသော စာ မပို့ရ။ ဗီဒီယို မရပါ။',
-    '',
-    'အဆင့်မြှင့်ပြီး',
-    '• ပေးပြီးကာလအတွင်း လူအကန့်အသတ်မရှိ စကားပြောနိုင်သည်။',
-    '• အဆင့် ၃ တွင် ဓာတ်ပုံ ရှင်းလင်းစွာ မြင်ရသည်။',
-    '• ၆ လ ၃၀% လျှော့၊ ၁၂ လ ၅၀% လျှော့။ အက်ဒမင် အတည်ပြုသည်နှင့် ပေးပြီးကာလ စသည်။',
-    '',
-    'Without upgrade',
-    '• Each new chat has 24 hours free.',
-    '• Photos stay locked until Level 3.',
-    '• No 09 phone numbers; do not start a message with @. No video.',
-    '',
-    'If you upgrade',
-    '• Unlimited chatting for the paid period.',
-    '• Photos unlock at Level 3.',
-    '• 6 months is 30% off; 12 months is 50% off. Admin approval starts paid time immediately.'
-  ].join('\n');
-  const hostNotice = [
-    'Host (မိန်းကလေးသာ)',
-    'ပရိုဖိုင် ဆက်တင်မှ Host လျှောက်နိုင်သည်။ အက်ဒမင် အတည်ပြုပြီး ကိုယ်ပိုင် ရည်ညွှန်းကုဒ် ၈ လုံး ရသည်။',
-    'အဆင့်မြှင့်သူများ ထိုကုဒ်ကို ထည့်ရန် မဖြစ်မနေ မဟုတ်။ မှန်ကန်သော ကုဒ်ဖြင့် အတည်ပြုသော အဆင့်မြှင့်တိုင်း host က လတစ်လလျှင် +၅၀၀ ရသည် (၁ လ → +၅၀၀၊ ၂ လ → +၁၀၀၀၊ ၆ လ → +၃၀၀၀၊ ၁၂ လ → +၆၀၀၀)။',
-    '၁၀၀,၀၀၀ တွင် KBZ Pay သို့မဟုတ် Wave ဖြင့် ထုတ်ယူနိုင်သည်။',
-    '',
-    'Female host',
-    'Apply to become a host from Profile Settings. After admin approval you get your own personal 8-digit referral code.',
-    'Members may optionally enter that code when upgrading. Each time a valid code is used on an approved upgrade, you earn +500 × months (1 month → +500, 2 months → +1000, 6 → +3000, 12 → +6000).',
-    'Withdraw from 100,000 via KBZ Pay or Wave.'
-  ].join('\n');
   const ins = db.prepare(
     'INSERT INTO messages (conversation_id, sender_id, type, body, created_at, source_lang) VALUES (?, ?, ?, ?, ?, ?)'
   );
   const now = Date.now();
-  ins.run(conv.id, ai.id, 'text', welcome, now, 'my');
-  ins.run(conv.id, null, 'system', rules, now + 1, null);
+  ins.run(conv.id, ai.id, 'text', '__SW__:welcome', now, 'my');
+  ins.run(conv.id, null, 'system', '__SW__:rules', now + 1, null);
   if (user.gender === 'female') {
-    ins.run(conv.id, null, 'system', hostNotice, now + 2, null);
+    ins.run(conv.id, null, 'system', '__SW__:host', now + 2, null);
   }
   return conv;
 }
