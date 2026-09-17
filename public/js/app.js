@@ -512,6 +512,7 @@ async function showHome(opts = {}) {
   const u = state.user;
   app.innerHTML = `
     <section class="screen home-screen">
+      <div class="screen-body">
       <div class="topbar">
         <div>
           <div class="muted small">Hello, ${u.username}</div>
@@ -521,6 +522,7 @@ async function showHome(opts = {}) {
       </div>
       <div id="ad-banner" class="ad-banner" hidden></div>
       <div id="user-list" class="user-list"></div>
+      </div>
       ${nav('home')}
     </section>`;
   bindNav();
@@ -671,6 +673,7 @@ function renderChat(opts = {}) {
   const expired = c.window.expired;
   app.innerHTML = `
     <section class="screen chat-screen">
+      <div class="screen-body">
       <div class="topbar chat-head">
         <button class="icon-btn" id="back">${ICONS.back}</button>
         ${avatarHtml(c.peer)}
@@ -687,6 +690,7 @@ function renderChat(opts = {}) {
       ${hostCreditBanner(c)}
       <div id="messages" class="messages">${c.messages.map(renderBubble).join('')}</div>
       <div class="typing" id="typing"></div>
+      </div>
       <div class="composer">
         <button class="icon-btn" id="img-btn" ${expired ? 'disabled' : ''}>${ICONS.image}</button>
         <button class="icon-btn" id="mic-btn" ${expired ? 'disabled' : ''}>${ICONS.mic}</button>
@@ -845,8 +849,9 @@ async function showUpgrade() {
   const mine = await api('/api/upgrade/mine');
   app.innerHTML = `
     <section class="screen">
+      <div class="screen-body">
       <div class="topbar"><h2>Upgrade</h2>${statusPill(state.user)}</div>
-      <div class="glass-card stack" style="overflow:auto;flex:1">
+      <div class="glass-card stack">
         ${state.user.isSpecial ? `
           <p>This special account already has <strong>unlimited chatting</strong> — no upgrade is required.</p>
           <p class="small muted">Your lounge badge is ${roleMark(state.user)}.</p>
@@ -866,6 +871,7 @@ async function showUpgrade() {
         <button class="btn block" id="submit-up">Submit for admin approval</button>
         <div class="small muted">${mine.upgrades.map((u) => `#${u.id} · ${u.months} mo · ${money(u.amount, u.currency)} · ${u.status}`).join('<br>') || 'No submissions yet.'}</div>
         `}
+      </div>
       </div>
       ${nav('upgrade')}
     </section>`;
@@ -977,6 +983,7 @@ function showProfile() {
         </div>` : '';
   app.innerHTML = `
     <section class="screen">
+      <div class="screen-body">
       <div class="topbar"><h2>You</h2></div>
       <div class="glass-card stack center">
         ${avatarHtml(u)}
@@ -988,6 +995,7 @@ function showProfile() {
         <button class="btn secondary block" id="logout">Sign out</button>
       </div>
       ${femaleForm}
+      </div>
       ${nav('profile')}
     </section>`;
   bindNav();
@@ -1067,6 +1075,7 @@ function showHelp(inApp = false) {
   state.view = 'help';
   app.innerHTML = `
     <section class="screen">
+      ${inApp ? '<div class="screen-body">' : ''}
       <div class="topbar">
         ${inApp ? '' : `<button class="icon-btn" id="back">${ICONS.back}</button>`}
         <h2>Help</h2>
@@ -1081,7 +1090,7 @@ function showHelp(inApp = false) {
         <p>Female accounts include an income form and must upload Myanmar NRC (front + back) at registration. After admin approval, a blue <strong>host</strong> badge sits beside your level. NRC photos are stored for admin review only.</p>
         <p>Hosts earn <strong>500</strong> only when an upgraded member (Lv 1+) <strong>comes to talk</strong> and you stay in a <strong>continuous 10-minute</strong> mutual chat. Chats you start do not count. Each visitor credits once. Going offline or blocking before 10 minutes voids that session. Withdraw opens at 100,000 via KBZ Pay or Wave. Hosts may keep talking without the 24-hour gate to members who visited them. Editing the income form needs Lv 1+.</p>
       </div>
-      ${inApp ? nav('help') : ''}
+      ${inApp ? `</div>${nav('help')}` : ''}
     </section>`;
   if ($('#back')) $('#back').onclick = showWelcome;
   if (inApp) bindNav();

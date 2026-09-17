@@ -104,13 +104,24 @@ body {
 }
 
 .home-screen,
-.chat-screen {
+.chat-screen,
+.screen:has(.nav) {
   overflow: hidden;
   padding-bottom: 0;
 }
-.screen:has(.nav):not(.home-screen) {
-  padding-bottom: 0;
+.screen-body {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 18px;
 }
+.screen-body > .glass-card { min-height: 0; }
 
 .brand-lockup {
   text-align: center;
@@ -353,13 +364,13 @@ body {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
-  margin-top: 10px;
+  margin-top: 4px;
   flex-shrink: 0;
   position: sticky;
   bottom: 0;
   z-index: 8;
-  padding: 8px 0 calc(8px + var(--safe-bottom));
-  background: linear-gradient(180deg, rgba(18, 6, 12, 0), rgba(18, 6, 12, 0.96) 28%);
+  padding: 4px 0 calc(8px + var(--safe-bottom));
+  background: linear-gradient(180deg, rgba(18, 6, 12, 0.88), rgba(18, 6, 12, 0.96));
   backdrop-filter: blur(18px);
 }
 .nav button {
