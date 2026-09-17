@@ -15,14 +15,16 @@ const { translateText, normalizeLang } = require('./translate');
 const { quotePlan, allQuotes, addMonths, isPaid, isSpecial, canChatUnlimited, clampMonths } = require('./pricing');
 const {
   HOST_CREDIT_AMOUNT,
-  HOST_CHAT_MS,
   HOST_WITHDRAW_MIN,
   markPresence,
   hostIncomeSummary,
   mutualSnapshot,
   voidSession,
   requestPayout,
-  listPayouts
+  listPayouts,
+  assignHostCode,
+  findHostByCode,
+  creditHostForUpgrade
 } = require('./hostIncome');
 const { rateLimit, securityHeaders, csrfGuard, rejectClientPrivilege, safeEqual } = require('./security');
 const {
@@ -430,7 +432,7 @@ function startAiWelcome(user) {
     'Please don’t send Myanmar numbers starting with 09, and don’t start a message with @.',
     'You can delete a chat for yourself only — the other person still keeps the history. Sent messages cannot be edited.',
     'Female members can apply as a host later from Settings (income form plus Myanmar NRC front and back). After admin approves, a blue host badge sits beside your level.',
-    'Hosts earn 500 when an upgraded member (Lv 1+) comes to talk and you stay in a continuous mutual chat for at least 10 minutes. Chats you start do not count. Each visitor credits once. Going offline or blocking before 10 minutes voids that session.',
+    'Hosts earn 500 each time admin approves an upgrade that used their 8-digit host code. The code is optional on upgrade. There is no per-person cap. Withdraw at 100,000 via KBZ Pay or Wave.',
     'Host income withdraws at 100,000 via KBZ Pay or Wave. Admin confirms transfer with a system note.',
     'Forgot your 6-digit PIN? There is no self-serve reset — contact admin and give the phone you registered.'
   ];
@@ -858,8 +860,7 @@ app.get('/api/me', requireUser, (req, res) => {
   res.json({
     user: serializeMe(req.user),
     siteName: getSetting(db, 'site_name', 'sakarwine'),
-    hostCreditAmount: HOST_CREDIT_AMOUNT,
-    hostChatMs: HOST_CHAT_MS
+    hostCreditAmount: HOST_CREDIT_AMOUNT
   });
 });
 
@@ -1416,6 +1417,15 @@ app.post('/api/upgrade', requireUser, requireActive, multerSingle(uploadReceipt,
     return res.status(400).json({ error: 'Account ID must match the signed-in account.' });
   }
   if (!req.file) return res.status(400).json({ error: 'Upload your payment transfer screenshot.' });
+  const rawHostCode = String(req.body.hostCode || '').trim();
+  let host = null;
+  if (rawHostCode) {
+    host = findHostByCode(db, rawHostCode);
+    if (!host) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ error: 'Enter a valid host code.' });
+    }
+  }
   const pending = db
     .prepare('SELECT id FROM upgrades WHERE user_id = ? AND status = ?')
     .get(req.user.id, 'pending');
@@ -1424,8 +1434,8 @@ app.post('/api/upgrade', requireUser, requireActive, multerSingle(uploadReceipt,
   const quote = quotePlan(monthly, months);
   const info = db
     .prepare(
-      `INSERT INTO upgrades (user_id, account_id, months, amount, currency, receipt_path, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)`
+      `INSERT INTO upgrades (user_id, account_id, months, amount, currency, receipt_path, host_id, host_code, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`
     )
     .run(
       req.user.id,
@@ -1434,6 +1444,8 @@ app.post('/api/upgrade', requireUser, requireActive, multerSingle(uploadReceipt,
       quote.amount,
       getSetting(db, 'currency', 'MMK'),
       req.file.filename,
+      host ? host.id : null,
+      host ? host.host_code : null,
       Date.now()
     );
   io.to('admins').emit('upgrade:new', { id: info.lastInsertRowid, accountId: req.user.account_id });
@@ -1570,9 +1582,15 @@ app.get('/api/admin/stats', requireAdmin, (_req, res) => {
 
 app.get('/api/admin/accounts', requireAdmin, (_req, res) => {
   const rows = db.prepare('SELECT * FROM users WHERE is_ai = 0 ORDER BY id DESC').all();
+  const pendingByUser = new Map(
+    db
+      .prepare("SELECT user_id, COUNT(*) AS n FROM upgrades WHERE status = 'pending' GROUP BY user_id")
+      .all()
+      .map((r) => [r.user_id, r.n])
+  );
   res.json({
     accounts: rows.map((u) =>
-      adminUser(u, { online: isOnline(u.id) })
+      adminUserWithUpgradeFlags(u, { online: isOnline(u.id), pendingCount: pendingByUser.get(u.id) || 0 })
     ),
     badges: getBadges(db)
   });
@@ -1598,9 +1616,27 @@ app.get('/api/admin/search', requireAdmin, (req, res) => {
     )
     .all(like, like, like, q, `${safe}%`);
   res.json({
-    matches: rows.map((u) => adminUser(u, { online: isOnline(u.id) }))
+    matches: rows.map((u) => adminUserWithUpgradeFlags(u, { online: isOnline(u.id) }))
   });
 });
+
+function pendingUpgradeCount(userId) {
+  return db.prepare("SELECT COUNT(*) AS n FROM upgrades WHERE user_id = ? AND status = 'pending'").get(userId).n;
+}
+
+function adminUserWithUpgradeFlags(row, extra = {}) {
+  const now = Date.now();
+  const pendingCount =
+    extra.pendingCount != null ? extra.pendingCount : pendingUpgradeCount(row.id);
+  const { pendingCount: _ignored, ...rest } = extra;
+  const paidActive = isPaid(row, now);
+  return {
+    ...adminUser(row, rest),
+    paidActive,
+    pendingUpgrades: pendingCount,
+    extraUpgrade: paidActive && pendingCount > 0
+  };
+}
 
 function serializeUpgradeRow(u) {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(u.user_id);
@@ -1617,7 +1653,9 @@ function serializeUpgradeRow(u) {
     receiptUrl: u.receipt_path ? `/api/media/receipt/${u.receipt_path}` : null,
     phone: user ? user.phone : null,
     username: user ? user.username : null,
-    level: user ? user.level : null
+    level: user ? user.level : null,
+    hostCode: u.host_code || null,
+    hostId: u.host_id || null
   };
 }
 
@@ -1640,7 +1678,7 @@ app.get('/api/admin/dossier', requireAdmin, (req, res) => {
     else {
       return res.status(404).json({
         error: hits.length ? 'Several accounts match. Pick one from the list.' : 'No account found for that ID.',
-        matches: hits.map((u) => adminUser(u, { online: isOnline(u.id) }))
+        matches: hits.map((u) => adminUserWithUpgradeFlags(u, { online: isOnline(u.id) }))
       });
     }
   }
@@ -1679,7 +1717,7 @@ app.get('/api/admin/dossier', requireAdmin, (req, res) => {
     .all(user.id)
     .map((u) => adminUser(u));
   res.json({
-    user: adminUser(user, { includeNrc: true, online: isOnline(user.id) }),
+    user: adminUserWithUpgradeFlags(user, { includeNrc: true, online: isOnline(user.id) }),
     conversations: convos,
     upgrades,
     blocked,
@@ -1847,8 +1885,9 @@ app.post('/api/admin/accounts/:id/host-approve', requireAdmin, (req, res) => {
   db.prepare(
     "UPDATE users SET host_status = 'approved', is_host = 1, host_reviewed_at = ? WHERE id = ?"
   ).run(Date.now(), id);
+  const hostCode = assignHostCode(db, id);
   const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
-  emitToUser(id, 'host:approved', { isHost: true });
+  emitToUser(id, 'host:approved', { isHost: true, hostCode });
   res.json({
     ok: true,
     user: adminUser(updated, { includeNrc: true, online: isOnline(id) })
@@ -1937,6 +1976,16 @@ app.post('/api/admin/upgrades/:id/approve', requireAdmin, (req, res) => {
   ).run(paidUntil, 'pending_liveness', 'active', user.id);
   db.prepare("UPDATE upgrades SET status = 'approved', reviewed_at = ? WHERE id = ?").run(now, id);
   const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+  if (up.host_id) {
+    const host = db.prepare('SELECT * FROM users WHERE id = ?').get(up.host_id);
+    creditHostForUpgrade(db, {
+      host,
+      member: updated,
+      upgradeId: up.id,
+      now,
+      emit: emitToUser
+    });
+  }
   emitToUser(user.id, 'upgrade:approved', {
     months: up.months,
     paidUntil,
@@ -2222,7 +2271,6 @@ module.exports = {
   start,
   DATA_DIR,
   FREE_CHAT_MS,
-  HOST_CHAT_MS,
   HOST_CREDIT_AMOUNT,
   HOST_WITHDRAW_MIN,
   OFFLINE_PURGE_MS

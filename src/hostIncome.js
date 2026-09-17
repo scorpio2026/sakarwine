@@ -30,14 +30,12 @@ function ensureHostIncomeTables(db) {
     CREATE TABLE IF NOT EXISTS host_income_ledger (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       host_id INTEGER NOT NULL,
-      partner_id INTEGER NOT NULL,
-      conversation_id INTEGER NOT NULL,
+      partner_id INTEGER,
+      conversation_id INTEGER,
+      upgrade_id INTEGER,
       amount INTEGER NOT NULL,
       created_at INTEGER NOT NULL,
-      UNIQUE(host_id, partner_id),
-      FOREIGN KEY (host_id) REFERENCES users(id),
-      FOREIGN KEY (partner_id) REFERENCES users(id),
-      FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+      FOREIGN KEY (host_id) REFERENCES users(id)
     );
 
     CREATE TABLE IF NOT EXISTS host_payouts (
@@ -56,6 +54,30 @@ function ensureHostIncomeTables(db) {
     CREATE INDEX IF NOT EXISTS idx_host_income_host ON host_income_ledger(host_id);
     CREATE INDEX IF NOT EXISTS idx_host_payouts_host ON host_payouts(host_id, status);
   `);
+  migrateHostLedger(db);
+}
+
+function migrateHostLedger(db) {
+  const cols = db.prepare('PRAGMA table_info(host_income_ledger)').all();
+  if (!cols.length) return;
+  if (cols.some((c) => c.name === 'upgrade_id')) return;
+  db.exec(`
+    CREATE TABLE host_income_ledger_v2 (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      host_id INTEGER NOT NULL,
+      partner_id INTEGER,
+      conversation_id INTEGER,
+      upgrade_id INTEGER,
+      amount INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (host_id) REFERENCES users(id)
+    );
+    INSERT INTO host_income_ledger_v2 (id, host_id, partner_id, conversation_id, amount, created_at)
+      SELECT id, host_id, partner_id, conversation_id, amount, created_at FROM host_income_ledger;
+    DROP TABLE host_income_ledger;
+    ALTER TABLE host_income_ledger_v2 RENAME TO host_income_ledger;
+    CREATE INDEX IF NOT EXISTS idx_host_income_host ON host_income_ledger(host_id);
+  `);
 }
 
 function ensureMutualRow(db, convId, now) {
@@ -69,9 +91,55 @@ function ensureMutualRow(db, convId, now) {
   return row;
 }
 
-function partnerQualifies(partner) {
-  if (!partner || partner.is_ai) return false;
-  return Number(partner.level || 0) >= 1;
+function uniqueHostCode(db) {
+  for (let i = 0; i < 30; i++) {
+    const code = String(require('crypto').randomInt(10000000, 99999999));
+    const taken = db.prepare('SELECT id FROM users WHERE host_code = ?').get(code);
+    if (!taken) return code;
+  }
+  throw new Error('Could not assign host code');
+}
+
+function assignHostCode(db, userId) {
+  const row = db.prepare('SELECT host_code FROM users WHERE id = ?').get(userId);
+  if (row && row.host_code) return row.host_code;
+  const code = uniqueHostCode(db);
+  db.prepare('UPDATE users SET host_code = ? WHERE id = ?').run(code, userId);
+  return code;
+}
+
+function findHostByCode(db, raw) {
+  const code = String(raw || '').trim();
+  if (!/^\d{8}$/.test(code)) return null;
+  return db
+    .prepare(
+      `SELECT * FROM users
+       WHERE host_code = ? AND is_host = 1 AND host_status = 'approved' AND is_ai = 0`
+    )
+    .get(code);
+}
+
+function creditHostForUpgrade(db, { host, member, upgradeId, now, emit }) {
+  if (!host || !host.is_host || host.is_ai) return null;
+  const exists = db.prepare('SELECT id FROM host_income_ledger WHERE upgrade_id = ?').get(upgradeId);
+  if (exists) return null;
+  db.prepare(
+    `INSERT INTO host_income_ledger (host_id, partner_id, conversation_id, upgrade_id, amount, created_at)
+     VALUES (?, ?, NULL, ?, ?, ?)`
+  ).run(host.id, member ? member.id : null, upgradeId, HOST_CREDIT_AMOUNT, now);
+  const total = hostEarningsTotal(db, host.id);
+  const available = hostAvailableBalance(db, host.id);
+  if (typeof emit === 'function') {
+    emit(host.id, 'host:income', {
+      amount: HOST_CREDIT_AMOUNT,
+      total,
+      available,
+      partnerUsername: member ? member.username : null,
+      partnerId: member ? member.id : null,
+      upgradeId
+    });
+  }
+  return { hostId: host.id, amount: HOST_CREDIT_AMOUNT, total, available };
 }
 
 function visitorStarted(conv, partner) {
@@ -135,85 +203,31 @@ function resetStreak(db, conv, now) {
   ).run(now, conv.id);
 }
 
-function creditHostIfEligible(db, host, partner, conv, now, emit) {
-  if (!host || !host.is_host || host.is_ai) return null;
-  if (!partnerQualifies(partner)) return null;
-  if (!visitorStarted(conv, partner)) return null;
-  const mutual = db.prepare('SELECT * FROM conversation_mutual WHERE conversation_id = ?').get(conv.id);
-  if (!mutual || mutual.voided) return null;
-  if (mutual.streak_ms < HOST_CHAT_MS) return null;
-  if (!bothPresent(db, conv, now)) return null;
-  const info = db
-    .prepare(
-      `INSERT OR IGNORE INTO host_income_ledger
-        (host_id, partner_id, conversation_id, amount, created_at)
-       VALUES (?, ?, ?, ?, ?)`
-    )
-    .run(host.id, partner.id, conv.id, HOST_CREDIT_AMOUNT, now);
-  if (!info.changes) return null;
-  const total = hostEarningsTotal(db, host.id);
-  const available = hostAvailableBalance(db, host.id);
-  if (typeof emit === 'function') {
-    emit(host.id, 'host:income', {
-      amount: HOST_CREDIT_AMOUNT,
-      total,
-      available,
-      partnerUsername: partner.username,
-      partnerId: partner.id
-    });
-  }
-  return { hostId: host.id, amount: HOST_CREDIT_AMOUNT, total, available };
+function creditHostIfEligible() {
+  return null;
 }
 
-function tryCreditConversation(db, conv, now, emit) {
-  const a = db.prepare('SELECT * FROM users WHERE id = ?').get(conv.user_lo);
-  const b = db.prepare('SELECT * FROM users WHERE id = ?').get(conv.user_hi);
-  const credited = [];
-  const one = creditHostIfEligible(db, a, b, conv, now, emit);
-  const two = creditHostIfEligible(db, b, a, conv, now, emit);
-  if (one) credited.push(one);
-  if (two) credited.push(two);
-  return credited;
+function tryCreditConversation() {
+  return [];
 }
 
-function tickMutual(db, conv, now, emit) {
-  let row = ensureMutualRow(db, conv.id, now);
-  if (row.voided) {
-    return { totalMs: row.total_ms, streakMs: 0, bothPresent: false, credited: [], voided: true };
-  }
-  const present = bothPresent(db, conv, now);
-  let total = row.total_ms;
-  let streak = row.streak_ms;
-  if (present) {
-    if (row.both_present && row.last_tick_at) {
-      const delta = Math.max(0, Math.min(now - row.last_tick_at, HOST_PRESENCE_GRACE_MS));
-      total += delta;
-      streak += delta;
-    }
-    db.prepare(
-      'UPDATE conversation_mutual SET total_ms = ?, streak_ms = ?, last_tick_at = ?, both_present = 1 WHERE conversation_id = ?'
-    ).run(total, streak, now, conv.id);
-  } else {
-    resetStreak(db, conv, now);
-    streak = 0;
-  }
-  const credited = present ? tryCreditConversation(db, conv, now, emit) : [];
-  return { totalMs: present ? total : row.total_ms, streakMs: streak, bothPresent: present, credited, voided: false };
+function tickMutual(db, conv, now) {
+  const row = ensureMutualRow(db, conv.id, now);
+  return { totalMs: row.total_ms, streakMs: 0, bothPresent: false, credited: [], voided: Boolean(row.voided) };
 }
 
-function markPresence(db, conv, userId, action, now, emit) {
+function markPresence(db, conv, userId, action, now) {
   const act = String(action || 'ping');
   if (act === 'leave') {
     db.prepare('DELETE FROM conversation_presence WHERE conversation_id = ? AND user_id = ?').run(conv.id, userId);
-    resetStreak(db, conv, now);
-    return { totalMs: 0, streakMs: 0, bothPresent: false, credited: [], voided: false };
+  } else {
+    db.prepare(
+      `INSERT INTO conversation_presence (conversation_id, user_id, last_seen)
+       VALUES (?, ?, ?)
+       ON CONFLICT(conversation_id, user_id) DO UPDATE SET last_seen = excluded.last_seen`
+    ).run(conv.id, userId, now);
   }
-  db.prepare(
-    `INSERT INTO conversation_presence (conversation_id, user_id, last_seen)
-     VALUES (?, ?, ?)
-     ON CONFLICT(conversation_id, user_id) DO UPDATE SET last_seen = excluded.last_seen`
-  ).run(conv.id, userId, now);
-  return tickMutual(db, conv, now, emit);
+  return { totalMs: 0, streakMs: 0, bothPresent: false, credited: [], voided: false };
 }
 
 function hostIncomeLedger(db, hostId, publicUserFn) {
@@ -224,15 +238,18 @@ function hostIncomeLedger(db, hostId, publicUserFn) {
     )
     .all(hostId);
   return rows.map((r) => {
-    const partner = db.prepare('SELECT * FROM users WHERE id = ?').get(r.partner_id);
+    const partner = r.partner_id ? db.prepare('SELECT * FROM users WHERE id = ?').get(r.partner_id) : null;
     return {
       id: r.id,
       amount: r.amount,
       createdAt: r.created_at,
       conversationId: r.conversation_id,
-      partner: publicUserFn
-        ? publicUserFn(partner, { viewer: { id: hostId } })
-        : { id: partner.id, username: partner.username, level: partner.level }
+      upgradeId: r.upgrade_id || null,
+      partner: partner
+        ? publicUserFn
+          ? publicUserFn(partner, { viewer: { id: hostId } })
+          : { id: partner.id, username: partner.username, level: partner.level }
+        : { id: null, username: 'upgrade', level: 0 }
     };
   });
 }
@@ -263,7 +280,6 @@ function hostIncomeSummary(db, hostId, publicUser) {
     hostEarnings: earned,
     hostBalance: available,
     hostCreditAmount: HOST_CREDIT_AMOUNT,
-    hostChatMs: HOST_CHAT_MS,
     hostWithdrawMin: HOST_WITHDRAW_MIN,
     canWithdraw: available >= HOST_WITHDRAW_MIN,
     hostIncomeLedger: hostIncomeLedger(db, hostId, publicUser),
@@ -271,25 +287,18 @@ function hostIncomeSummary(db, hostId, publicUser) {
   };
 }
 
-function mutualSnapshot(db, conv, viewer, peer) {
-  const row = db.prepare('SELECT * FROM conversation_mutual WHERE conversation_id = ?').get(conv.id);
-  const streakMs = row ? row.streak_ms : 0;
-  const credited =
-    viewer && peer ? alreadyCredited(db, viewer.id, peer.id) : false;
-  const viewerIsHost = Boolean(viewer && viewer.is_host);
-  const visitorOk = visitorStarted(conv, peer);
-  const hostOpened = viewer && Number(conv.opened_by) === Number(viewer.id);
+function mutualSnapshot() {
   return {
-    totalMs: streakMs,
-    streakMs,
-    neededMs: HOST_CHAT_MS,
+    totalMs: 0,
+    streakMs: 0,
+    neededMs: 0,
     creditAmount: HOST_CREDIT_AMOUNT,
-    partnerQualifies: partnerQualifies(peer),
-    visitorStarted: visitorOk,
-    hostOpened: Boolean(hostOpened),
-    credited: viewerIsHost ? credited : false,
-    voided: Boolean(row && row.voided),
-    eligible: viewerIsHost && partnerQualifies(peer) && visitorOk && !credited && !(row && row.voided)
+    partnerQualifies: false,
+    visitorStarted: false,
+    hostOpened: false,
+    credited: false,
+    voided: false,
+    eligible: false
   };
 }
 
@@ -369,7 +378,6 @@ module.exports = {
   HOST_WITHDRAW_MIN,
   PAYOUT_METHODS,
   ensureHostIncomeTables,
-  partnerQualifies,
   visitorStarted,
   markPresence,
   tickMutual,
@@ -380,6 +388,9 @@ module.exports = {
   hostAvailableBalance,
   hostIncomeSummary,
   mutualSnapshot,
+  assignHostCode,
+  findHostByCode,
+  creditHostForUpgrade,
   requestPayout,
   listPayouts
 };

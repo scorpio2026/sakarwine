@@ -117,6 +117,7 @@ function upgradeCard(u) {
           <span class="badge ${u.status}">${esc(u.status)}</span>
           <strong>${esc(u.accountId)}</strong> · ${esc(u.username)}<br>
           Phone ${esc(u.phone)} · ${u.months} month(s) · ${money(u.amount, u.currency)} · current Lv ${u.level}
+          ${u.hostCode ? `<div>Host code ${esc(u.hostCode)}</div>` : ''}
           <div class="muted">${new Date(u.createdAt).toLocaleString()}</div>
         </div>
         ${u.receiptUrl ? `<a href="${u.receiptUrl}" target="_blank"><img class="thumb" src="${u.receiptUrl}" alt="receipt" /></a>` : ''}
@@ -154,9 +155,10 @@ async function bootDash() {
       hits.hidden = false;
       hits.innerHTML = matches
         .map(
-          (m) => `<button type="button" class="hit" data-aid="${esc(m.accountId)}">
+          (m) => `<button type="button" class="hit${m.paidActive ? ' paid-active' : ''}" data-aid="${esc(m.accountId)}">
             <strong>${esc(m.accountId)}</strong> · ${esc(m.username)}
-            <span class="muted"> · ${esc(m.phone)} · ${m.status}${m.badge ? ` · ${esc(m.badge)}` : ''}</span>
+            ${m.extraUpgrade ? `<span class="extra-upgrade-badge">${esc(t('extraUpgrade'))}</span>` : ''}
+            <span class="muted"> · ${esc(m.phone)} · ${m.status}${m.badge ? ` · ${esc(m.badge)}` : ''}${m.paidActive ? ' · paid' : ''}</span>
           </button>`
         )
         .join('');
@@ -217,11 +219,12 @@ async function bootDash() {
         <button data-leave>← All accounts</button>
         <h2 style="margin:0">Account ${esc(a.accountId)}</h2>
       </div>
-      <div class="dossier">
+      <div class="dossier${a.paidActive ? ' paid-active' : ''}">
         <section>
           <h3>Profile</h3>
           <p>
             <strong>${esc(a.username)}</strong>
+            ${a.extraUpgrade ? `<span class="extra-upgrade-badge">${esc(t('extraUpgrade'))}</span>` : ''}
             ${a.badge ? `<span class="badge-neon">${esc(a.badge)}</span>` : ''}
             ${hostMark(a)}
             <span class="badge ${a.status}">${esc(a.status)}</span>
@@ -233,14 +236,15 @@ async function bootDash() {
           <p class="muted">Phone ${esc(a.phone)} · ${esc(a.gender)} · born ${a.birthYear}<br>
             Level ${a.level} · Paid until ${paidLine}<br>
             Account ID ${a.accountIdHidden ? 'hidden from lounge' : 'visible to lounge'}
+            ${a.hostCode ? `<br>Host code ${esc(a.hostCode)}` : ''}
             ${a.gender === 'female' ? `<br>Income: ${incomeLine(a)}` : ''}</p>
           ${a.gender === 'female' ? `<h3>NRC verification</h3>${nrcBlock(a)}` : ''}
           ${data.hostIncome ? `<h3>Host earnings</h3>
             <p><strong>${Number(data.hostIncome.hostBalance != null ? data.hostIncome.hostBalance : data.hostIncome.hostEarnings || 0).toLocaleString()} MMK</strong> available
-              <span class="muted"> · earned ${Number(data.hostIncome.hostEarnings || 0).toLocaleString()} · ${data.hostIncome.hostCreditAmount} per Lv 1+ visitor after a continuous 10-minute chat they started</span></p>
+              <span class="muted"> · earned ${Number(data.hostIncome.hostEarnings || 0).toLocaleString()} · ${data.hostIncome.hostCreditAmount} per approved upgrade that used their host code</span></p>
             ${(data.hostIncome.hostIncomeLedger || []).length
-              ? data.hostIncome.hostIncomeLedger.map((row) => `<div class="muted">+${row.amount} · ${esc(row.partner.username)} · Lv ${row.partner.level} · ${new Date(row.createdAt).toLocaleString()}</div>`).join('')
-              : '<p class="muted">No qualifying visitors credited yet.</p>'}
+              ? data.hostIncome.hostIncomeLedger.map((row) => `<div class="muted">+${row.amount} · ${esc(row.partner && row.partner.username ? row.partner.username : 'upgrade')} · Lv ${row.partner && row.partner.level != null ? row.partner.level : '—'} · ${new Date(row.createdAt).toLocaleString()}</div>`).join('')
+              : '<p class="muted">No qualifying upgrades credited yet.</p>'}
             ${(data.hostIncome.hostPayouts || []).length
               ? `<h3>Payouts</h3>${data.hostIncome.hostPayouts.map((p) => `<div class="muted">${esc(p.status)} · −${p.amount} · ${p.method === 'kbz' ? 'KBZ Pay' : 'Wave'} · ${esc(p.payeeName)} · ${esc(p.payeePhone)}</div>`).join('')}`
               : ''}` : ''}
@@ -404,8 +408,8 @@ async function bootDash() {
     if (tab === 'accounts') {
       const { accounts } = await api('/api/admin/accounts');
       panel.innerHTML = `<div class="table-scroll"><table><thead><tr><th>${t('accounts')}</th><th>${t('phone')}</th><th>${t('rolePaid')}</th><th>${t('idVisibility')}</th><th>${t('status')}</th><th></th></tr></thead><tbody>${accounts.map((a) => `
-        <tr>
-          <td><strong>${esc(a.username)}</strong><br>
+        <tr class="${a.paidActive ? 'paid-active' : ''}">
+          <td><strong>${esc(a.username)}</strong>${a.extraUpgrade ? ` <span class="extra-upgrade-badge">${esc(t('extraUpgrade'))}</span>` : ''}<br>
             <button class="ghost" data-open-id="${esc(a.accountId)}">${esc(a.accountId)}</button>
             ${a.isSpecial ? `<br><span class="badge-neon">${esc(a.badge || 'special')}</span>` : ''}${a.isHost ? `<br><span class="badge-neon badge-host" data-badge="host">host</span>` : ''}${a.hostStatus === 'pending' ? '<br><span class="muted">NRC pending</span>' : ''}</td>
           <td>${esc(a.phone)}<br><span class="muted">${esc(a.gender)} · ${a.birthYear}</span></td>

@@ -27,8 +27,7 @@ Copy `.env.example` into your shell or Render dashboard. The app reads standard 
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | `/admin` login |
 | `SITE_NAME` | Public brand (also editable in admin) |
 | `FREE_CHAT_MS` | Free window per conversation (default 24 hours) |
-| `HOST_CHAT_MS` | Continuous mutual chat required for host credit (default 10 minutes) |
-| `HOST_CREDIT_AMOUNT` | Credit per qualifying visitor (default 500) |
+| `HOST_CREDIT_AMOUNT` | Credit per approved upgrade that used the host’s code (default 500) |
 | `HOST_WITHDRAW_MIN` | Balance that enables Withdraw (default 100000) |
 | `OFFLINE_PURGE_MS` | Auto-close accounts with no activity this long (default 30 days) |
 | `TRANSLATE_API_KEY` | Optional Google Cloud Translation (or LibreTranslate) key. If unset, chat falls back to MyMemory then original text |
@@ -40,7 +39,7 @@ Copy `.env.example` into your shell or Render dashboard. The app reads standard 
 
 - Register with username (**max 12 characters**, English or Myanmar **letters and digits only** — no spaces or symbols), **exactly 6-digit PIN**, profile photo, male/female, birth year, and phone. A unique `SW########` account ID is assigned. Members with no uploaded photo show a **default avatar**: female on a **pink** background (`/assets/default-female.png`), male on a **black** background (`/assets/default-male.png`) until a custom male asset is provided.
 - **Host apply is later, not at signup.** Female and male registration is the same (username, PIN, photo, gender, birth year, phone, face-scan). Becoming a **host** is only from **Me → Settings → Host application**: income form (occupation, monthly income in MMK, source) plus **Myanmar NRC front + back**. Admin approves that verification. After approval, a blue neon **host** label sits beside the level (or special) badge. NRC images are stored on disk and served only to `/admin` (no public or member URLs).
-- **Host income:** a verified host earns **500** once per upgraded visitor (Lv ≥ 1) who **comes to talk** and stays in a **continuous mutual chat of at least 10 minutes**. Chats the host starts do not qualify. Going **offline** or **blocking** before 10 minutes voids that session. A different qualifying visitor adds another 500 — never per minute, never twice from the same account. Saka does not count. Withdraw lights up at **100,000**; she chooses **KBZ Pay** or **Wave** (name + phone). Balance is deducted immediately; admin **Done** sends the system note `ငွေဝင်ပါပြီ`. Hosts may keep messaging visitors who came to them without the 24-hour gate. Editing the income form after approval requires **Lv ≥ 1**. The income section includes a chat-style demo video (admin can replace the URL).
+- **Host income:** a verified host gets an **8-digit host code** (shown on Me and in Settings). Members may optionally enter that code on **Upgrade**. Each time admin **approves** an upgrade that used the code, the host earns **500** — no per-person or lifetime cap. Blank code: upgrade proceeds with no host credit. Invalid code: the form is rejected. Chat time does not credit income. Withdraw lights up at **100,000**; she chooses **KBZ Pay** or **Wave** (name + phone). Balance is deducted immediately; admin **Done** sends the system note `ငွေဝင်ပါပြီ`. Hosts may keep messaging visitors who came to them without the 24-hour gate. Editing the income form after approval requires **Lv ≥ 1**. The income section includes a chat-style demo video (admin can replace the URL).
 - Face-scan liveness: turn your head left, then right. On-device camera tracking (skin-pixel centroid) estimates gender. **Limitation:** this is a pragmatic heuristic, not a biometric identity product — lighting, camera angle, makeup, and skin tone strongly affect results.
 - After the scan, **Saka** (the AI guide account) opens a chat and a coach-mark tour explains people, photos, and voice notes.
 - Home lists every active member, **online first**, then offline. An **ads banner** sits above the list (admin-managed; multiple images rotate every 5 seconds).
@@ -59,9 +58,11 @@ Copy `.env.example` into your shell or Render dashboard. The app reads standard 
 
 ## Upgrades
 
-Users submit **account ID + payment screenshot**. Admin must approve. Approval **starts the paid period immediately** and increments **level by 1**.
+Users submit **account ID + payment screenshot**. A host’s **8-digit code is optional**. Admin must approve. Approval **starts the paid period immediately** and increments **level by 1**.
 
 Plans are 1–12 months. **6 months prepaid = 30% off**. **12 months = 50% off**. The monthly amount is configured in `/admin` → Pricing. The upgrade screen shows duration covered and amount due.
+
+While a paid period is still active, that account’s row in `/admin` → Accounts is **green**. After expiry it returns to the normal color. If a still-paid member submits another upgrade, a red **Extra upgrade** badge appears beside their name so admin can spot the additional purchase.
 
 ## Admin (`/admin`)
 
@@ -100,7 +101,7 @@ SQLite file: `$DATA_DIR/sakarwine.sqlite`. Uploads (profiles, chat photos, voice
 
 ## Security
 
-Balances, levels, host credits, payouts, and admin rights are **server-authoritative**. Privilege fields and money amounts on request bodies are stripped. Upgrade prices come from the server quote; withdraw amount is the current available balance; host 500s come only from server-side presence duration.
+Balances, levels, host credits, payouts, and admin rights are **server-authoritative**. Privilege fields and money amounts on request bodies are stripped. Upgrade prices come from the server quote; withdraw amount is the current available balance; host 500s are credited only when admin approves an upgrade that used that host’s code.
 
 - PINs are bcrypt-hashed. Sessions are random httpOnly cookies (`SameSite=Lax`; `Secure` in production).
 - `/admin` uses a separate cookie. Member requests cannot set admin, host, VVIP, or level.

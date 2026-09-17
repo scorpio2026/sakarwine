@@ -709,22 +709,8 @@ function formatChatMs(ms) {
   return s ? `${m}m ${s}s` : `${m}m`;
 }
 
-function hostCreditBanner(c) {
-  const m = c.mutual;
-  if (!m || !state.user || !state.user.isHost || c.peer.isAi) return '';
-  if (m.credited) {
-    return `<div class="host-earn" id="host-earn">${t('hostCredited', { amount: m.creditAmount })}</div>`;
-  }
-  if (m.hostOpened) {
-    return `<div class="host-earn dim" id="host-earn">${t('hostNoEarn')}</div>`;
-  }
-  if (!m.partnerQualifies) {
-    return `<div class="host-earn dim" id="host-earn">${t('hostNeedLv1')}</div>`;
-  }
-  if (m.voided) {
-    return `<div class="host-earn dim" id="host-earn">${t('hostVoided')}</div>`;
-  }
-  return `<div class="host-earn" id="host-earn">${t('hostProgress', { have: formatChatMs(m.streakMs || m.totalMs), need: formatChatMs(m.neededMs), amount: m.creditAmount })}</div>`;
+function hostCreditBanner() {
+  return '';
 }
 
 function stopChatPresence() {
@@ -1042,6 +1028,8 @@ async function showUpgrade() {
         ` : `
         <p class="small muted">${t('upgradeHelp')}</p>
         <div class="field"><label>${t('accountId')}</label><input id="acc" value="${state.user.accountId}" readonly /></div>
+        <div class="field"><label>${t('hostCode')} <span class="muted">(${t('optional')})</span></label><input id="host-code" inputmode="numeric" maxlength="8" autocomplete="off" /></div>
+        <p class="small muted">${t('hostCodeHelp')}</p>
         <div class="field"><label>${t('duration')}</label>
           <select id="months">${pub.quotes.map((q) => `<option value="${q.months}">${planLabel(q.months)}${q.discountPercent ? ` · ${t('planOff', { pct: q.discountPercent })}` : ''}</option>`).join('')}</select>
         </div>
@@ -1077,6 +1065,8 @@ async function showUpgrade() {
     const fd = new FormData();
     fd.append('accountId', state.user.accountId);
     fd.append('months', $('#months').value);
+    const hostCode = $('#host-code').value.trim();
+    if (hostCode) fd.append('hostCode', hostCode);
     const file = $('#receipt').files[0];
     if (!file) return toast(t('addScreenshot'));
     fd.append('receipt', file);
@@ -1134,7 +1124,7 @@ function showProfile() {
         <div class="glass-card stack" style="margin-top:12px;text-align:left">
           <h3 style="margin:0">${t('hostEarnings')}</h3>
           <p class="small muted">${escapeHtml(hostStatusLine(u))}</p>
-          ${incomeDemoBlock(u)}
+          ${u.hostCode ? `<p><span class="small muted">${t('hostCode')}</span><br><strong id="host-code-value">${escapeHtml(u.hostCode)}</strong></p>` : ''}
           <p><strong>${Number(u.hostBalance != null ? u.hostBalance : u.hostEarnings || 0).toLocaleString()} MMK</strong> ${t('available')}
             <span class="small muted"> · ${t('earned')} ${Number(u.hostEarnings || 0).toLocaleString()} · ${Number(u.hostCreditAmount || 500).toLocaleString()} ${t('perVisitor')}</span></p>
           <p class="small muted">${t('hostRules')}</p>
@@ -1246,6 +1236,7 @@ function showHostApply() {
         <div class="glass-card stack" style="text-align:left">
           <p class="small muted">${escapeHtml(hostStatusLine(u))}</p>
           <p class="small muted">${t('hostApplyHelp')}</p>
+          ${u.hostCode ? `<p><span class="small muted">${t('hostCode')}</span><br><strong>${escapeHtml(u.hostCode)}</strong></p>` : ''}
           ${incomeDemoBlock(u)}
           ${u.hostStatus === 'pending' ? `<p class="small muted">${t('hostPending')}</p>` : ''}
           ${formLocked ? `<p class="small muted">${t('incomeLocked')}</p>` : ''}

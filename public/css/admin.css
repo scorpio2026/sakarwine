@@ -102,6 +102,27 @@ button.danger { background: linear-gradient(180deg, #a22, #611); color: white; b
 }
 table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--stroke); vertical-align: top; }
+tr.paid-active td { background: #d1fae5; }
+.dossier.paid-active {
+  background: #d1fae5;
+  border-radius: 16px;
+  padding: 10px 12px;
+}
+.lookup-hits .hit.paid-active { background: #d1fae5; color: #123026; }
+.extra-upgrade-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e11d48;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
 .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; }
 .badge.pending { background: rgba(224,192,138,.2); color: var(--gold); }
 .badge.approved { background: rgba(125,255,195,.15); color: var(--ok); }
@@ -216,6 +237,10 @@ audio { width: 100%; max-width: 100%; }
     border-radius: 14px;
     background: rgba(0, 0, 0, 0.18);
   }
+  .table-scroll tr.paid-active {
+    background: #d1fae5;
+  }
+  .table-scroll tr.paid-active td { background: transparent; }
   .table-scroll td {
     display: block;
     border: 0;
