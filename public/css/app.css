@@ -523,6 +523,8 @@ body {
 .chat-tool svg { width: 22px; height: 22px; }
 .chat-tool:active { background: rgba(255,244,236,.08); }
 .chat-tool.live { color: var(--danger); background: rgba(255,138,160,.12); }
+.chat-tool[hidden],
+.chat-send[hidden] { display: none !important; }
 .chat-send {
   appearance: none;
   border: 0;
@@ -602,6 +604,9 @@ body {
   padding: 10px 12px 8px;
   gap: 2px;
 }
+.chat-screen .bubble.ai { border: 0; }
+.chat-screen .bubble.alone,
+.chat-screen .bubble.first { margin-top: 8px; }
 .chat-screen .bubble.first.me,
 .chat-screen .bubble.alone.me { border-radius: 20px 20px 6px 20px; }
 .chat-screen .bubble.mid.me { border-radius: 20px 6px 6px 20px; }

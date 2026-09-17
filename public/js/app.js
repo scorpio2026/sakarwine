@@ -136,7 +136,8 @@ function connectSocket() {
   state.socket = socket;
   socket.on('message', ({ conversationId, message }) => {
     if (state.chat && state.chat.id === conversationId) {
-      state.chat.messages.push(message);
+      const exists = message && message.id != null && state.chat.messages.some((m) => m.id === message.id);
+      if (!exists) state.chat.messages.push(message);
       const box = $('#messages');
       if (box) {
         box.innerHTML = renderThread(state.chat.messages);
