@@ -1795,7 +1795,7 @@ async function showUpgrade() {
   paint();
   $('#submit-up').onclick = async () => {
     const fd = new FormData();
-    const targetId = ($('#acc') && $('#acc').value.trim()) || state.user.accountId;
+    const targetId = $('#acc') && $('#acc').value.trim();
     if (!targetId) return toast(t('errAccountId'));
     fd.append('targetAccountId', targetId);
     fd.append('months', $('#months').value);

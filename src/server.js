@@ -2221,7 +2221,8 @@ app.get('/api/upgrade/quote', requireUser, requireActive, (req, res) => {
 app.post('/api/upgrade', requireUser, requireActive, multerSingle(uploadReceipt, 'receipt'), (req, res) => {
   const months = clampMonths(Number(req.body.months));
   if (!months) return res.status(400).json({ error: 'Choose 1 to 12 months.' });
-  const rawTarget = String(req.body.targetAccountId || req.body.swId || '').trim() || req.user.account_id;
+  const rawTarget = String(req.body.targetAccountId || req.body.swId || '').trim();
+  if (!rawTarget) return res.status(400).json({ error: 'Enter an account ID to upgrade.' });
   const target = findUserByAccountId(rawTarget);
   if (!target || target.is_ai || target.status === 'closed') {
     return res.status(400).json({ error: 'No account found for that ID.' });

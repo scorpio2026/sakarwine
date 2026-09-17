@@ -140,7 +140,7 @@ function upgradeCard(u) {
       <div class="row">
         <div>
           <span class="badge ${u.status}">${esc(u.status)}</span>
-          ${gift ? `<span class="extra-upgrade-badge">${esc(t('upgradeGift'))}</span>` : ''}
+          ${gift ? `<span class="extra-upgrade-badge">${esc(t('upgradeGift'))}</span>` : `<span class="muted">${esc(t('upgradeSelf'))}</span>`}
           ${u.extraUpgrade ? `<span class="extra-upgrade-badge">${esc(t('extraUpgrade'))}</span>` : ''}
           <div><strong>${esc(t('upgradePaidBy'))}</strong> ${esc(payer.accountId)} · ${esc(payer.username)} · ${esc(payer.phone)}</div>
           <div><strong>${esc(t('upgradeFor'))}</strong> ${esc(target.accountId)} · ${esc(target.username)}${target.phone ? ` · ${esc(target.phone)}` : ''}</div>

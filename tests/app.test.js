@@ -107,7 +107,7 @@ async function loginAdmin() {
 
 async function giveUpgrade(admin, member, hostCode) {
   const receipt = new FormData();
-  receipt.set('accountId', member.user.accountId);
+  receipt.set('targetAccountId', member.user.accountId);
   receipt.set('months', '1');
   if (hostCode) receipt.set('hostCode', hostCode);
   receipt.set('receipt', new Blob([PNG], { type: 'image/png' }), 'pay.png');
@@ -223,7 +223,7 @@ test('two users chat, filters, image lock, upgrade path', async () => {
   assert.equal(login.data.ok, true);
 
   const receipt = new FormData();
-  receipt.set('accountId', a.user.accountId);
+  receipt.set('targetAccountId', a.user.accountId);
   receipt.set('months', '6');
   receipt.set('receipt', new Blob([PNG], { type: 'image/png' }), 'pay.png');
   const submitted = await req('/api/upgrade', { method: 'POST', form: receipt, jar: a.jar });
@@ -1342,7 +1342,7 @@ test('hosts earn 500 per month of an approved upgrade that used their code', asy
   host.user = okHost.data.user;
 
   const missing = new FormData();
-  missing.set('accountId', paid.user.accountId);
+  missing.set('targetAccountId', paid.user.accountId);
   missing.set('months', '1');
   missing.set('receipt', new Blob([PNG], { type: 'image/png' }), 'pay.png');
   const noCode = await req('/api/upgrade', { method: 'POST', form: missing, jar: paid.jar });
@@ -1360,7 +1360,7 @@ test('hosts earn 500 per month of an approved upgrade that used their code', asy
   assert.equal(none.data.user.hostEarnings, 0);
 
   const bad = new FormData();
-  bad.set('accountId', paid.user.accountId);
+  bad.set('targetAccountId', paid.user.accountId);
   bad.set('months', '1');
   bad.set('hostCode', '00000000');
   bad.set('receipt', new Blob([PNG], { type: 'image/png' }), 'pay.png');
@@ -1447,6 +1447,28 @@ test('hosts earn 500 per month of an approved upgrade that used their code', asy
   assert.ok(thread.data.messages.some((m) => m.type === 'system' && /ငွေဝင်ပါပြီ/.test(m.body || '')));
 });
 
+test('host earns 6000 for a 12-month upgrade that used their code', async () => {
+  await started;
+  const admin = await loginAdmin();
+  const host = await register('yrhst' + Date.now().toString().slice(-5), '121212', 'female');
+  const payer = await register('yrpay' + Date.now().toString().slice(-5), '232323', 'male');
+  await applyHost(host);
+  const okHost = await req(`/api/admin/accounts/${host.user.id}/host-approve`, { method: 'POST', jar: admin });
+  const code = okHost.data.user.hostCode;
+  const form = new FormData();
+  form.set('targetAccountId', payer.user.accountId);
+  form.set('months', '12');
+  form.set('hostCode', code);
+  form.set('receipt', new Blob([PNG], { type: 'image/png' }), 'pay.png');
+  const submitted = await req('/api/upgrade', { method: 'POST', form, jar: payer.jar });
+  assert.equal(submitted.res.status, 200, submitted.data.error);
+  const approved = await req(`/api/admin/upgrades/${submitted.data.id}/approve`, { method: 'POST', jar: admin });
+  assert.equal(approved.res.status, 200, approved.data.error);
+  const me = await req('/api/me', { jar: host.jar });
+  assert.equal(me.data.user.hostEarnings, 6000);
+  assert.equal(me.data.user.hostIncomeLedger[0].amount, 6000);
+});
+
 test('admin paints paid accounts green and badges extra upgrades', async () => {
   await started;
   const admin = await loginAdmin();
@@ -1463,7 +1485,7 @@ test('admin paints paid accounts green and badges extra upgrades', async () => {
   assert.equal(row1.extraUpgrade, false);
 
   const extra = new FormData();
-  extra.set('accountId', member.user.accountId);
+  extra.set('targetAccountId', member.user.accountId);
   extra.set('months', '1');
   extra.set('receipt', new Blob([PNG], { type: 'image/png' }), 'pay.png');
   const extraSub = await req('/api/upgrade', { method: 'POST', form: extra, jar: member.jar });
@@ -1523,6 +1545,34 @@ test('upgrade can be gifted to another account by ID', async () => {
     jar: payer.jar
   });
   assert.equal(ghost.res.status, 400);
+
+  const blankId = await req('/api/upgrade', {
+    method: 'POST',
+    form: (() => {
+      const f = new FormData();
+      f.set('months', '1');
+      f.set('receipt', new Blob([PNG], { type: 'image/png' }), 'pay.png');
+      return f;
+    })(),
+    jar: payer.jar
+  });
+  assert.equal(blankId.res.status, 400);
+
+  const selfForm = new FormData();
+  selfForm.set('targetAccountId', payer.user.accountId);
+  selfForm.set('months', '1');
+  selfForm.set('receipt', new Blob([PNG], { type: 'image/png' }), 'pay.png');
+  const selfSub = await req('/api/upgrade', { method: 'POST', form: selfForm, jar: payer.jar });
+  assert.equal(selfSub.res.status, 200, selfSub.data.error);
+  assert.equal(selfSub.data.gift, false);
+  const selfQueue = await req('/api/admin/upgrades', { jar: admin });
+  const selfRow = selfQueue.data.upgrades.find((u) => u.id === selfSub.data.id);
+  assert.ok(selfRow);
+  assert.equal(selfRow.gift, false);
+  assert.equal(selfRow.submitter.accountId, payer.user.accountId);
+  assert.equal(selfRow.target.accountId, payer.user.accountId);
+  const selfReject = await req(`/api/admin/upgrades/${selfSub.data.id}/reject`, { method: 'POST', jar: admin });
+  assert.equal(selfReject.res.status, 200, selfReject.data.error);
 
   const giftForm = new FormData();
   giftForm.set('targetAccountId', giftTo.user.accountId);
@@ -1654,7 +1704,7 @@ test('money, levels, and roles cannot be set from the client', async () => {
   assert.equal(fake.data.mutual.credited, false);
 
   const receipt = new FormData();
-  receipt.set('accountId', created.data.user.accountId);
+  receipt.set('targetAccountId', created.data.user.accountId);
   receipt.set('months', '1');
   receipt.set('amount', '1');
   receipt.set('hostCode', hostOk.data.user.hostCode);

@@ -60,7 +60,7 @@ Copy `.env.example` into your shell or Render dashboard. The app reads standard 
 
 ## Upgrades
 
-Users submit **account ID + payment screenshot**. A host’s **8-digit code is optional**. Admin must approve. Approval **starts the paid period immediately** and increments **level by 1**.
+Users submit a **target account ID** and a **payment screenshot**. Own ID upgrades themselves; another member’s ID **gifts** the paid period to them. A host’s **8-digit code is optional**. Admin must approve. Approval **starts the paid period immediately on the target account** and increments **that account’s level by 1**. The queue shows who paid vs who receives the upgrade.
 
 Plans are 1–12 months. **6 months prepaid = 30% off**. **12 months = 50% off**. The monthly amount is configured in `/admin` → Pricing. The upgrade screen shows duration covered and amount due.
 
