@@ -30,6 +30,7 @@ test('i18n catalogs share the same keys and default to Myanmar', () => {
     'Message the sakarwine admin with the phone number you used at registration. There is no self-serve password reset.'
   );
   assert.equal(I18n.t('backHome'), 'မူလစာမျက်နှာ');
+  assert.match(I18n.t('upgradePromoTitle'), /50%/);
   assert.equal(I18n.error('Wrong username or password.'), I18n.t('errWrongLogin'));
 });
 
@@ -52,4 +53,7 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   const registerSlice = js.slice(js.indexOf('function showRegister'), js.indexOf('function showScan'));
   assert.equal(registerSlice.includes('nrcFront'), false);
   assert.match(js, /settingsRow\('go-host'/);
+  assert.match(js, /upgrade-promo/);
+  assert.equal(js.includes('hostCreditBanner'), false);
+  assert.equal(js.includes('formatChatMs'), false);
 });

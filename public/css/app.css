@@ -584,6 +584,63 @@ body {
 }
 .fab svg { width: 26px; height: 26px; }
 .home-screen { position: relative; }
+.upgrade-promo {
+  position: absolute;
+  inset: 0;
+  z-index: 35;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 16px calc(18px + var(--safe-bottom));
+  background: rgba(6, 40, 28, 0.42);
+}
+.upgrade-promo-card {
+  position: relative;
+  width: min(340px, 100%);
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 28px 20px 18px;
+  box-shadow: var(--shadow);
+  text-align: center;
+  border: 1px solid var(--stroke);
+}
+.upgrade-promo-kicker {
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--green-deep);
+  font-weight: 800;
+}
+.upgrade-promo-card h3 {
+  margin: 0 0 10px;
+  font-family: var(--display);
+  font-size: 1.35rem;
+  color: var(--green-deep);
+}
+.upgrade-promo-card p {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+.upgrade-promo-x {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: var(--tap);
+  height: var(--tap);
+  min-width: var(--tap);
+  min-height: var(--tap);
+  border: 0;
+  border-radius: 14px;
+  background: #ecfdf5;
+  color: var(--ink);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.upgrade-promo-x svg { width: 18px; height: 18px; }
 
 .nav {
   display: grid;
@@ -1065,7 +1122,8 @@ body {
 .modal[hidden],
 .toast[hidden],
 .tour[hidden],
-.plus-menu[hidden] {
+.plus-menu[hidden],
+.upgrade-promo[hidden] {
   display: none !important;
 }
 .modal .glass-card {

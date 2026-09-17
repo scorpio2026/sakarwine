@@ -16,6 +16,7 @@ const state = {
 };
 
 const ICONS = {
+  close: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6L6 18"/></svg>`,
   wine: `<svg viewBox="0 0 48 48" fill="none"><path d="M16 8h16l-2 16a8 8 0 1 1-12 0L16 8z" fill="#f3d0c4" opacity=".95"/><path d="M22 32v8h-4v2h12v-2h-4v-8" stroke="#f7e7d2" stroke-width="2"/><path d="M18 14h12" stroke="#8b2252" stroke-width="2" opacity=".5"/></svg>`,
   people: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><path d="M3 19c1-3 3.5-5 6-5s5 2 6 5"/><circle cx="17" cy="9" r="2.4"/><path d="M16 19c.4-1.6 1.6-3 3.4-3.6"/></svg>`,
   chat: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 6h14v9H8l-3 3V6z"/></svg>`,
@@ -233,23 +234,10 @@ function connectSocket() {
     });
   });
   socket.on('host:income', (payload) => {
-    toast(t('hostCreditFrom', { amount: payload.amount, name: payload.partnerUsername }));
+    toast(t('hostCreditFrom', { amount: payload.amount, name: payload.partnerUsername || t('upgradeTitle') }));
     refreshMe().then(() => {
       if (state.view === 'profile') showProfile();
     });
-    if (state.chat) {
-      state.chat.mutual = state.chat.mutual || {};
-      state.chat.mutual.credited = true;
-      const el = $('#host-earn');
-      if (el) el.outerHTML = hostCreditBanner(state.chat);
-    }
-  });
-  socket.on('chat:mutual', ({ conversationId, mutual }) => {
-    if (state.chat && state.chat.id === conversationId && mutual) {
-      state.chat.mutual = mutual;
-      const el = $('#host-earn');
-      if (el) el.outerHTML = hostCreditBanner(state.chat);
-    }
   });
   socket.on('payout:done', () => {
     toast(t('payoutDone'));
@@ -451,7 +439,7 @@ function showScan() {
       $('#go-in').onclick = () => {
         closeModal();
         connectSocket();
-        showHome({ tour: true, aiConversationId: data.aiConversationId });
+        showHome({ tour: true, afterRegister: true, aiConversationId: data.aiConversationId });
       };
     } catch (err) {
       $('#start-scan').disabled = false;
@@ -557,6 +545,15 @@ async function showHome(opts = {}) {
       </div>
       <button type="button" class="fab" id="home-fab" aria-label="${t('searchPeople')}">${ICONS.plus}</button>
       ${nav('home')}
+      <div id="upgrade-promo" class="upgrade-promo" hidden>
+        <div class="upgrade-promo-card" role="dialog" aria-modal="true" aria-labelledby="upgrade-promo-title">
+          <button type="button" class="upgrade-promo-x" id="upgrade-promo-x" aria-label="${t('close')}">${ICONS.close}</button>
+          <p class="upgrade-promo-kicker">sakarwine</p>
+          <h3 id="upgrade-promo-title">${t('upgradePromoTitle')}</h3>
+          <p>${t('upgradePromoBody')}</p>
+          <button type="button" class="btn block" id="upgrade-promo-go">${t('upgradePromoCta')}</button>
+        </div>
+      </div>
     </section>`;
   bindNav();
   const meBtn = $('#goto-me');
@@ -572,7 +569,8 @@ async function showHome(opts = {}) {
   };
   startAdBanner();
   await loadHome();
-  if (opts.tour && !u.tourCompleted) {
+  const startHomeTour = () => {
+    if (!(opts.tour && !u.tourCompleted)) return;
     const ai = state.users.find((x) => x.isAi);
     Tour.start([
       { target: '#home-title', text: t('tourHome1'), arrow: 'down' },
@@ -587,6 +585,28 @@ async function showHome(opts = {}) {
     if (opts.aiConversationId && ai) {
       setTimeout(() => openChat(ai.id, { fromTour: true }), 1600);
     }
+  };
+  const promo = $('#upgrade-promo');
+  const promoHidden = (() => {
+    try { return localStorage.getItem('sw_upgrade_promo') === '1'; } catch { return false; }
+  })();
+  const showPromo = promo && !u.isSpecial && (opts.afterRegister || !promoHidden);
+  if (showPromo) {
+    promo.hidden = false;
+    $('#upgrade-promo-x').onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      try { localStorage.setItem('sw_upgrade_promo', '1'); } catch {}
+      promo.hidden = true;
+      startHomeTour();
+    };
+    $('#upgrade-promo-go').onclick = () => {
+      try { localStorage.setItem('sw_upgrade_promo', '1'); } catch {}
+      promo.hidden = true;
+      showUpgrade();
+    };
+  } else {
+    startHomeTour();
   }
 }
 
@@ -714,23 +734,7 @@ async function openChat(userId, opts = {}) {
   }
 }
 
-function formatChatMs(ms) {
-  const n = Math.max(0, Number(ms) || 0);
-  if (n < 60000) return `${Math.round(n / 1000)}s`;
-  const m = Math.floor(n / 60000);
-  const s = Math.floor((n % 60000) / 1000);
-  return s ? `${m}m ${s}s` : `${m}m`;
-}
-
-function hostCreditBanner() {
-  return '';
-}
-
 function stopChatPresence() {
-  if (state.chatPing) {
-    clearInterval(state.chatPing);
-    state.chatPing = null;
-  }
   const id = state.presentingChatId;
   if (id) {
     if (state.socket) state.socket.emit('chat:leave', { conversationId: id });
@@ -745,29 +749,7 @@ function startChatPresence() {
   if (state.presentingChatId && state.presentingChatId !== id) stopChatPresence();
   state.presentingChatId = id;
   if (state.socket) state.socket.emit('chat:enter', { conversationId: id });
-  api(`/api/conversations/${id}/presence`, { method: 'POST', json: { action: 'enter' } })
-    .then((data) => {
-      if (data.mutual && state.chat && state.chat.id === id) {
-        state.chat.mutual = data.mutual;
-        const el = $('#host-earn');
-        if (el) el.outerHTML = hostCreditBanner(state.chat);
-      }
-    })
-    .catch(() => {});
-  if (state.chatPing) clearInterval(state.chatPing);
-  state.chatPing = setInterval(() => {
-    if (!state.chat || state.chat.id !== id) return;
-    if (state.socket) state.socket.emit('chat:ping', { conversationId: id });
-    api(`/api/conversations/${id}/presence`, { method: 'POST', json: { action: 'ping' } })
-      .then((data) => {
-        if (data.mutual && state.chat && state.chat.id === id) {
-          state.chat.mutual = data.mutual;
-          const el = $('#host-earn');
-          if (el) el.outerHTML = hostCreditBanner(state.chat);
-        }
-      })
-      .catch(() => {});
-  }, 5000);
+  api(`/api/conversations/${id}/presence`, { method: 'POST', json: { action: 'enter' } }).catch(() => {});
 }
 
 function formatRemain(ms, window) {
@@ -845,7 +827,6 @@ function renderChat(opts = {}) {
       </div>
       ${expired ? `<div class="upgrade-banner">${t('upgradeEnded')}<br><button class="btn" id="go-up" style="margin-top:8px">${t('seePlans')}</button></div>` : ''}
       ${gateNote ? `<div class="upgrade-banner">${escapeHtml(gateNote)}</div>` : ''}
-      ${hostCreditBanner(c)}
       <div id="messages" class="messages">${renderThread(c.messages)}</div>
       <div class="typing" id="typing"></div>
       </div>
