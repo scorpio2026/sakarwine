@@ -869,6 +869,7 @@ test('female registration matches male; host apply is later from Settings', asyn
   const dossier = await req(`/api/admin/dossier?q=${female.user.accountId}`, { jar: admin });
   assert.ok(dossier.data.user.nrcFrontUrl);
   assert.ok(dossier.data.user.nrcBackUrl);
+  assert.equal(dossier.data.user.idDocType, 'nrc');
   assert.equal(dossier.data.user.hostStatus, 'pending');
 
   const noNrc = await req(`/api/admin/accounts/${male.user.id}/host-approve`, {
@@ -916,6 +917,53 @@ test('female registration matches male; host apply is later from Settings', asyn
   assert.equal(income.res.status, 200);
   assert.equal(income.data.user.occupation, 'Singer');
   assert.equal(income.data.user.canEditIncome, true);
+});
+
+test('host apply accepts passport front only instead of NRC pair', async () => {
+  await started;
+  const female = await register('passp' + Date.now().toString().slice(-5), '454545', 'female');
+  const admin = await loginAdmin();
+
+  const missingBack = new FormData();
+  missingBack.set('occupation', 'Singer');
+  missingBack.set('monthlyIncome', '200000');
+  missingBack.set('incomeSource', 'salary');
+  missingBack.set('idType', 'nrc');
+  missingBack.set('nrcFront', new Blob([PNG], { type: 'image/png' }), 'front.png');
+  const nrcOne = await req('/api/me/host-apply', { method: 'POST', form: missingBack, jar: female.jar });
+  assert.equal(nrcOne.res.status, 400);
+  assert.match(nrcOne.data.error, /NRC front and back/i);
+
+  const missingPass = new FormData();
+  missingPass.set('occupation', 'Singer');
+  missingPass.set('monthlyIncome', '200000');
+  missingPass.set('incomeSource', 'salary');
+  missingPass.set('idType', 'passport');
+  const noFront = await req('/api/me/host-apply', { method: 'POST', form: missingPass, jar: female.jar });
+  assert.equal(noFront.res.status, 400);
+  assert.match(noFront.data.error, /passport/i);
+
+  const passForm = new FormData();
+  passForm.set('occupation', 'Singer');
+  passForm.set('monthlyIncome', '200000');
+  passForm.set('incomeSource', 'salary');
+  passForm.set('idType', 'passport');
+  passForm.set('nrcFront', new Blob([PNG], { type: 'image/png' }), 'pass.png');
+  const applied = await req('/api/me/host-apply', { method: 'POST', form: passForm, jar: female.jar });
+  assert.equal(applied.res.status, 200, applied.data.error);
+  assert.equal(applied.data.user.hostStatus, 'pending');
+  assert.equal(applied.data.user.idDocType, 'passport');
+  assert.equal(applied.data.user.nrcFrontUrl, undefined);
+
+  const dossier = await req(`/api/admin/dossier?q=${female.user.accountId}`, { jar: admin });
+  assert.equal(dossier.data.user.idDocType, 'passport');
+  assert.ok(dossier.data.user.nrcFrontUrl);
+  assert.equal(dossier.data.user.nrcBackUrl, null);
+
+  const approved = await req(`/api/admin/accounts/${female.user.id}/host-approve`, { method: 'POST', jar: admin });
+  assert.equal(approved.res.status, 200, approved.data.error);
+  assert.equal(approved.data.user.isHost, true);
+  assert.equal(approved.data.user.idDocType, 'passport');
 });
 
 test('new accounts get dual-language rules in Saka chat; host income is female-only', async () => {

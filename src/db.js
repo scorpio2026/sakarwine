@@ -173,6 +173,7 @@ function migrate(db) {
   ensureColumn(db, 'users', 'income_source', 'TEXT');
   ensureColumn(db, 'users', 'nrc_front_path', 'TEXT');
   ensureColumn(db, 'users', 'nrc_back_path', 'TEXT');
+  ensureColumn(db, 'users', 'id_doc_type', "TEXT NOT NULL DEFAULT 'nrc'");
   ensureColumn(db, 'users', 'host_status', "TEXT NOT NULL DEFAULT 'none'");
   ensureColumn(db, 'users', 'is_host', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'users', 'host_reviewed_at', 'INTEGER');
@@ -333,11 +334,13 @@ function publicUser(row, { online = false, includePrivate = false, includePhone 
     out.occupation = row.occupation || null;
     out.monthlyIncome = row.income_monthly != null ? row.income_monthly : null;
     out.incomeSource = row.income_source || null;
+    out.idDocType = row.id_doc_type === 'passport' ? 'passport' : 'nrc';
   }
   if (includePhone) {
     out.phone = row.phone;
   }
   if (includeNrc) {
+    out.idDocType = row.id_doc_type === 'passport' ? 'passport' : 'nrc';
     out.nrcFrontUrl = row.nrc_front_path ? `/api/admin/accounts/${row.id}/nrc/front` : null;
     out.nrcBackUrl = row.nrc_back_path ? `/api/admin/accounts/${row.id}/nrc/back` : null;
   }

@@ -1330,15 +1330,19 @@ function showHostApply() {
             ? `<button class="btn block" id="save-income" ${formLocked ? 'disabled' : ''}>${t('saveIncome')}</button>`
             : ''}
           ${canApply ? `
-          <h3>${t('nrcTitle')}</h3>
-          <p class="small muted">${t('nrcAdminOnly')}</p>
-          <div class="row-2">
+          <h3>${t('idDocTitle')}</h3>
+          <div class="id-doc-filter" role="tablist" aria-label="${t('idDocTitle')}">
+            <button type="button" class="id-doc-chip" role="tab" data-id-type="nrc" aria-selected="true">${t('idDocNrc')}</button>
+            <button type="button" class="id-doc-chip" role="tab" data-id-type="passport" aria-selected="false">${t('idDocPassport')}</button>
+          </div>
+          <p class="small muted" id="id-doc-note">${t('idDocNrcHelp')}</p>
+          <div class="id-doc-photos" id="id-doc-photos">
             <label class="photo-pick">
               <input class="hidden-file" id="nrc-front" type="file" accept="image/*" />
               <div id="nrc-front-preview" class="avatar ai">🪪</div>
-              <span class="small muted">${t('nrcFront')}</span>
+              <span class="small muted" id="id-doc-front-label">${t('nrcFront')}</span>
             </label>
-            <label class="photo-pick">
+            <label class="photo-pick" id="id-doc-back">
               <input class="hidden-file" id="nrc-back" type="file" accept="image/*" />
               <div id="nrc-back-preview" class="avatar ai">🪪</div>
               <span class="small muted">${t('nrcBack')}</span>
@@ -1361,6 +1365,28 @@ function showHostApply() {
   };
   bindPreview('nrc-front', 'nrc-front-preview');
   bindPreview('nrc-back', 'nrc-back-preview');
+  const syncIdDocUi = () => {
+    const selected = document.querySelector('.id-doc-chip[aria-selected="true"]');
+    const type = selected && selected.dataset.idType === 'passport' ? 'passport' : 'nrc';
+    const backWrap = $('#id-doc-back');
+    const photos = $('#id-doc-photos');
+    const note = $('#id-doc-note');
+    const frontLabel = $('#id-doc-front-label');
+    if (backWrap) backWrap.hidden = type === 'passport';
+    if (photos) photos.classList.toggle('is-passport', type === 'passport');
+    if (note) note.textContent = type === 'passport' ? t('idDocPassportHelp') : t('idDocNrcHelp');
+    if (frontLabel) frontLabel.textContent = type === 'passport' ? t('passportFront') : t('nrcFront');
+    return type;
+  };
+  document.querySelectorAll('.id-doc-chip').forEach((btn) => {
+    btn.onclick = () => {
+      document.querySelectorAll('.id-doc-chip').forEach((chip) => {
+        chip.setAttribute('aria-selected', chip === btn ? 'true' : 'false');
+      });
+      syncIdDocUi();
+    };
+  });
+  syncIdDocUi();
   if ($('#save-income')) {
     $('#save-income').onclick = async () => {
       try {
@@ -1382,15 +1408,21 @@ function showHostApply() {
   }
   if ($('#host-apply-send')) {
     $('#host-apply-send').onclick = async () => {
-      const front = $('#nrc-front').files[0];
-      const back = $('#nrc-back').files[0];
-      if (!front || !back) return toast(t('uploadNrcBoth'));
+      const idType = syncIdDocUi();
+      const front = $('#nrc-front') && $('#nrc-front').files[0];
+      const back = $('#nrc-back') && $('#nrc-back').files[0];
+      if (idType === 'passport') {
+        if (!front) return toast(t('uploadPassportFront'));
+      } else if (!front || !back) {
+        return toast(t('uploadNrcBoth'));
+      }
       const fd = new FormData();
       fd.append('occupation', $('#inc-occ').value);
       fd.append('monthlyIncome', $('#inc-amt').value);
       fd.append('incomeSource', $('#inc-src').value);
+      fd.append('idType', idType);
       fd.append('nrcFront', front);
-      fd.append('nrcBack', back);
+      if (idType === 'nrc') fd.append('nrcBack', back);
       try {
         const data = await api('/api/me/host-apply', { method: 'POST', body: fd });
         state.user = data.user;

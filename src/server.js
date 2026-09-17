@@ -289,6 +289,48 @@ function parseIncome(body) {
   return { occupation, monthlyIncome: Math.round(monthlyIncome), incomeSource };
 }
 
+function parseIdDocType(body) {
+  const raw = String((body && (body.idType || body.idDocType || body.docType)) || 'nrc')
+    .trim()
+    .toLowerCase();
+  return raw === 'passport' ? 'passport' : 'nrc';
+}
+
+function takeHostIdPhotos(req, idType) {
+  const front = firstFile(req, 'nrcFront');
+  const back = firstFile(req, 'nrcBack');
+  if (idType === 'passport') {
+    if (!front) {
+      unlinkQuiet(front);
+      unlinkQuiet(back);
+      return { error: 'Upload a passport photo.' };
+    }
+    unlinkQuiet(back);
+    return { front, back: null };
+  }
+  if (!front || !back) {
+    unlinkQuiet(front);
+    unlinkQuiet(back);
+    return { error: 'Upload Myanmar NRC front and back photos.' };
+  }
+  return { front, back };
+}
+
+function replaceHostIdFiles(user) {
+  if (user.nrc_front_path) {
+    unlinkQuiet({ path: path.join(UPLOADS, 'nrc', path.basename(user.nrc_front_path)) });
+  }
+  if (user.nrc_back_path) {
+    unlinkQuiet({ path: path.join(UPLOADS, 'nrc', path.basename(user.nrc_back_path)) });
+  }
+}
+
+function hostIdDocsReady(user) {
+  if (!user || !user.nrc_front_path) return false;
+  if (user.id_doc_type === 'passport') return true;
+  return Boolean(user.nrc_back_path);
+}
+
 app.disable('x-powered-by');
 app.use(securityHeaders);
 app.use(csrfGuard);
@@ -1171,33 +1213,24 @@ app.post(
     { name: 'nrcBack', maxCount: 1 }
   ]),
   (req, res) => {
+    const idType = parseIdDocType(req.body);
+    const photos = takeHostIdPhotos(req, idType);
     if (req.user.gender !== 'female') {
-      unlinkQuiet(firstFile(req, 'nrcFront'));
-      unlinkQuiet(firstFile(req, 'nrcBack'));
+      if (photos.front) unlinkQuiet(photos.front);
+      if (photos.back) unlinkQuiet(photos.back);
       return res.status(400).json({ error: 'NRC verification is for female accounts.' });
     }
     if (req.user.host_status === 'approved') {
-      unlinkQuiet(firstFile(req, 'nrcFront'));
-      unlinkQuiet(firstFile(req, 'nrcBack'));
+      if (photos.front) unlinkQuiet(photos.front);
+      if (photos.back) unlinkQuiet(photos.back);
       return res.status(409).json({ error: 'Your host verification is already approved.' });
     }
-    const nrcFront = firstFile(req, 'nrcFront');
-    const nrcBack = firstFile(req, 'nrcBack');
-    if (!nrcFront || !nrcBack) {
-      unlinkQuiet(nrcFront);
-      unlinkQuiet(nrcBack);
-      return res.status(400).json({ error: 'Upload Myanmar NRC front and back photos.' });
-    }
-    if (req.user.nrc_front_path) {
-      unlinkQuiet({ path: path.join(UPLOADS, 'nrc', path.basename(req.user.nrc_front_path)) });
-    }
-    if (req.user.nrc_back_path) {
-      unlinkQuiet({ path: path.join(UPLOADS, 'nrc', path.basename(req.user.nrc_back_path)) });
-    }
+    if (photos.error) return res.status(400).json({ error: photos.error });
+    replaceHostIdFiles(req.user);
     db.prepare(
-      `UPDATE users SET nrc_front_path = ?, nrc_back_path = ?, host_status = 'pending', is_host = 0
+      `UPDATE users SET nrc_front_path = ?, nrc_back_path = ?, id_doc_type = ?, host_status = 'pending', is_host = 0
        WHERE id = ?`
-    ).run(nrcFront.filename, nrcBack.filename, req.user.id);
+    ).run(photos.front.filename, photos.back ? photos.back.filename : null, idType, req.user.id);
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
     res.json({ user: serializeMe(user) });
   }
@@ -1212,11 +1245,11 @@ app.post(
     { name: 'nrcBack', maxCount: 1 }
   ]),
   (req, res) => {
-    const nrcFront = firstFile(req, 'nrcFront');
-    const nrcBack = firstFile(req, 'nrcBack');
+    const idType = parseIdDocType(req.body);
+    const photos = takeHostIdPhotos(req, idType);
     const drop = () => {
-      unlinkQuiet(nrcFront);
-      unlinkQuiet(nrcBack);
+      if (photos.front) unlinkQuiet(photos.front);
+      if (photos.back) unlinkQuiet(photos.back);
     };
     if (req.user.gender !== 'female') {
       drop();
@@ -1231,26 +1264,21 @@ app.post(
       drop();
       return res.status(400).json({ error: income.error });
     }
-    if (!nrcFront || !nrcBack) {
-      drop();
-      return res.status(400).json({ error: 'Upload Myanmar NRC front and back photos.' });
+    if (photos.error) {
+      return res.status(400).json({ error: photos.error });
     }
-    if (req.user.nrc_front_path) {
-      unlinkQuiet({ path: path.join(UPLOADS, 'nrc', path.basename(req.user.nrc_front_path)) });
-    }
-    if (req.user.nrc_back_path) {
-      unlinkQuiet({ path: path.join(UPLOADS, 'nrc', path.basename(req.user.nrc_back_path)) });
-    }
+    replaceHostIdFiles(req.user);
     db.prepare(
       `UPDATE users SET occupation = ?, income_monthly = ?, income_source = ?,
-         nrc_front_path = ?, nrc_back_path = ?, host_status = 'pending', is_host = 0
+         nrc_front_path = ?, nrc_back_path = ?, id_doc_type = ?, host_status = 'pending', is_host = 0
        WHERE id = ?`
     ).run(
       income.occupation,
       income.monthlyIncome,
       income.incomeSource,
-      nrcFront.filename,
-      nrcBack.filename,
+      photos.front.filename,
+      photos.back ? photos.back.filename : null,
+      idType,
       req.user.id
     );
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
@@ -2073,8 +2101,13 @@ app.post('/api/admin/accounts/:id/host-approve', requireAdmin, (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ? AND is_ai = 0').get(id);
   if (!user) return res.status(404).json({ error: 'Account not found.' });
   if (user.gender !== 'female') return res.status(400).json({ error: 'Host verification is for female accounts.' });
-  if (!user.nrc_front_path || !user.nrc_back_path) {
-    return res.status(400).json({ error: 'NRC front and back photos are required before approval.' });
+  if (!hostIdDocsReady(user)) {
+    return res.status(400).json({
+      error:
+        user.id_doc_type === 'passport'
+          ? 'A passport photo is required before approval.'
+          : 'NRC front and back photos are required before approval.'
+    });
   }
   db.prepare(
     "UPDATE users SET host_status = 'approved', is_host = 1, host_reviewed_at = ? WHERE id = ?"

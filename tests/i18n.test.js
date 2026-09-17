@@ -79,6 +79,10 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   assert.equal(js.includes('people-search'), false);
   assert.equal(js.includes('id="home-fab"'), false);
   assert.match(js, /gender-filter/);
+  assert.match(js, /id-doc-filter/);
+  assert.match(js, /data-id-type="nrc"/);
+  assert.match(js, /data-id-type="passport"/);
+  assert.match(css, /\.id-doc-filter\s*\{/);
   assert.match(js, /data-gender="all"/);
   assert.match(js, /data-gender="male"/);
   assert.match(js, /data-gender="female"/);
@@ -86,6 +90,8 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   assert.match(css, /\.gender-chip/);
   I18n.setLang('en');
   assert.equal(I18n.t('filterAll'), 'All');
+  assert.equal(I18n.t('idDocPassport'), 'Passport');
+  assert.match(I18n.t('idDocPassportHelp'), /passport/i);
   assert.equal(I18n.t('optional'), 'optional');
   assert.match(I18n.t('hostCodeHelp'), /Optional/i);
   assert.equal(I18n.t('errHostCode'), 'Enter a valid host code.');

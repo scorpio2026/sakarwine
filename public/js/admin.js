@@ -97,10 +97,13 @@ function incomeLine(a) {
 
 function nrcBlock(a) {
   if (a.gender !== 'female') return '';
+  const passport = a.idDocType === 'passport';
+  const docLabel = passport ? 'Passport (front only)' : 'NRC (front + back)';
   return `
+    <p class="muted">ID document: <strong>${esc(docLabel)}</strong></p>
     <div class="nrc-pair">
-      ${a.nrcFrontUrl ? `<a href="${a.nrcFrontUrl}" target="_blank" rel="noopener"><img class="thumb nrc-thumb" src="${a.nrcFrontUrl}" alt="NRC front" /></a>` : '<span class="muted">No NRC front</span>'}
-      ${a.nrcBackUrl ? `<a href="${a.nrcBackUrl}" target="_blank" rel="noopener"><img class="thumb nrc-thumb" src="${a.nrcBackUrl}" alt="NRC back" /></a>` : '<span class="muted">No NRC back</span>'}
+      ${a.nrcFrontUrl ? `<a href="${a.nrcFrontUrl}" target="_blank" rel="noopener"><img class="thumb nrc-thumb" src="${a.nrcFrontUrl}" alt="${passport ? 'Passport front' : 'NRC front'}" /></a>` : `<span class="muted">No ${passport ? 'passport' : 'NRC front'} photo</span>`}
+      ${passport ? '' : a.nrcBackUrl ? `<a href="${a.nrcBackUrl}" target="_blank" rel="noopener"><img class="thumb nrc-thumb" src="${a.nrcBackUrl}" alt="NRC back" /></a>` : '<span class="muted">No NRC back</span>'}
     </div>
     <p class="muted">Host status: ${esc(a.hostStatus || 'none')}${a.isHost ? ' · verified host' : ''}</p>
     ${a.hostStatus === 'pending' || a.hostStatus === 'rejected' || (a.hostStatus === 'approved' && !a.isHost) ? `<div class="actions">
@@ -241,7 +244,7 @@ async function bootDash() {
             ${a.hostCode ? `<br>Host code ${esc(a.hostCode)}` : ''}
             ${a.bio ? `<br>Bio: ${esc(a.bio)}` : ''}
             ${a.gender === 'female' ? `<br>Income: ${incomeLine(a)}` : ''}</p>
-          ${a.gender === 'female' ? `<h3>NRC verification</h3>${nrcBlock(a)}` : ''}
+          ${a.gender === 'female' ? `<h3>ID verification</h3>${nrcBlock(a)}` : ''}
           ${data.hostIncome ? `<h3>Host earnings</h3>
             <p><strong>${Number(data.hostIncome.hostBalance != null ? data.hostIncome.hostBalance : data.hostIncome.hostEarnings || 0).toLocaleString()} MMK</strong> available
               <span class="muted"> · earned ${Number(data.hostIncome.hostEarnings || 0).toLocaleString()} · ${data.hostIncome.hostCreditAmount} per approved upgrade that used their host code</span></p>
@@ -377,7 +380,7 @@ async function bootDash() {
         <div class="stat"><span>${t('chats')}</span><b>${stats.conversations}</b></div>
       </div>
       ${stats.pendingUpgrades ? `<div class="notice">New payment submissions need review — duration, receipt, account ID, and registered phone are in Upgrades.</div>` : ''}
-      ${stats.pendingHosts ? `<div class="notice">Female NRC verifications need review in Hosts — income form plus NRC front/back (admin-only).</div>` : ''}
+      ${stats.pendingHosts ? `<div class="notice">Female host ID verifications need review in Hosts — NRC front/back or a passport photo (admin-only).</div>` : ''}
       ${stats.pendingPayouts ? `<div class="notice">${stats.pendingPayouts} host payout(s) waiting — transfer then press Done to send ငွေဝင်ပါပြီ.</div>` : ''}
       ${stats.pendingPinRecovery ? `<div class="notice">${stats.pendingPinRecovery} PIN recovery request(s) in PIN recovery — verify the phone, then Reset PIN from the dossier. There is no self-serve reset.</div>` : ''}
       <div class="lookup">
