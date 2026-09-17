@@ -956,6 +956,73 @@ test('paid members can create groups; invites accept and decline', async () => {
   assert.equal(stillOut.data.groups.some((g) => g.id === gid), false);
   const emptyInv = await req('/api/group-invites', { jar: other.jar });
   assert.equal(emptyInv.data.invites.length, 0);
+
+  const inboxInvitee = await req('/api/conversations', { jar: invitee.jar });
+  const gRow = inboxInvitee.data.conversations.find((c) => c.kind === 'group' && c.groupId === gid);
+  assert.ok(gRow);
+  assert.equal(gRow.name, 'Sunset');
+
+  const sentG = await req(`/api/groups/${gid}/messages`, {
+    method: 'POST',
+    json: { body: 'hello group' },
+    jar: invitee.jar
+  });
+  assert.equal(sentG.res.status, 200, sentG.data.error);
+  const thread = await req(`/api/groups/${gid}/messages`, { jar: owner.jar });
+  assert.ok(thread.data.messages.some((m) => m.body === 'hello group'));
+
+  db.prepare('UPDATE group_members SET joined_at = ? WHERE group_id = ? AND user_id = ?').run(
+    Date.now() - 120000,
+    gid,
+    invitee.user.id
+  );
+  const expired = await req(`/api/groups/${gid}/messages`, {
+    method: 'POST',
+    json: { body: 'too late' },
+    jar: invitee.jar
+  });
+  assert.equal(expired.res.status, 402);
+  assert.equal(expired.data.code, 'UPGRADE');
+
+  const stillOwner = await req(`/api/groups/${gid}/messages`, {
+    method: 'POST',
+    json: { body: 'owner still talking' },
+    jar: owner.jar
+  });
+  assert.equal(stillOwner.res.status, 200, stillOwner.data.error);
+
+  const notKick = await req(`/api/groups/${gid}/kick`, {
+    method: 'POST',
+    json: { userId: owner.user.id },
+    jar: invitee.jar
+  });
+  assert.equal(notKick.res.status, 403);
+
+  const kicked = await req(`/api/groups/${gid}/kick`, {
+    method: 'POST',
+    json: { userId: invitee.user.id },
+    jar: owner.jar
+  });
+  assert.equal(kicked.res.status, 200, kicked.data.error);
+  const gone = await req('/api/conversations', { jar: invitee.jar });
+  assert.equal(gone.data.conversations.some((c) => c.kind === 'group' && c.groupId === gid), false);
+  const deniedThread = await req(`/api/groups/${gid}/messages`, { jar: invitee.jar });
+  assert.equal(deniedThread.res.status, 404);
+
+  const inv3 = await req(`/api/groups/${gid}/invites`, {
+    method: 'POST',
+    json: { userId: other.user.id },
+    jar: owner.jar
+  });
+  assert.equal(inv3.res.status, 200, inv3.data.error);
+  const pending3 = await req('/api/group-invites', { jar: other.jar });
+  await req(`/api/group-invites/${pending3.data.invites[0].id}/accept`, { method: 'POST', jar: other.jar });
+  const inInbox = await req('/api/conversations', { jar: other.jar });
+  assert.ok(inInbox.data.conversations.some((c) => c.kind === 'group' && c.groupId === gid));
+  const left = await req(`/api/groups/${gid}/leave`, { method: 'POST', jar: other.jar });
+  assert.equal(left.res.status, 200, left.data.error);
+  const outInbox = await req('/api/conversations', { jar: other.jar });
+  assert.equal(outInbox.data.conversations.some((c) => c.kind === 'group' && c.groupId === gid), false);
 });
 
 test('female registration matches male; host apply is later from Settings', async () => {

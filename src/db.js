@@ -196,6 +196,20 @@ function migrate(db) {
     );
     CREATE INDEX IF NOT EXISTS idx_group_members_user ON group_members(user_id, group_id);
     CREATE INDEX IF NOT EXISTS idx_group_invites_invitee ON group_invites(invitee_id, status);
+
+    CREATE TABLE IF NOT EXISTS group_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      group_id INTEGER NOT NULL,
+      sender_id INTEGER,
+      type TEXT NOT NULL,
+      body TEXT,
+      media_path TEXT,
+      created_at INTEGER NOT NULL,
+      source_lang TEXT,
+      FOREIGN KEY (group_id) REFERENCES user_groups(id),
+      FOREIGN KEY (sender_id) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_group_messages_group ON group_messages(group_id, id);
   `);
   ensureColumn(db, 'users', 'is_special', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'users', 'badge', 'TEXT');

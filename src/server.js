@@ -1444,15 +1444,49 @@ app.get('/api/conversations', requireUser, requireActive, (req, res) => {
     if (!peer) continue;
     conversations.push({
       id: row.id,
+      kind: 'dm',
       peer: publicUser(peer, { online: isOnline(peer.id), viewer: req.user }),
       lastMessage: {
         id: row.last_id,
         type: row.last_type,
         body: row.last_body,
         createdAt: row.last_created
-      }
+      },
+      sortAt: row.last_created
     });
   }
+  const groupRows = db
+    .prepare(
+      `SELECT g.*, gm.role AS role, gm.joined_at AS joined_at,
+         m.id AS last_id, m.type AS last_type, m.body AS last_body, m.created_at AS last_created
+       FROM group_members gm
+       JOIN user_groups g ON g.id = gm.group_id
+       LEFT JOIN group_messages m ON m.id = (
+         SELECT MAX(id) FROM group_messages WHERE group_id = g.id
+       )
+       WHERE gm.user_id = ?`
+    )
+    .all(me);
+  for (const row of groupRows) {
+    conversations.push({
+      id: `g-${row.id}`,
+      kind: 'group',
+      groupId: row.id,
+      name: row.name,
+      logoUrl: groupLogoUrl(row),
+      role: row.role,
+      lastMessage: row.last_id
+        ? {
+            id: row.last_id,
+            type: row.last_type,
+            body: row.last_body,
+            createdAt: row.last_created
+          }
+        : null,
+      sortAt: row.last_created || row.created_at
+    });
+  }
+  conversations.sort((a, b) => (b.sortAt || 0) - (a.sortAt || 0));
   res.json({ conversations });
 });
 
@@ -1703,6 +1737,141 @@ app.post('/api/group-invites/:id/decline', requireUser, requireActive, (req, res
   db.prepare(
     `UPDATE group_invites SET status = 'declined', responded_at = ? WHERE id = ?`
   ).run(Date.now(), invite.id);
+  res.json({ ok: true });
+});
+
+function groupChatWindow(member, user, now = Date.now()) {
+  if (canChatUnlimited(user, now)) {
+    return {
+      expired: false,
+      remainingMs: null,
+      canSend: true,
+      paid: isPaid(user, now),
+      special: isSpecial(user)
+    };
+  }
+  const start = Number(member && member.joined_at) || now;
+  const remaining = FREE_CHAT_MS - (now - start);
+  return {
+    expired: remaining <= 0,
+    remainingMs: Math.max(0, remaining),
+    canSend: remaining > 0,
+    paid: false,
+    fromJoin: true
+  };
+}
+
+function serializeGroupMessage(msg, viewer) {
+  const out = serializeMessage(
+    {
+      ...msg,
+      conversation_id: null
+    },
+    viewer
+  );
+  out.groupId = msg.group_id;
+  out.conversationId = `g-${msg.group_id}`;
+  if (msg.type === 'image' && out.mediaUrl) {
+    out.mediaUrl = `/api/media/group-chat/${path.basename(msg.media_path)}`;
+  } else if (msg.type === 'voice' && msg.media_path) {
+    out.mediaUrl = `/api/media/group-chat/${path.basename(msg.media_path)}`;
+  }
+  return out;
+}
+
+function emitToGroup(groupId, event, payload, exceptId) {
+  const members = db.prepare('SELECT user_id FROM group_members WHERE group_id = ?').all(groupId);
+  for (const m of members) {
+    if (exceptId && m.user_id === exceptId) continue;
+    emitToUser(m.user_id, event, payload);
+  }
+}
+
+function removeGroupMember(groupId, userId) {
+  db.prepare('DELETE FROM group_members WHERE group_id = ? AND user_id = ?').run(groupId, userId);
+  const remaining = db.prepare('SELECT user_id, role, joined_at FROM group_members WHERE group_id = ? ORDER BY joined_at ASC').all(groupId);
+  if (remaining.length && !remaining.some((m) => m.role === 'owner')) {
+    db.prepare(`UPDATE group_members SET role = 'owner' WHERE group_id = ? AND user_id = ?`).run(
+      groupId,
+      remaining[0].user_id
+    );
+  }
+}
+
+app.get('/api/groups/:id/messages', requireUser, requireActive, (req, res) => {
+  const group = db.prepare('SELECT * FROM user_groups WHERE id = ?').get(Number(req.params.id));
+  const mine = group ? groupMembership(group.id, req.user.id) : null;
+  if (!group || !mine) return res.status(404).json({ error: 'Group not found.' });
+  const rows = db
+    .prepare('SELECT * FROM group_messages WHERE group_id = ? ORDER BY id ASC')
+    .all(group.id);
+  res.json({
+    group: serializeGroupPreview(group, { role: mine.role }),
+    window: groupChatWindow(mine, req.user),
+    messages: rows.map((m) => serializeGroupMessage(m, req.user))
+  });
+});
+
+app.post('/api/groups/:id/messages', requireUser, requireActive, (req, res) => {
+  const group = db.prepare('SELECT * FROM user_groups WHERE id = ?').get(Number(req.params.id));
+  const mine = group ? groupMembership(group.id, req.user.id) : null;
+  if (!group || !mine) return res.status(404).json({ error: 'Group not found.' });
+  const win = groupChatWindow(mine, req.user);
+  if (!win.canSend) {
+    return res.status(402).json({
+      error: 'Free chatting has ended. Upgrade to keep talking.',
+      code: 'UPGRADE',
+      window: win
+    });
+  }
+  const body = String((req.body && req.body.body) || '').trim();
+  const err = messageFilterError(body);
+  if (err) return res.status(400).json({ error: err });
+  const info = db
+    .prepare(
+      `INSERT INTO group_messages (group_id, sender_id, type, body, media_path, created_at, source_lang)
+       VALUES (?, ?, 'text', ?, NULL, ?, ?)`
+    )
+    .run(group.id, req.user.id, body, Date.now(), userLang(req.user));
+  const msg = db.prepare('SELECT * FROM group_messages WHERE id = ?').get(info.lastInsertRowid);
+  const members = db.prepare('SELECT user_id FROM group_members WHERE group_id = ?').all(group.id);
+  for (const m of members) {
+    const memberUser = db.prepare('SELECT * FROM users WHERE id = ?').get(m.user_id);
+    emitToUser(m.user_id, 'group:message', {
+      groupId: group.id,
+      message: serializeGroupMessage(msg, memberUser)
+    });
+  }
+  res.json({
+    message: serializeGroupMessage(msg, req.user),
+    window: groupChatWindow(mine, req.user)
+  });
+});
+
+app.post('/api/groups/:id/leave', requireUser, requireActive, (req, res) => {
+  const group = db.prepare('SELECT * FROM user_groups WHERE id = ?').get(Number(req.params.id));
+  const mine = group ? groupMembership(group.id, req.user.id) : null;
+  if (!group || !mine) return res.status(404).json({ error: 'Group not found.' });
+  removeGroupMember(group.id, req.user.id);
+  emitToUser(req.user.id, 'group:removed', { groupId: group.id, reason: 'left' });
+  res.json({ ok: true });
+});
+
+app.post('/api/groups/:id/kick', requireUser, requireActive, (req, res) => {
+  const group = db.prepare('SELECT * FROM user_groups WHERE id = ?').get(Number(req.params.id));
+  const mine = group ? groupMembership(group.id, req.user.id) : null;
+  if (!group || !mine) return res.status(404).json({ error: 'Group not found.' });
+  if (mine.role !== 'owner') {
+    return res.status(403).json({ error: 'Only the group admin can remove members.' });
+  }
+  const targetId = Number(req.body && req.body.userId);
+  if (!targetId || targetId === req.user.id) {
+    return res.status(400).json({ error: 'You cannot remove this member.' });
+  }
+  const target = groupMembership(group.id, targetId);
+  if (!target) return res.status(404).json({ error: 'Member not found.' });
+  removeGroupMember(group.id, targetId);
+  emitToUser(targetId, 'group:removed', { groupId: group.id, reason: 'kicked' });
   res.json({ ok: true });
 });
 

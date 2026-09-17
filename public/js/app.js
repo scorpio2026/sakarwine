@@ -76,6 +76,7 @@ function rerender() {
   else if (v === 'groups') showGroups();
   else if (v === 'group-create') showCreateGroup();
   else if (v === 'group-detail' && state.group) showGroupDetail(state.group.id);
+  else if (v === 'group-chat' && state.groupChat) renderGroupChat();
   else if (v === 'chat' && state.chat) renderChat();
   else if (v === 'upgrade') showUpgrade();
   else if (v === 'profile') showProfile();
@@ -270,6 +271,27 @@ function connectSocket() {
       group: payload.groupName || ''
     }));
     if (state.view === 'groups') showGroups();
+  });
+  socket.on('group:message', ({ groupId, message }) => {
+    if (state.groupChat && state.groupChat.id === groupId) {
+      addGroupChatMessage(message);
+      const box = $('#messages');
+      if (box) {
+        box.innerHTML = renderThread(state.groupChat.messages);
+        box.scrollTop = box.scrollHeight;
+      }
+    } else if (state.view === 'chats') loadInbox();
+    else if (message && message.sender && message.sender.id !== state.user.id) {
+      toast(t('newMessageFrom', { name: message.sender.username }));
+    }
+  });
+  socket.on('group:removed', ({ groupId, reason }) => {
+    toast(reason === 'kicked' ? t('kickedFromGroup') : t('leftGroup'));
+    if (state.groupChat && state.groupChat.id === groupId) {
+      state.groupChat = null;
+      showInbox();
+    } else if (state.view === 'chats') loadInbox();
+    else if (state.view === 'groups' || state.view === 'group-detail') showGroups();
   });
   socket.on('broadcast', () => {
     refreshMe();
@@ -585,11 +607,23 @@ function paintInboxList(conversations) {
   if (!list) return;
   const items = conversations || [];
   list.innerHTML = items.map((c) => {
+    if (c.kind === 'group') {
+      const last = c.lastMessage || {};
+      return `
+    <div class="user-row" data-kind="group" data-gid="${c.groupId}">
+      ${groupLogoHtml(c)}
+      <div class="meta">
+        <div class="name">${escapeHtml(c.name || '')}</div>
+        <div class="sub">${escapeHtml(inboxPreview(last) || t('groupsTitle'))}</div>
+      </div>
+      <span class="when">${last.createdAt ? formatMsgTime(last.createdAt) : ''}</span>
+    </div>`;
+    }
     const peer = c.peer || {};
     const last = c.lastMessage || {};
     const gClass = peer.isAi ? '' : (peer.gender === 'female' ? 'gender-female' : 'gender-male');
     return `
-    <div class="user-row ${gClass}" data-id="${c.id}" data-peer="${peer.id}">
+    <div class="user-row ${gClass}" data-kind="dm" data-peer="${peer.id}">
       ${avatarHtml(peer)}
       <div class="meta">
         <div class="name">${escapeHtml(peer.username || '')} ${peer.isAi ? '· ' + t('guide') : ''} ${roleMark(peer)}</div>
@@ -599,7 +633,10 @@ function paintInboxList(conversations) {
     </div>`;
   }).join('') || `<p class="settings-empty">${t('noChats')}</p>`;
   list.querySelectorAll('.user-row').forEach((row) => {
-    row.onclick = () => openChat(Number(row.dataset.peer), { from: 'chats' });
+    row.onclick = () => {
+      if (row.dataset.kind === 'group') openGroupChat(Number(row.dataset.gid), { from: 'chats' });
+      else openChat(Number(row.dataset.peer), { from: 'chats' });
+    };
   });
 }
 
@@ -637,7 +674,9 @@ async function showInbox() {
 
 function leaveChat() {
   stopChatPresence();
+  state.groupChat = null;
   if (state.chatFrom === 'chats') showInbox();
+  else if (state.chatFrom === 'groups') showGroups();
   else showHome();
 }
 
@@ -804,6 +843,7 @@ async function showGroupDetail(id) {
           ${groupLogoHtml(data.group)}
           <div class="me-name">${escapeHtml(data.group.name)}</div>
           <div class="small muted">${t('groupMemberCount', { n: data.members.length })}</div>
+          <button type="button" class="btn block" id="open-group-chat">${t('openGroupChat')}</button>
         </div>
         <h3 class="group-section">${t('addPeople')}</h3>
         <div class="glass-card stack" style="text-align:left">
@@ -820,6 +860,9 @@ async function showGroupDetail(id) {
                 <div class="name">${escapeHtml(m.username)} ${m.role === 'owner' ? '· ' + t('groupOwner') : ''}</div>
                 <div class="sub">${escapeHtml(m.accountId || '')}</div>
               </div>
+              ${data.group.role === 'owner' && m.id !== state.user.id
+                ? `<button type="button" class="btn secondary" data-kick="${m.id}">${t('kickMember')}</button>`
+                : ''}
             </div>`).join('')}
         </div>
         </div>
@@ -827,6 +870,19 @@ async function showGroupDetail(id) {
       </section>`;
     bindNav();
     $('#back').onclick = showGroups;
+    $('#open-group-chat').onclick = () => openGroupChat(id, { from: 'groups' });
+    document.querySelectorAll('[data-kick]').forEach((btn) => {
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        try {
+          await api(`/api/groups/${id}/kick`, { method: 'POST', json: { userId: Number(btn.dataset.kick) } });
+          toast(t('memberKicked'));
+          showGroupDetail(id);
+        } catch (err) {
+          toastErr(err);
+        }
+      };
+    });
     $('#group-lookup').onclick = async () => {
       const accountId = $('#group-aid').value.trim();
       if (!accountId) return toast(t('errAccountId'));
@@ -862,6 +918,110 @@ async function showGroupDetail(id) {
     toastErr(e);
     showGroups();
   }
+}
+
+function addGroupChatMessage(message) {
+  if (!state.groupChat || !message) return false;
+  if (message.id != null && state.groupChat.messages.some((m) => m.id === message.id)) return false;
+  state.groupChat.messages.push(message);
+  return true;
+}
+
+async function openGroupChat(groupId, opts = {}) {
+  try {
+    if (opts.from === 'chats' || (!opts.from && state.view === 'chats')) state.chatFrom = 'chats';
+    else if (state.view !== 'group-chat') state.chatFrom = 'groups';
+    const data = await api(`/api/groups/${groupId}/messages`);
+    state.groupChat = {
+      id: data.group.id,
+      name: data.group.name,
+      logoUrl: data.group.logoUrl,
+      role: data.group.role,
+      window: data.window,
+      messages: data.messages || []
+    };
+    renderGroupChat();
+  } catch (e) {
+    toastErr(e);
+  }
+}
+
+function renderGroupChat() {
+  state.view = 'group-chat';
+  const c = state.groupChat;
+  const expired = c.window && c.window.expired;
+  app.innerHTML = `
+    <section class="screen chat-screen">
+      <div class="screen-body">
+      <div class="topbar chat-head">
+        <button class="chat-tool" id="back" aria-label="${t('back')}">${ICONS.back}</button>
+        ${groupLogoHtml(c)}
+        <div class="meta">
+          <div class="name">${escapeHtml(c.name)}</div>
+          <div class="sub">${expired ? t('upgradeEnded') : formatRemain(c.window && c.window.remainingMs, c.window)}</div>
+        </div>
+        <div class="chat-actions">
+          <button class="chat-tool" id="leave-group" title="${t('leaveGroup')}" aria-label="${t('leaveGroup')}">${t('leaveGroup')}</button>
+        </div>
+      </div>
+      ${expired ? `<div class="upgrade-banner">${t('groupChatUpgrade')}<br><button class="btn" id="go-up" style="margin-top:8px">${t('seePlans')}</button></div>` : ''}
+      <div id="messages" class="messages">${renderThread(c.messages)}</div>
+      </div>
+      <div class="composer">
+        <div class="composer-pill">
+          <textarea id="text" rows="1" ${expired ? 'disabled' : ''} placeholder="${t('typeHere')}"></textarea>
+        </div>
+        <button class="chat-send" id="send" ${expired ? 'disabled' : ''} aria-label="${t('send')}">${ICONS.send}</button>
+      </div>
+    </section>`;
+  $('#back').onclick = leaveChat;
+  if ($('#go-up')) $('#go-up').onclick = () => { state.groupChat = null; showUpgrade(); };
+  $('#leave-group').onclick = async () => {
+    try {
+      await api(`/api/groups/${c.id}/leave`, { method: 'POST' });
+      toast(t('leftGroup'));
+      leaveChat();
+    } catch (e) {
+      toastErr(e);
+    }
+  };
+  const box = $('#messages');
+  box.scrollTop = box.scrollHeight;
+  const ta = $('#text');
+  const syncComposer = () => {
+    if (!ta) return;
+    ta.style.height = 'auto';
+    ta.style.height = `${Math.min(120, Math.max(24, ta.scrollHeight))}px`;
+  };
+  const sendText = async () => {
+    const body = ta.value;
+    if (!body.trim() || expired) return;
+    try {
+      const data = await api(`/api/groups/${c.id}/messages`, { method: 'POST', json: { body } });
+      ta.value = '';
+      syncComposer();
+      c.window = data.window;
+      addGroupChatMessage(data.message);
+      box.innerHTML = renderThread(c.messages);
+      box.scrollTop = box.scrollHeight;
+    } catch (e) {
+      if (e.code === 'UPGRADE') {
+        c.window = (e.data && e.data.window) || { expired: true, remainingMs: 0 };
+        renderGroupChat();
+      }
+      toastErr(e);
+    }
+  };
+  if (ta) {
+    ta.oninput = syncComposer;
+    ta.onkeydown = (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendText();
+      }
+    };
+  }
+  $('#send').onclick = sendText;
 }
 
 async function showHome(opts = {}) {
