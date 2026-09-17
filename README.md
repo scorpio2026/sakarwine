@@ -49,7 +49,8 @@ Copy `.env.example` into your shell or Render dashboard. The app reads standard 
 - Photos are **locked** until **Level 3** (three approved upgrades). Lower levels see a locked card and a notice on tap. You can always see photos you sent.
 - **Chat history is per-user.** Deleting a conversation (trash in the chat header) clears it for you only. The other person — and admin — still keep the full thread. The Saka guide chat cannot be deleted.
 - **Messages cannot be edited** after they are sent (no edit API or UI).
-- **Settings** (Me → gear / Settings): edit photo and username, manage the blocked list, and log out. Gender, birth year, phone, and PIN are not member-editable.
+- **Settings** (Me → gear / Settings): language (မြန်မာ / English / ไทย / 中文 / 한국어 / 日本語), edit photo and username, manage the blocked list, and log out. Gender, birth year, phone, and PIN are not member-editable.
+- The lounge UI (login through Settings) and admin chrome switch among **six languages**. Choice is stored in `localStorage` (`sw_lang`) and defaults to **Myanmar**.
 - Forgot PIN? There is **no self-serve reset**. Contact admin with the phone used at registration. The Settings PIN note points members there.
 
 ## Upgrades

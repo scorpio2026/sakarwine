@@ -31,23 +31,28 @@ function esc(s) {
 }
 
 const $ = (s, el = document) => el.querySelector(s);
+const t = (k, p) => I18n.t(k, p);
+let paintUi = null;
 
 function showLogin() {
+  paintUi = showLogin;
   root.innerHTML = `
     <div class="card login">
-      <h1>sakarwine admin</h1>
-      <p class="muted">Protected lounge controls</p>
-      <div class="field"><label>Username</label><input id="u" /></div>
-      <div class="field"><label>Password</label><input id="p" type="password" /></div>
-      <button id="go" class="block">Sign in</button>
+      <h1>${t('adminTitle')}</h1>
+      <p class="muted">${t('adminSub')}</p>
+      <div class="field"><label>${t('username')}</label><input id="u" /></div>
+      <div class="field"><label>${t('password')}</label><input id="p" type="password" /></div>
+      <button id="go" class="block">${t('signIn')}</button>
+      ${I18n.switcherHtml('admin-lang')}
       <p id="err" class="muted"></p>
     </div>`;
+  I18n.bindSwitcher('admin-lang');
   $('#go').onclick = async () => {
     try {
       await api('/api/admin/login', { method: 'POST', json: { username: $('#u').value, password: $('#p').value } });
       bootDash();
     } catch (e) {
-      $('#err').textContent = e.message;
+      $('#err').textContent = I18n.error(e.message);
     }
   };
 }
@@ -55,12 +60,12 @@ function showLogin() {
 function moderationButtons(a) {
   return `
     ${a.accountIdHidden
-      ? `<button data-act="unhide-id" data-id="${a.id}">Unhide ID</button>`
-      : `<button class="ghost" data-act="hide-id" data-id="${a.id}">Hide ID</button>`}
-    ${a.status === 'active' ? `<button class="warn" data-act="suspend" data-id="${a.id}">Suspend</button>` : ''}
-    ${a.status === 'suspended' ? `<button data-act="unsuspend" data-id="${a.id}">Unsuspend</button>` : ''}
-    ${a.status !== 'closed' ? `<button class="danger" data-act="close" data-id="${a.id}">Close</button>` : ''}
-    <button data-act="reset" data-id="${a.id}" data-phone="${esc(a.phone)}">Reset PIN</button>`;
+      ? `<button data-act="unhide-id" data-id="${a.id}">${t('unhideId')}</button>`
+      : `<button class="ghost" data-act="hide-id" data-id="${a.id}">${t('hideId')}</button>`}
+    ${a.status === 'active' ? `<button class="warn" data-act="suspend" data-id="${a.id}">${t('suspend')}</button>` : ''}
+    ${a.status === 'suspended' ? `<button data-act="unsuspend" data-id="${a.id}">${t('unsuspend')}</button>` : ''}
+    ${a.status !== 'closed' ? `<button class="danger" data-act="close" data-id="${a.id}">${t('closeAccount')}</button>` : ''}
+    <button data-act="reset" data-id="${a.id}" data-phone="${esc(a.phone)}">${t('resetPin')}</button>`;
 }
 
 async function runAccountAction(btn) {
@@ -326,48 +331,51 @@ async function bootDash() {
   }
 
   async function render() {
+    paintUi = render;
     const stats = await api('/api/admin/stats');
     root.innerHTML = `
       <div class="row">
         <div>
-          <h1>sakarwine admin</h1>
-          <div class="muted">Signed in as ${me.username}</div>
+          <h1>${t('adminTitle')}</h1>
+          <div class="muted">${t('signedInAs', { name: me.username })}</div>
         </div>
-        <button class="ghost" id="out">Sign out</button>
+        ${I18n.switcherHtml('admin-lang')}
+        <button class="ghost" id="out">${t('signOut')}</button>
       </div>
       <div class="stats">
-        <div class="stat"><span>Accounts</span><b>${stats.users}</b></div>
-        <div class="stat"><span>Active</span><b>${stats.active}</b></div>
-        <div class="stat"><span>Online</span><b>${stats.online}</b></div>
-        <div class="stat"><span>Pending upgrades</span><b>${stats.pendingUpgrades}</b></div>
-        <div class="stat"><span>Pending hosts</span><b>${stats.pendingHosts || 0}</b></div>
-        <div class="stat"><span>Payouts</span><b>${stats.pendingPayouts || 0}</b></div>
-        <div class="stat"><span>Chats</span><b>${stats.conversations}</b></div>
+        <div class="stat"><span>${t('accounts')}</span><b>${stats.users}</b></div>
+        <div class="stat"><span>${t('active')}</span><b>${stats.active}</b></div>
+        <div class="stat"><span>${t('online')}</span><b>${stats.online}</b></div>
+        <div class="stat"><span>${t('pendingUpgrades')}</span><b>${stats.pendingUpgrades}</b></div>
+        <div class="stat"><span>${t('pendingHosts')}</span><b>${stats.pendingHosts || 0}</b></div>
+        <div class="stat"><span>${t('payouts')}</span><b>${stats.pendingPayouts || 0}</b></div>
+        <div class="stat"><span>${t('chats')}</span><b>${stats.conversations}</b></div>
       </div>
       ${stats.pendingUpgrades ? `<div class="notice">New payment submissions need review — duration, receipt, account ID, and registered phone are in Upgrades.</div>` : ''}
       ${stats.pendingHosts ? `<div class="notice">Female NRC verifications need review in Hosts — income form plus NRC front/back (admin-only).</div>` : ''}
       ${stats.pendingPayouts ? `<div class="notice">${stats.pendingPayouts} host payout(s) waiting — transfer then press Done to send ငွေဝင်ပါပြီ.</div>` : ''}
       <div class="lookup">
         <label class="field" style="margin:0;flex:1">
-          <span>Find by account ID</span>
+          <span>${t('findById')}</span>
           <input id="lookup" value="${esc(lookupQ)}" placeholder="Type SW######## — profile, chats, upgrades, moderation…" autocomplete="off" />
         </label>
-        <button id="lookup-go">Open dossier</button>
+        <button id="lookup-go">${t('openDossier')}</button>
         <div id="lookup-hits" class="lookup-hits" hidden></div>
       </div>
       <div class="tabs">
-        <button data-t="accounts" class="${!focusAccountId && tab === 'accounts' ? 'on' : ''}">Accounts</button>
-        <button data-t="create" class="${!focusAccountId && tab === 'create' ? 'on' : ''}">Create special</button>
-        <button data-t="chats" class="${!focusAccountId && tab === 'chats' ? 'on' : ''}">Chats</button>
-        <button data-t="upgrades" class="${!focusAccountId && tab === 'upgrades' ? 'on' : ''}">Upgrades ${stats.pendingUpgrades ? `(${stats.pendingUpgrades})` : ''}</button>
-        <button data-t="hosts" class="${!focusAccountId && tab === 'hosts' ? 'on' : ''}">Hosts ${stats.pendingHosts ? `(${stats.pendingHosts})` : ''}</button>
-        <button data-t="payouts" class="${!focusAccountId && tab === 'payouts' ? 'on' : ''}">Payouts ${stats.pendingPayouts ? `(${stats.pendingPayouts})` : ''}</button>
-        <button data-t="broadcast" class="${!focusAccountId && tab === 'broadcast' ? 'on' : ''}">Broadcast</button>
-        <button data-t="ads" class="${!focusAccountId && tab === 'ads' ? 'on' : ''}">Ads</button>
-        <button data-t="pricing" class="${!focusAccountId && tab === 'pricing' ? 'on' : ''}">Pricing</button>
-        <button data-t="settings" class="${!focusAccountId && tab === 'settings' ? 'on' : ''}">Settings</button>
+        <button data-t="accounts" class="${!focusAccountId && tab === 'accounts' ? 'on' : ''}">${t('tabAccounts')}</button>
+        <button data-t="create" class="${!focusAccountId && tab === 'create' ? 'on' : ''}">${t('tabCreate')}</button>
+        <button data-t="chats" class="${!focusAccountId && tab === 'chats' ? 'on' : ''}">${t('tabChats')}</button>
+        <button data-t="upgrades" class="${!focusAccountId && tab === 'upgrades' ? 'on' : ''}">${t('tabUpgrades')} ${stats.pendingUpgrades ? `(${stats.pendingUpgrades})` : ''}</button>
+        <button data-t="hosts" class="${!focusAccountId && tab === 'hosts' ? 'on' : ''}">${t('tabHosts')} ${stats.pendingHosts ? `(${stats.pendingHosts})` : ''}</button>
+        <button data-t="payouts" class="${!focusAccountId && tab === 'payouts' ? 'on' : ''}">${t('tabPayouts')} ${stats.pendingPayouts ? `(${stats.pendingPayouts})` : ''}</button>
+        <button data-t="broadcast" class="${!focusAccountId && tab === 'broadcast' ? 'on' : ''}">${t('tabBroadcast')}</button>
+        <button data-t="ads" class="${!focusAccountId && tab === 'ads' ? 'on' : ''}">${t('tabAds')}</button>
+        <button data-t="pricing" class="${!focusAccountId && tab === 'pricing' ? 'on' : ''}">${t('tabPricing')}</button>
+        <button data-t="settings" class="${!focusAccountId && tab === 'settings' ? 'on' : ''}">${t('tabSettings')}</button>
       </div>
-      <div class="card" id="panel">Loading…</div>`;
+      <div class="card" id="panel">${t('loading')}</div>`;
+    I18n.bindSwitcher('admin-lang');
     $('#out').onclick = async () => {
       await api('/api/admin/logout', { method: 'POST' });
       showLogin();
@@ -387,14 +395,14 @@ async function bootDash() {
     }
     if (tab === 'accounts') {
       const { accounts } = await api('/api/admin/accounts');
-      panel.innerHTML = `<div class="table-scroll"><table><thead><tr><th>Account</th><th>Phone</th><th>Role / paid</th><th>ID visibility</th><th>Status</th><th></th></tr></thead><tbody>${accounts.map((a) => `
+      panel.innerHTML = `<div class="table-scroll"><table><thead><tr><th>${t('accounts')}</th><th>${t('phone')}</th><th>${t('rolePaid')}</th><th>${t('idVisibility')}</th><th>${t('status')}</th><th></th></tr></thead><tbody>${accounts.map((a) => `
         <tr>
           <td><strong>${esc(a.username)}</strong><br>
             <button class="ghost" data-open-id="${esc(a.accountId)}">${esc(a.accountId)}</button>
             ${a.isSpecial ? `<br><span class="badge-neon">${esc(a.badge || 'special')}</span>` : ''}${a.isHost ? `<br><span class="badge-neon badge-host" data-badge="host">host</span>` : ''}${a.hostStatus === 'pending' ? '<br><span class="muted">NRC pending</span>' : ''}</td>
           <td>${esc(a.phone)}<br><span class="muted">${esc(a.gender)} · ${a.birthYear}</span></td>
           <td>${a.isSpecial ? `Unlimited · ${esc(a.badge || 'special')}` : `Lv ${a.level}<br>${a.paidUntil ? new Date(a.paidUntil).toLocaleDateString() : '—'}`}</td>
-          <td>${a.accountIdHidden ? 'Hidden from lounge' : 'Visible'}</td>
+          <td>${a.accountIdHidden ? t('hiddenFromLounge') : t('visible')}</td>
           <td><span class="badge ${a.status}">${a.status}</span> ${a.online ? '· online' : ''}${a.createdByAdmin ? '<br><span class="muted">admin-created</span>' : ''}</td>
           <td class="actions">${moderationButtons(a)}</td>
         </tr>`).join('')}</tbody></table></div>`;
@@ -662,11 +670,15 @@ async function bootDash() {
             incomeDemoVideoUrl: $('#dv').value
           }
         });
-        alert('Saved');
+        alert(t('saved'));
       };
     }
   }
   await render();
 }
 
+I18n.init();
+I18n.onChange(() => {
+  if (typeof paintUi === 'function') paintUi();
+});
 api('/api/admin/me').then(bootDash).catch(showLogin);

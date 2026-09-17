@@ -51,11 +51,11 @@ const Tour = (() => {
       card.style.top = `${Math.min(below, window.innerHeight - 190)}px`;
       card.style.left = '16px';
       card.innerHTML = `
-        <div class="small muted">Saka’s tour · ${i + 1}/${steps.length}</div>
+        <div class="small muted">${typeof I18n !== 'undefined' ? I18n.t('tourLabel', { n: i + 1, total: steps.length }) : `Saka’s tour · ${i + 1}/${steps.length}`}</div>
         <p style="margin:8px 0 12px">${step.text}</p>
         <div class="row-2">
-          <button class="btn secondary" type="button" data-skip>Skip</button>
-          <button class="btn" type="button" data-next>${i === steps.length - 1 ? 'Done' : 'Next'}</button>
+          <button class="btn secondary" type="button" data-skip>${typeof I18n !== 'undefined' ? I18n.t('skip') : 'Skip'}</button>
+          <button class="btn" type="button" data-next>${i === steps.length - 1 ? (typeof I18n !== 'undefined' ? I18n.t('done') : 'Done') : (typeof I18n !== 'undefined' ? I18n.t('next') : 'Next')}</button>
         </div>`;
       root.append(spot, arrow, card);
       card.querySelector('[data-skip]').onclick = close;

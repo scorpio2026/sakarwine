@@ -13,7 +13,7 @@
   --danger: #ff8aa0;
   --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
   --radius: 22px;
-  --font: "Nunito", system-ui, sans-serif;
+  --font: "Nunito", "Noto Sans Myanmar", "Noto Sans Thai", "Noto Sans SC", "Noto Sans KR", "Noto Sans JP", system-ui, sans-serif;
   --display: "Fraunces", Georgia, serif;
   --tap: 44px;
   --safe-top: env(safe-area-inset-top, 0px);
@@ -1042,6 +1042,32 @@ button:disabled, .btn:disabled, .icon-btn:disabled, .chat-tool:disabled, .chat-s
   min-width: var(--tap);
   padding: 8px 12px;
   color: var(--gold);
+}
+.lang-switch {
+  display: grid;
+  gap: 6px;
+  text-align: left;
+}
+.lang-switch span {
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rose);
+}
+.lang-switch select {
+  width: 100%;
+  min-height: var(--tap);
+  border: 1px solid rgba(255,244,236,0.28);
+  background: rgba(255, 244, 236, 0.14);
+  color: #fff7f0;
+  border-radius: 14px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 16px;
+}
+.settings-lang {
+  margin-bottom: 12px;
+  padding: 12px 14px;
 }
 
 @media (max-width: 399px) {

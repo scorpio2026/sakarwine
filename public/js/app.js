@@ -38,6 +38,40 @@ function toast(msg) {
   toastEl._t = setTimeout(() => { toastEl.hidden = true; }, 2800);
 }
 
+function t(key, vars) {
+  return I18n.t(key, vars);
+}
+
+function toastErr(e) {
+  toast(I18n.error(e && e.message));
+}
+
+function genderLabel(g) {
+  if (g === 'female') return t('female');
+  if (g === 'male') return t('male');
+  return g || '';
+}
+
+function planLabel(months) {
+  const n = Number(months);
+  return n === 1 ? t('planMonths', { n }) : t('planMonthsMany', { n });
+}
+
+function rerender() {
+  const v = state.view;
+  if (v === 'welcome') showWelcome();
+  else if (v === 'register') showRegister();
+  else if (v === 'scan') showScan();
+  else if (v === 'home') showHome();
+  else if (v === 'chat' && state.chat) renderChat();
+  else if (v === 'upgrade') showUpgrade();
+  else if (v === 'profile') showProfile();
+  else if (v === 'settings') showSettings();
+  else if (v === 'edit-profile') showEditProfile();
+  else if (v === 'blocked') showBlocked();
+  else if (v === 'help') showHelp(Boolean(state.user));
+}
+
 function closeModal() {
   modalEl.hidden = true;
   modalEl.innerHTML = '';
@@ -88,11 +122,11 @@ async function openProfilePhoto(userId) {
         ${photo}
         <h3 style="margin:12px 0 4px">${escapeHtml(u.username)}</h3>
         <p class="profile-id">${escapeHtml(u.accountId || '—')}</p>
-        <button class="btn secondary block" id="photo-close">Close</button>
+        <button class="btn secondary block" id="photo-close">${t('close')}</button>
       </div>`);
     $('#photo-close').onclick = closeModal;
   } catch (e) {
-    toast(e.message);
+    toastErr(e);
   }
 }
 
@@ -102,17 +136,17 @@ function roleMark(user) {
     core = `<span class="badge-neon" data-badge="${escapeHtml(user.badge)}">${escapeHtml(user.badge)}</span>`;
   } else {
     const lv = user && user.level != null ? user.level : 0;
-    core = `<span class="badge-lv">Lv ${lv}</span>`;
+    core = `<span class="badge-lv">${t('lv', { n: lv })}</span>`;
   }
   if (user && user.isHost) {
-    core += ` <span class="badge-neon badge-host" data-badge="host">host</span>`;
+    core += ` <span class="badge-neon badge-host" data-badge="host">${t('host')}</span>`;
   }
   return core;
 }
 
 function statusPill(user) {
   if (user && user.isSpecial) return roleMark(user);
-  return `<span class="pill">${user && user.paid ? 'Paid' : 'Free 24h'} · Lv ${user.level}</span>`;
+  return `<span class="pill">${user && user.paid ? t('paid') : t('free24h')} · ${t('lv', { n: user.level })}</span>`;
 }
 
 function petals() {
@@ -145,9 +179,9 @@ function connectSocket() {
         box.scrollTop = box.scrollHeight;
       }
     } else if (!message.sender) {
-      toast(message.body || 'New system message');
+      toast(message.body || t('newSystem'));
     } else if (message.sender && message.sender.id !== state.user.id) {
-      toast(`New message from ${message.sender.username}`);
+      toast(t('newMessageFrom', { name: message.sender.username }));
     }
   });
   socket.on('presence', () => {
@@ -156,28 +190,28 @@ function connectSocket() {
   socket.on('typing', ({ conversationId, typing }) => {
     if (state.chat && state.chat.id === conversationId) {
       const el = $('#typing');
-      if (el) el.textContent = typing ? `${state.chat.peer.username} is typing…` : '';
+      if (el) el.textContent = typing ? t('typing', { name: state.chat.peer.username }) : '';
     }
   });
   socket.on('upgrade:approved', (payload) => {
-    toast(`Upgrade approved · you’re now Lv ${payload.level}`);
+    toast(t('upgradeApproved', { level: payload.level }));
     refreshMe();
   });
   socket.on('host:approved', () => {
-    toast('Host verification approved');
+    toast(t('hostApproved'));
     refreshMe().then(() => {
       if (state.view === 'home') loadHome();
       if (state.view === 'profile') showProfile();
     });
   });
   socket.on('host:rejected', () => {
-    toast('Host verification was not approved. You can re-upload NRC from Me.');
+    toast(t('hostRejectedToast'));
     refreshMe().then(() => {
       if (state.view === 'profile') showProfile();
     });
   });
   socket.on('host:income', (payload) => {
-    toast(`+${payload.amount} host credit from ${payload.partnerUsername}`);
+    toast(t('hostCreditFrom', { amount: payload.amount, name: payload.partnerUsername }));
     refreshMe().then(() => {
       if (state.view === 'profile') showProfile();
     });
@@ -196,7 +230,7 @@ function connectSocket() {
     }
   });
   socket.on('payout:done', () => {
-    toast('ငွေဝင်ပါပြီ');
+    toast(t('payoutDone'));
     refreshMe().then(() => {
       if (state.view === 'profile') showProfile();
     });
@@ -205,7 +239,7 @@ function connectSocket() {
     refreshMe();
   });
   socket.on('account:status', () => {
-    toast('Your account status changed.');
+    toast(t('accountChanged'));
     location.reload();
   });
 }
@@ -217,6 +251,8 @@ async function refreshMe() {
 }
 
 async function boot() {
+  I18n.init();
+  I18n.onChange(() => rerender());
   petals();
   app.addEventListener('click', (e) => {
     const el = e.target.closest('[data-photo-user]');
@@ -247,25 +283,27 @@ function showWelcome() {
       <div class="brand-lockup">
         <div class="logo-3d">${ICONS.wine}</div>
         <h1>${state.settings.siteName}</h1>
-        <p class="muted">Cute. Premium. Real-time.</p>
+        <p class="muted">${t('tagline')}</p>
       </div>
       <div class="glass-card stack" style="margin-top:auto">
         <div class="field">
-          <label>Username</label>
+          <label>${t('username')}</label>
           <input id="login-user" autocomplete="username" />
         </div>
         <div class="field">
-          <label>6-digit PIN</label>
+          <label>${t('pin6')}</label>
           <input id="login-pass" type="password" inputmode="numeric" maxlength="6" autocomplete="current-password" />
         </div>
-        <button class="btn block" id="login-btn">Enter lounge</button>
-        <button class="btn secondary block" id="goto-reg">Create account</button>
-        <button class="btn ghost" id="goto-help">Forgot PIN?</button>
+        <button class="btn block" id="login-btn">${t('enterLounge')}</button>
+        <button class="btn secondary block" id="goto-reg">${t('createAccount')}</button>
+        <button class="btn ghost" id="goto-help">${t('forgotPin')}</button>
+        ${I18n.switcherHtml('lang-switch')}
       </div>
     </section>`;
   $('#login-btn').onclick = login;
   $('#goto-reg').onclick = showRegister;
   $('#goto-help').onclick = showHelp;
+  I18n.bindSwitcher('lang-switch');
 }
 
 async function login() {
@@ -279,7 +317,7 @@ async function login() {
     connectSocket();
     showHome();
   } catch (e) {
-    toast(e.message);
+    toastErr(e);
   }
 }
 
@@ -296,59 +334,59 @@ function showRegister() {
     <section class="screen">
       <div class="topbar">
         <button class="icon-btn" id="back">${ICONS.back}</button>
-        <h2>Join sakarwine</h2>
+        <h2>${t('joinTitle')}</h2>
       </div>
       <form id="reg" class="glass-card" style="overflow:auto">
         <label class="photo-pick">
           <input class="hidden-file" type="file" name="photo" accept="image/*" required />
           <div id="photo-preview" class="avatar ai">📷</div>
-          <span class="small muted">Profile photo</span>
+          <span class="small muted">${t('profilePhoto')}</span>
         </label>
-        <div class="field"><label>Username</label><input name="username" required minlength="3" maxlength="20" /></div>
-        <div class="field"><label>Password (exactly 6 digits)</label><input name="password" inputmode="numeric" pattern="\\d{6}" maxlength="6" required /></div>
+        <div class="field"><label>${t('username')}</label><input name="username" required minlength="3" maxlength="20" /></div>
+        <div class="field"><label>${t('pinExactly6')}</label><input name="password" inputmode="numeric" pattern="\\d{6}" maxlength="6" required /></div>
         <div class="row-2">
-          <div class="field"><label>Gender</label>
+          <div class="field"><label>${t('gender')}</label>
             <select name="gender" required>
-              <option value="female">Female</option>
-              <option value="male">Male</option>
+              <option value="female">${t('female')}</option>
+              <option value="male">${t('male')}</option>
             </select>
           </div>
-          <div class="field"><label>Birth year</label>
+          <div class="field"><label>${t('birthYear')}</label>
             <select name="birthYear">${yearOptions()}</select>
           </div>
         </div>
-        <div class="field"><label>Phone number</label><input name="phone" required inputmode="tel" /></div>
+        <div class="field"><label>${t('phone')}</label><input name="phone" required inputmode="tel" /></div>
         <div id="female-extra">
-          <h3>Income</h3>
-          <p class="small muted">Required for female accounts. Admin reviews this with your NRC.</p>
-          <div class="field"><label>Occupation / work</label><input name="occupation" minlength="2" maxlength="80" /></div>
+          <h3>${t('income')}</h3>
+          <p class="small muted">${t('incomeFemaleNote')}</p>
+          <div class="field"><label>${t('occupation')}</label><input name="occupation" minlength="2" maxlength="80" /></div>
           <div class="row-2">
-            <div class="field"><label>Monthly income (MMK)</label><input name="monthlyIncome" inputmode="numeric" /></div>
-            <div class="field"><label>Income source</label>
+            <div class="field"><label>${t('monthlyIncome')}</label><input name="monthlyIncome" inputmode="numeric" /></div>
+            <div class="field"><label>${t('incomeSource')}</label>
               <select name="incomeSource">
-                <option value="salary">Salary</option>
-                <option value="business">Business</option>
-                <option value="family">Family support</option>
-                <option value="other">Other</option>
+                <option value="salary">${t('salary')}</option>
+                <option value="business">${t('business')}</option>
+                <option value="family">${t('family')}</option>
+                <option value="other">${t('other')}</option>
               </select>
             </div>
           </div>
-          <h3>Myanmar NRC</h3>
-          <p class="small muted">Front and back photos of your national ID. Only the sakarwine admin can open these files.</p>
+          <h3>${t('nrcTitle')}</h3>
+          <p class="small muted">${t('nrcNote')}</p>
           <div class="row-2">
             <label class="photo-pick">
               <input class="hidden-file" type="file" name="nrcFront" accept="image/*" />
               <div id="nrc-front-preview" class="avatar ai">🪪</div>
-              <span class="small muted">NRC front</span>
+              <span class="small muted">${t('nrcFront')}</span>
             </label>
             <label class="photo-pick">
               <input class="hidden-file" type="file" name="nrcBack" accept="image/*" />
               <div id="nrc-back-preview" class="avatar ai">🪪</div>
-              <span class="small muted">NRC back</span>
+              <span class="small muted">${t('nrcBack')}</span>
             </label>
           </div>
         </div>
-        <button class="btn block" type="submit">Continue to face scan</button>
+        <button class="btn block" type="submit">${t('continueScan')}</button>
       </form>
     </section>`;
   $('#back').onclick = showWelcome;
@@ -392,7 +430,7 @@ function showRegister() {
       state.user = data.user;
       showScan();
     } catch (err) {
-      toast(err.message);
+      toastErr(err);
     }
   };
 }
@@ -401,14 +439,14 @@ function showScan() {
   state.view = 'scan';
   app.innerHTML = `
     <section class="screen">
-      <div class="topbar"><h2>Face scan</h2></div>
-      <p class="muted small">Move your head left, then right. On-device camera tracking checks liveness and estimates gender. This is a heuristic — lighting and angle affect it — not an identity guarantee.</p>
+      <div class="topbar"><h2>${t('faceScan')}</h2></div>
+      <p class="muted small">${t('scanHelp')}</p>
       <div class="scan-stage">
         <video id="cam" playsinline muted></video>
         <div class="face-guide"></div>
       </div>
-      <div class="scan-hint" id="hint">Allow camera to begin</div>
-      <button class="btn block" id="start-scan" style="margin-top:10px">Start scan</button>
+      <div class="scan-hint" id="hint">${t('allowCamera')}</div>
+      <button class="btn block" id="start-scan" style="margin-top:10px">${t('startScan')}</button>
     </section>`;
   $('#start-scan').onclick = async () => {
     $('#start-scan').disabled = true;
@@ -419,12 +457,12 @@ function showScan() {
       });
       const data = await api('/api/me/liveness', { method: 'POST', json: result });
       state.user = data.user;
-      const match = data.genderMatch ? 'matches' : 'differs from';
+      const match = data.genderMatch ? t('matches') : t('differsFrom');
       modal(`
-        <h3 style="margin-top:0">You’re in</h3>
-        <p>Account ID <strong>${data.user.accountId}</strong></p>
-        <p class="small muted">Estimated gender: <strong>${result.estimatedGender}</strong> (${match} your profile).</p>
-        <button class="btn block" id="go-in">Meet Saka</button>`);
+        <h3 style="margin-top:0">${t('youreIn')}</h3>
+        <p>${t('accountId')} <strong>${data.user.accountId}</strong></p>
+        <p class="small muted">${t('estimatedGender')}: <strong>${result.estimatedGender}</strong> (${match} ${t('yourProfile')}).</p>
+        <button class="btn block" id="go-in">${t('meetSaka')}</button>`);
       $('#go-in').onclick = () => {
         closeModal();
         connectSocket();
@@ -432,7 +470,7 @@ function showScan() {
       };
     } catch (err) {
       $('#start-scan').disabled = false;
-      toast(err.message || 'Camera scan failed');
+      toast(err.message || t('scanFailed'));
     }
   };
 }
@@ -440,10 +478,10 @@ function showScan() {
 function nav(active) {
   return `
     <nav class="nav">
-      <button data-go="home" class="${active === 'home' ? 'active' : ''}"><span class="icon-btn">${ICONS.people}</span>People</button>
-      <button data-go="upgrade" class="${active === 'upgrade' ? 'active' : ''}"><span class="icon-btn">${ICONS.gem}</span>Upgrade</button>
-      <button data-go="profile" class="${active === 'profile' ? 'active' : ''}"><span class="icon-btn">${ICONS.me}</span>Me</button>
-      <button data-go="help" class="${active === 'help' ? 'active' : ''}"><span class="icon-btn">${ICONS.chat}</span>Help</button>
+      <button data-go="home" class="${active === 'home' ? 'active' : ''}"><span class="icon-btn">${ICONS.people}</span>${t('navPeople')}</button>
+      <button data-go="upgrade" class="${active === 'upgrade' ? 'active' : ''}"><span class="icon-btn">${ICONS.gem}</span>${t('navUpgrade')}</button>
+      <button data-go="profile" class="${active === 'profile' ? 'active' : ''}"><span class="icon-btn">${ICONS.me}</span>${t('navMe')}</button>
+      <button data-go="help" class="${active === 'help' ? 'active' : ''}"><span class="icon-btn">${ICONS.chat}</span>${t('navHelp')}</button>
     </nav>`;
 }
 
@@ -499,8 +537,8 @@ async function loadHome() {
     <div class="user-row" data-id="${u.id}">
       ${avatarHtml(u)}
       <div class="meta">
-        <div class="name">${u.username} ${u.isAi ? '· guide' : ''} ${roleMark(u)}</div>
-        <div class="sub">${u.online ? 'Online now' : 'Offline'} · ${u.gender}${u.blocked ? ' · blocked' : ''}</div>
+        <div class="name">${u.username} ${u.isAi ? '· ' + t('guide') : ''} ${roleMark(u)}</div>
+        <div class="sub">${u.online ? t('onlineNow') : t('offline')} · ${genderLabel(u.gender)}${u.blocked ? ' · ' + t('blocked') : ''}</div>
       </div>
       <span class="dot ${u.online ? 'on' : ''}"></span>
     </div>`).join('');
@@ -517,7 +555,7 @@ async function showHome(opts = {}) {
       <div class="screen-body">
       <div class="topbar">
         <div>
-          <div class="muted small">Hello, ${u.username}</div>
+          <div class="muted small">${t('helloUser', { name: escapeHtml(u.username) })}</div>
           <h2 id="home-title">${state.settings.siteName}</h2>
         </div>
         <span class="pill-slot">${statusPill(u)}</span>
@@ -533,11 +571,11 @@ async function showHome(opts = {}) {
   if (opts.tour && !u.tourCompleted) {
     const ai = state.users.find((x) => x.isAi);
     Tour.start([
-      { target: '#home-title', text: 'Welcome. This is your sakarwine lounge — glass, gold, and people who want to talk.', arrow: 'down' },
-      { target: '#user-list', text: 'Everyone is listed here. Online friends rise to the top. Tap a name to start a 24-hour free chat.', arrow: 'up' },
+      { target: '#home-title', text: t('tourHome1'), arrow: 'down' },
+      { target: '#user-list', text: t('tourHome2'), arrow: 'up' },
       {
         target: '#user-list .user-row',
-        text: 'I’ll open our guide chat next so you can try photos and voice notes.',
+        text: t('tourHome3'),
         arrow: 'down',
         before: () => {}
       }
@@ -595,7 +633,7 @@ function renderBubble(m, prev, next) {
   const cls = `bubble ${mine ? 'me' : 'them'}${m.sender && m.sender.isAi ? ' ai' : ''}${media ? ' media' : ''}${sys ? ' system' : ''}${stackClass(prev, m, next)}`;
   let inner = '';
   if (m.type === 'image' && m.imageLocked) {
-    inner = `<div class="locked-photo" data-lock>Photos unlock at Level 3. Tap for details.</div>`;
+    inner = `<div class="locked-photo" data-lock>${t('photosUnlock')}</div>`;
   } else if (m.type === 'image' && m.mediaUrl) {
     inner = `<img src="${m.mediaUrl}" alt="" />`;
   } else if (m.type === 'voice' && m.mediaUrl) {
@@ -642,7 +680,7 @@ async function openChat(userId, opts = {}) {
     };
     renderChat(opts);
   } catch (e) {
-    toast(e.message);
+    toastErr(e);
   }
 }
 
@@ -658,18 +696,18 @@ function hostCreditBanner(c) {
   const m = c.mutual;
   if (!m || !state.user || !state.user.isHost || c.peer.isAi) return '';
   if (m.credited) {
-    return `<div class="host-earn" id="host-earn">+${m.creditAmount} credited for this partner</div>`;
+    return `<div class="host-earn" id="host-earn">${t('hostCredited', { amount: m.creditAmount })}</div>`;
   }
   if (m.hostOpened) {
-    return `<div class="host-earn dim" id="host-earn">This chat does not earn income — they need to come talk to you.</div>`;
+    return `<div class="host-earn dim" id="host-earn">${t('hostNoEarn')}</div>`;
   }
   if (!m.partnerQualifies) {
-    return `<div class="host-earn dim" id="host-earn">Host credit needs a visitor at Lv 1+ (one approved upgrade).</div>`;
+    return `<div class="host-earn dim" id="host-earn">${t('hostNeedLv1')}</div>`;
   }
   if (m.voided) {
-    return `<div class="host-earn dim" id="host-earn">This session was voided (block). It does not earn income.</div>`;
+    return `<div class="host-earn dim" id="host-earn">${t('hostVoided')}</div>`;
   }
-  return `<div class="host-earn" id="host-earn">Continuous chat ${formatChatMs(m.streakMs || m.totalMs)} / ${formatChatMs(m.neededMs)} toward +${m.creditAmount}. Stay online — leaving or blocking resets the session.</div>`;
+  return `<div class="host-earn" id="host-earn">${t('hostProgress', { have: formatChatMs(m.streakMs || m.totalMs), need: formatChatMs(m.neededMs), amount: m.creditAmount })}</div>`;
 }
 
 function stopChatPresence() {
@@ -717,12 +755,12 @@ function startChatPresence() {
 }
 
 function formatRemain(ms, window) {
-  if (window && window.hostVisitorChat) return 'Unlimited with this visitor';
-  if (window && window.special) return 'Unlimited';
-  if (ms == null) return 'Unlimited while paid';
+  if (window && window.hostVisitorChat) return t('unlimitedVisitor');
+  if (window && window.special) return t('unlimited');
+  if (ms == null) return t('unlimitedPaid');
   const h = Math.floor(ms / 3600000);
   const m = Math.floor((ms % 3600000) / 60000);
-  return `${h}h ${m}m free left`;
+  return t('freeLeft', { h, m });
 }
 
 function renderChat(opts = {}) {
@@ -733,32 +771,32 @@ function renderChat(opts = {}) {
     <section class="screen chat-screen">
       <div class="screen-body">
       <div class="topbar chat-head">
-        <button class="chat-tool" id="back" aria-label="Back">${ICONS.back}</button>
+        <button class="chat-tool" id="back" aria-label="${t('back')}">${ICONS.back}</button>
         <div class="chat-ava">
           ${avatarHtml(c.peer, 'round')}
           <span class="ava-on ${c.peer.online ? 'on' : ''}"></span>
         </div>
         <div class="meta">
           <div class="name">${escapeHtml(c.peer.username)} ${roleMark(c.peer)}</div>
-          <div class="sub">${c.peer.online ? 'Active now' : 'Offline'} · ${formatRemain(c.window.remainingMs, c.window)}</div>
+          <div class="sub">${c.peer.online ? t('activeNow') : t('offline')} · ${formatRemain(c.window.remainingMs, c.window)}</div>
         </div>
         ${c.peer.isAi ? '' : `<div class="chat-actions">
-          ${c.peer.isAdmin || c.peer.blockable === false ? '' : `<button class="chat-tool" id="block" title="Block" aria-label="Block">${ICONS.block}</button>`}
-          <button class="chat-tool" id="delete-chat" title="Delete for me" aria-label="Delete chat">${ICONS.trash}</button>
+          ${c.peer.isAdmin || c.peer.blockable === false ? '' : `<button class="chat-tool" id="block" title="${t('blockBtn')}" aria-label="${t('blockBtn')}">${ICONS.block}</button>`}
+          <button class="chat-tool" id="delete-chat" title="${t('deleteForMe')}" aria-label="${t('deleteForMe')}">${ICONS.trash}</button>
         </div>`}
       </div>
-      ${expired ? `<div class="upgrade-banner">Free 24 hours has ended for this chat. Upgrade to keep talking.<br><button class="btn" id="go-up" style="margin-top:8px">See plans</button></div>` : ''}
+      ${expired ? `<div class="upgrade-banner">${t('upgradeEnded')}<br><button class="btn" id="go-up" style="margin-top:8px">${t('seePlans')}</button></div>` : ''}
       ${hostCreditBanner(c)}
       <div id="messages" class="messages">${renderThread(c.messages)}</div>
       <div class="typing" id="typing"></div>
       </div>
       <div class="composer">
-        <button class="chat-tool" id="img-btn" aria-label="Photo" ${expired ? 'disabled' : ''}>${ICONS.image}</button>
+        <button class="chat-tool" id="img-btn" aria-label="${t('photo')}" ${expired ? 'disabled' : ''}>${ICONS.image}</button>
         <div class="composer-pill">
-          <textarea id="text" rows="1" ${expired ? 'disabled' : ''} placeholder="Message…"></textarea>
-          <button class="chat-send" id="send" hidden ${expired ? 'disabled' : ''}>Send</button>
+          <textarea id="text" rows="1" ${expired ? 'disabled' : ''} placeholder="${t('messagePh')}"></textarea>
+          <button class="chat-send" id="send" hidden ${expired ? 'disabled' : ''}>${t('send')}</button>
         </div>
-        <button class="chat-tool" id="mic-btn" aria-label="Voice note" ${expired ? 'disabled' : ''}>${ICONS.mic}</button>
+        <button class="chat-tool" id="mic-btn" aria-label="${t('voice')}" ${expired ? 'disabled' : ''}>${ICONS.mic}</button>
         <input id="img-file" class="hidden-file" type="file" accept="image/*" />
       </div>
     </section>`;
@@ -771,7 +809,7 @@ function renderChat(opts = {}) {
   box.scrollTop = box.scrollHeight;
   box.onclick = (e) => {
     if (e.target.closest('[data-lock]')) {
-      modal(`<h3 style="margin-top:0">Locked photo</h3><p>Only Level 3+ members (three approved upgrades) can see chat photos clearly. Upgrade to raise your level.</p><button class="btn block" id="m-up">Upgrade</button>`);
+      modal(`<h3 style="margin-top:0">${t('lockedPhoto')}</h3><p>${t('photosUnlockBody')}</p><button class="btn block" id="m-up">${t('navUpgrade')}</button>`);
       $('#m-up').onclick = () => { closeModal(); showUpgrade(); };
     }
   };
@@ -779,30 +817,30 @@ function renderChat(opts = {}) {
   if ($('#block')) $('#block').onclick = async () => {
     if (c.blocked) {
       await api(`/api/users/${c.peer.id}/block`, { method: 'DELETE' });
-      toast('Unblocked');
+      toast(t('unblocked'));
       openChat(c.peer.id);
     } else {
       await api(`/api/users/${c.peer.id}/block`, { method: 'POST' });
-      toast('Blocked');
+      toast(t('blockedToast'));
       stopChatPresence();
       showHome();
     }
   };
   if ($('#delete-chat')) $('#delete-chat').onclick = () => {
-    modal(`<h3 style="margin-top:0">Delete this chat?</h3>
-      <p>This only clears the history on <strong>your</strong> account. ${escapeHtml(c.peer.username)} will still keep the conversation. Messages cannot be edited or undone.</p>
-      <button class="btn danger block" id="m-del">Delete for me</button>
-      <button class="btn secondary block" id="m-cancel" style="margin-top:8px">Keep chat</button>`);
+    modal(`<h3 style="margin-top:0">${t('deleteChatTitle')}</h3>
+      <p>${t('deleteChatBody', { name: escapeHtml(c.peer.username) })}</p>
+      <button class="btn danger block" id="m-del">${t('deleteForMe')}</button>
+      <button class="btn secondary block" id="m-cancel" style="margin-top:8px">${t('keepChat')}</button>`);
     $('#m-cancel').onclick = closeModal;
     $('#m-del').onclick = async () => {
       try {
         await api(`/api/conversations/${c.id}`, { method: 'DELETE' });
         closeModal();
-        toast('Chat deleted for you only');
+        toast(t('chatDeleted'));
         stopChatPresence();
         showHome();
       } catch (e) {
-        toast(e.message);
+        toastErr(e);
       }
     };
   };
@@ -835,7 +873,7 @@ function renderChat(opts = {}) {
       paintThread();
     } catch (e) {
       if (e.code === 'UPGRADE') showUpgrade();
-      toast(e.message);
+      toastErr(e);
     } finally {
       sending = false;
     }
@@ -867,7 +905,7 @@ function renderChat(opts = {}) {
       addChatMessage(data.message);
       paintThread();
     } catch (e) {
-      toast(e.message);
+      toastErr(e);
     }
   };
   let rec, chunks;
@@ -893,22 +931,22 @@ function renderChat(opts = {}) {
           addChatMessage(data.message);
           paintThread();
         } catch (e) {
-          toast(e.message);
+          toastErr(e);
         }
       };
       rec.start();
       $('#mic-btn').classList.add('live');
-      toast('Recording… tap mic again to send');
+      toast(t('recording'));
     } catch {
-      toast('Microphone not available');
+      toast(t('noMic'));
     }
   };
   if (opts.fromTour) {
     setTimeout(() => {
       Tour.start([
-        { target: '#text', text: 'Type here. Don’t start with @, and don’t share 09 phone numbers.', arrow: 'up' },
-        { target: '#img-btn', text: 'The photo button sends a picture. Recipients below Level 3 see it locked.', arrow: 'up' },
-        { target: '#mic-btn', text: 'Tap the mic to send a voice note. Video is not allowed.', arrow: 'up' }
+        { target: '#text', text: t('tourChat1'), arrow: 'up' },
+        { target: '#img-btn', text: t('tourChat2'), arrow: 'up' },
+        { target: '#mic-btn', text: t('tourChat3'), arrow: 'up' }
       ]);
     }, 400);
   }
@@ -927,26 +965,26 @@ async function showUpgrade() {
   app.innerHTML = `
     <section class="screen">
       <div class="screen-body">
-      <div class="topbar"><h2>Upgrade</h2>${statusPill(state.user)}</div>
+      <div class="topbar"><h2>${t('upgradeTitle')}</h2>${statusPill(state.user)}</div>
       <div class="glass-card stack">
         ${state.user.isSpecial ? `
-          <p>This special account already has <strong>unlimited chatting</strong> — no upgrade is required.</p>
-          <p class="small muted">Your lounge badge is ${roleMark(state.user)}.</p>
+          <p>${t('specialUnlimited')}</p>
+          <p class="small muted">${t('loungeBadge')} ${roleMark(state.user)}.</p>
         ` : `
-        <p class="small muted">Your account ID is required on the transfer. Admin approval starts the paid period immediately. Each approval raises your level by 1. Photos unlock at Level 3.</p>
-        <div class="field"><label>Account ID</label><input id="acc" value="${state.user.accountId}" readonly /></div>
-        <div class="field"><label>Duration</label>
-          <select id="months">${pub.quotes.map((q) => `<option value="${q.months}">${q.label}${q.discountPercent ? ` · ${q.discountPercent}% off` : ''}</option>`).join('')}</select>
+        <p class="small muted">${t('upgradeHelp')}</p>
+        <div class="field"><label>${t('accountId')}</label><input id="acc" value="${state.user.accountId}" readonly /></div>
+        <div class="field"><label>${t('duration')}</label>
+          <select id="months">${pub.quotes.map((q) => `<option value="${q.months}">${planLabel(q.months)}${q.discountPercent ? ` · ${t('planOff', { pct: q.discountPercent })}` : ''}</option>`).join('')}</select>
         </div>
         <div class="quote-card">
-          <span id="q-label">Coverage</span>
+          <span id="q-label">${t('coverage')}</span>
           <strong id="q-amt"></strong>
         </div>
         <p class="small" id="q-detail"></p>
         <pre class="small muted" style="white-space:pre-wrap;font-family:inherit">${escapeHtml(pub.paymentInstructions)}</pre>
-        <div class="field"><label>Payment screenshot</label><input id="receipt" type="file" accept="image/*" /></div>
-        <button class="btn block" id="submit-up">Submit for admin approval</button>
-        <div class="small muted">${mine.upgrades.map((u) => `#${u.id} · ${u.months} mo · ${money(u.amount, u.currency)} · ${u.status}`).join('<br>') || 'No submissions yet.'}</div>
+        <div class="field"><label>${t('paymentShot')}</label><input id="receipt" type="file" accept="image/*" /></div>
+        <button class="btn block" id="submit-up">${t('submitApproval')}</button>
+        <div class="small muted">${mine.upgrades.map((u) => `#${u.id} · ${planLabel(u.months)} · ${money(u.amount, u.currency)} · ${u.status}`).join('<br>') || t('noSubmissions')}</div>
         `}
       </div>
       </div>
@@ -957,7 +995,11 @@ async function showUpgrade() {
   const paint = () => {
     const q = pub.quotes.find((x) => x.months === Number($('#months').value));
     $('#q-amt').textContent = money(q.amount, pub.currency);
-    $('#q-detail').textContent = `${q.label} coverage · list ${money(q.gross, pub.currency)}${q.discountPercent ? ` · prepaid save ${q.discountPercent}%` : ''}`;
+    $('#q-detail').textContent = t('quoteDetail', {
+      label: planLabel(q.months),
+      gross: money(q.gross, pub.currency),
+      save: q.discountPercent ? t('quoteSave', { pct: q.discountPercent }) : ''
+    });
   };
   $('#months').onchange = paint;
   $('#months').value = '1';
@@ -967,50 +1009,50 @@ async function showUpgrade() {
     fd.append('accountId', state.user.accountId);
     fd.append('months', $('#months').value);
     const file = $('#receipt').files[0];
-    if (!file) return toast('Add your transfer screenshot');
+    if (!file) return toast(t('addScreenshot'));
     fd.append('receipt', file);
     try {
       await api('/api/upgrade', { method: 'POST', body: fd });
-      toast('Submitted. Admin will review.');
+      toast(t('submitted'));
       showUpgrade();
     } catch (e) {
-      toast(e.message);
+      toastErr(e);
     }
   };
 }
 
 function incomeSourceLabel(v) {
-  return { salary: 'Salary', business: 'Business', family: 'Family support', other: 'Other' }[v] || v || '—';
+  return { salary: t('salary'), business: t('business'), family: t('family'), other: t('other') }[v] || v || '—';
 }
 
 function hostStatusLine(u) {
   if (u.gender !== 'female') return '';
-  if (u.isHost) return 'Verified host';
-  if (u.hostStatus === 'pending') return 'NRC submitted — waiting for admin';
-  if (u.hostStatus === 'rejected') return 'Host verification was not approved. Re-upload NRC below.';
-  return 'Complete NRC verification to earn a host badge.';
+  if (u.isHost) return t('hostVerified');
+  if (u.hostStatus === 'pending') return t('hostPending');
+  if (u.hostStatus === 'rejected') return t('hostRejected');
+  return t('hostNone');
 }
 
 function incomeDemoBlock(u) {
   const src = u.incomeDemoVideoUrl || '/demo/income-host.mp4';
   return `
     <div class="income-demo">
-      <h3>How host income works</h3>
-      <p class="small muted">Sample chat only. Members still cannot send video messages.</p>
-      <div class="chat-demo" role="img" aria-label="Sample chat showing how host income is earned">
+      <h3>${t('howHostWorks')}</h3>
+      <p class="small muted">${t('sampleChatOnly')}</p>
+      <div class="chat-demo" role="img" aria-label="${t('howHostWorks')}">
         <div class="chat-demo-head">
-          <span class="badge-lv">Lv 1</span> koKo <span class="muted">visited you · sample</span>
+          <span class="badge-lv">Lv 1</span> koKo <span class="muted">${t('visitedSample')}</span>
         </div>
         <div class="chat-demo-thread">
-          <div class="bubble them">Hi, I came to talk.</div>
-          <div class="bubble me">Stay here 10 minutes — hosts earn 500 once.</div>
+          <div class="bubble them">${t('demoHi')}</div>
+          <div class="bubble me">${t('demoStay')}</div>
           <div class="bubble them chat-demo-clip">
             <video class="income-video" controls playsinline preload="metadata" src="${escapeHtml(src)}"></video>
-            <span class="small muted">Sample walkthrough inside this chat</span>
+            <span class="small muted">${t('demoWalkthrough')}</span>
           </div>
-          <div class="host-earn">+500 credited for this partner</div>
+          <div class="host-earn">${t('hostCredited', { amount: 500 })}</div>
         </div>
-        <div class="chat-demo-bar muted small">Composer locked in this sample · video is not a chat send</div>
+        <div class="chat-demo-bar muted small">${t('demoComposer')}</div>
       </div>
     </div>`;
 }
@@ -1018,63 +1060,63 @@ function incomeDemoBlock(u) {
 function showProfile() {
   state.view = 'profile';
   const u = state.user;
-  const paidLine = u.paidUntil ? `Paid until ${new Date(u.paidUntil).toLocaleString()}` : 'Not paid yet';
+  const paidLine = u.paidUntil ? t('paidUntil', { when: I18n.formatWhen(u.paidUntil) }) : t('notPaidYet');
   const formLocked = u.gender === 'female' && !u.canEditIncome;
   const femaleForm = u.gender === 'female' ? `
         <div class="glass-card stack" style="margin-top:12px;text-align:left">
-          <h3 style="margin:0">Income</h3>
+          <h3 style="margin:0">${t('income')}</h3>
           <p class="small muted">${escapeHtml(hostStatusLine(u))}</p>
           ${incomeDemoBlock(u)}
-          ${formLocked ? `<p class="small muted">Upgrade at least once (Lv 1+) to edit the income form.</p>` : ''}
-          <div class="field"><label>Occupation / work</label><input id="inc-occ" ${formLocked ? 'disabled' : ''} value="${escapeHtml(u.occupation || '')}" minlength="2" maxlength="80" /></div>
+          ${formLocked ? `<p class="small muted">${t('incomeLocked')}</p>` : ''}
+          <div class="field"><label>${t('occupation')}</label><input id="inc-occ" ${formLocked ? 'disabled' : ''} value="${escapeHtml(u.occupation || '')}" minlength="2" maxlength="80" /></div>
           <div class="row-2">
-            <div class="field"><label>Monthly income (MMK)</label><input id="inc-amt" ${formLocked ? 'disabled' : ''} inputmode="numeric" value="${u.monthlyIncome != null ? escapeHtml(String(u.monthlyIncome)) : ''}" /></div>
-            <div class="field"><label>Income source</label>
+            <div class="field"><label>${t('monthlyIncome')}</label><input id="inc-amt" ${formLocked ? 'disabled' : ''} inputmode="numeric" value="${u.monthlyIncome != null ? escapeHtml(String(u.monthlyIncome)) : ''}" /></div>
+            <div class="field"><label>${t('incomeSource')}</label>
               <select id="inc-src" ${formLocked ? 'disabled' : ''}>
                 ${['salary', 'business', 'family', 'other'].map((s) => `<option value="${s}" ${u.incomeSource === s ? 'selected' : ''}>${incomeSourceLabel(s)}</option>`).join('')}
               </select>
             </div>
           </div>
-          <button class="btn block" id="save-income" ${formLocked ? 'disabled' : ''}>Save income</button>
+          <button class="btn block" id="save-income" ${formLocked ? 'disabled' : ''}>${t('saveIncome')}</button>
           ${u.isHost ? `
-          <h3>Host earnings</h3>
-          <p><strong>${Number(u.hostBalance != null ? u.hostBalance : u.hostEarnings || 0).toLocaleString()} MMK</strong> available
-            <span class="small muted"> · earned ${Number(u.hostEarnings || 0).toLocaleString()} · ${Number(u.hostCreditAmount || 500).toLocaleString()} per qualifying visitor</span></p>
-          <p class="small muted">An upgraded member (Lv 1+) must come talk to you. Stay in a continuous mutual chat for 10 minutes. You open the chat → no credit. Offline or block before 10 minutes voids that session. Each visitor credits once.</p>
+          <h3>${t('hostEarnings')}</h3>
+          <p><strong>${Number(u.hostBalance != null ? u.hostBalance : u.hostEarnings || 0).toLocaleString()} MMK</strong> ${t('available')}
+            <span class="small muted"> · ${t('earned')} ${Number(u.hostEarnings || 0).toLocaleString()} · ${Number(u.hostCreditAmount || 500).toLocaleString()} ${t('perVisitor')}</span></p>
+          <p class="small muted">${t('hostRules')}</p>
           ${(u.hostIncomeLedger || []).length
-            ? `<div class="ledger">${u.hostIncomeLedger.map((row) => `<div class="ledger-row">+${row.amount} · ${escapeHtml(row.partner.username)} · Lv ${row.partner.level} · ${new Date(row.createdAt).toLocaleString()}</div>`).join('')}</div>`
-            : '<p class="small muted">No qualifying visitors yet.</p>'}
-          <button class="btn ${u.canWithdraw ? '' : 'secondary'} block" id="withdraw" ${u.canWithdraw ? '' : 'disabled'}>Withdraw</button>
-          ${!u.canWithdraw ? `<p class="small muted">Withdraw lights up at ${(u.hostWithdrawMin || 100000).toLocaleString()} MMK.</p>` : ''}
+            ? `<div class="ledger">${u.hostIncomeLedger.map((row) => `<div class="ledger-row">+${row.amount} · ${escapeHtml(row.partner.username)} · ${t('lv', { n: row.partner.level })} · ${I18n.formatWhen(row.createdAt)}</div>`).join('')}</div>`
+            : `<p class="small muted">${t('noVisitors')}</p>`}
+          <button class="btn ${u.canWithdraw ? '' : 'secondary'} block" id="withdraw" ${u.canWithdraw ? '' : 'disabled'}>${t('withdraw')}</button>
+          ${!u.canWithdraw ? `<p class="small muted">${t('withdrawAt', { amount: Number(u.hostWithdrawMin || 100000).toLocaleString() })}</p>` : ''}
           ${(u.hostPayouts || []).length
-            ? `<div class="ledger">${u.hostPayouts.map((p) => `<div class="ledger-row">${p.status} · −${p.amount} · ${p.method === 'kbz' ? 'KBZ Pay' : 'Wave'} · ${escapeHtml(p.payeeName)}</div>`).join('')}</div>`
+            ? `<div class="ledger">${u.hostPayouts.map((p) => `<div class="ledger-row">${p.status} · −${p.amount} · ${p.method === 'kbz' ? t('kbz') : t('wave')} · ${escapeHtml(p.payeeName)}</div>`).join('')}</div>`
             : ''}` : ''}
           ${u.hostStatus === 'rejected' || u.hostStatus === 'none' ? `
-          <h3>Myanmar NRC</h3>
-          <p class="small muted">Front and back. Admin-only after upload.</p>
+          <h3>${t('nrcTitle')}</h3>
+          <p class="small muted">${t('nrcAdminOnly')}</p>
           <div class="row-2">
-            <label class="photo-pick"><input class="hidden-file" id="nrc-front" type="file" accept="image/*" /><span class="small muted">NRC front</span></label>
-            <label class="photo-pick"><input class="hidden-file" id="nrc-back" type="file" accept="image/*" /><span class="small muted">NRC back</span></label>
+            <label class="photo-pick"><input class="hidden-file" id="nrc-front" type="file" accept="image/*" /><span class="small muted">${t('nrcFront')}</span></label>
+            <label class="photo-pick"><input class="hidden-file" id="nrc-back" type="file" accept="image/*" /><span class="small muted">${t('nrcBack')}</span></label>
           </div>
-          <button class="btn secondary block" id="save-nrc">Submit NRC</button>` : ''}
+          <button class="btn secondary block" id="save-nrc">${t('submitNrc')}</button>` : ''}
         </div>` : '';
   app.innerHTML = `
     <section class="screen">
       <div class="screen-body">
       <div class="topbar">
-        <h2>You</h2>
-        <button type="button" class="icon-btn" id="open-settings" aria-label="Settings">${ICONS.gear}</button>
+        <h2>${t('you')}</h2>
+        <button type="button" class="icon-btn" id="open-settings" aria-label="${t('settings')}">${ICONS.gear}</button>
       </div>
       <div class="glass-card stack center me-card">
         ${avatarHtml(u, 'round me-ava')}
         <div>
           <div class="me-name">${escapeHtml(u.username)}</div>
-          <div class="muted">${escapeHtml(u.accountId || 'Account ID hidden from the lounge')}</div>
+          <div class="muted">${escapeHtml(u.accountId || t('idHidden'))}</div>
         </div>
-        <div class="small">${roleMark(u)} · ${u.gender} · born ${u.birthYear}<br>${u.isSpecial ? 'Unlimited chat · special account' : paidLine}${u.gender === 'female' && u.occupation ? `<br>${escapeHtml(u.occupation)} · ${Number(u.monthlyIncome || 0).toLocaleString()} MMK` : ''}</div>
+        <div class="small">${roleMark(u)} · ${genderLabel(u.gender)} · ${t('born', { year: u.birthYear })}<br>${u.isSpecial ? t('specialChat') : paidLine}${u.gender === 'female' && u.occupation ? `<br>${escapeHtml(u.occupation)} · ${Number(u.monthlyIncome || 0).toLocaleString()} MMK` : ''}</div>
         <div class="me-actions">
-          <button type="button" class="btn secondary" id="edit-profile">Edit profile</button>
-          <button type="button" class="btn secondary" id="open-settings-row">Settings</button>
+          <button type="button" class="btn secondary" id="edit-profile">${t('editProfile')}</button>
+          <button type="button" class="btn secondary" id="open-settings-row">${t('settings')}</button>
         </div>
       </div>
       ${femaleForm}
@@ -1097,24 +1139,24 @@ function showProfile() {
           }
         });
         state.user = data.user;
-        toast('Income saved');
+        toast(t('incomeSaved'));
         showProfile();
       } catch (e) {
-        toast(e.message);
+        toastErr(e);
       }
     };
   }
   if ($('#withdraw') && !$('#withdraw').disabled) {
     $('#withdraw').onclick = () => {
       modal(`
-        <h3 style="margin-top:0">Withdraw ${Number(u.hostBalance || 0).toLocaleString()} MMK</h3>
-        <p class="small muted">Balance is held immediately. Admin marks Done after the transfer.</p>
-        <div class="field"><label>Wallet</label>
-          <select id="wd-method"><option value="kbz">KBZ Pay</option><option value="wave">Wave</option></select>
+        <h3 style="margin-top:0">${t('withdrawTitle', { amount: Number(u.hostBalance || 0).toLocaleString() })}</h3>
+        <p class="small muted">${t('withdrawHint')}</p>
+        <div class="field"><label>${t('wallet')}</label>
+          <select id="wd-method"><option value="kbz">${t('kbz')}</option><option value="wave">${t('wave')}</option></select>
         </div>
-        <div class="field"><label>Name</label><input id="wd-name" /></div>
-        <div class="field"><label>Phone</label><input id="wd-phone" inputmode="tel" /></div>
-        <button class="btn block" id="wd-go">Submit payout</button>`);
+        <div class="field"><label>${t('name')}</label><input id="wd-name" /></div>
+        <div class="field"><label>${t('phone')}</label><input id="wd-phone" inputmode="tel" /></div>
+        <button class="btn block" id="wd-go">${t('submitPayout')}</button>`);
       $('#wd-go').onclick = async () => {
         try {
           const data = await api('/api/me/withdraw', {
@@ -1123,10 +1165,10 @@ function showProfile() {
           });
           state.user = data.user;
           closeModal();
-          toast('Payout submitted. Balance is on hold.');
+          toast(t('payoutSubmitted'));
           showProfile();
         } catch (e) {
-          toast(e.message);
+          toastErr(e);
         }
       };
     };
@@ -1135,17 +1177,17 @@ function showProfile() {
     $('#save-nrc').onclick = async () => {
       const front = $('#nrc-front').files[0];
       const back = $('#nrc-back').files[0];
-      if (!front || !back) return toast('Upload NRC front and back');
+      if (!front || !back) return toast(t('uploadNrcBoth'));
       const fd = new FormData();
       fd.append('nrcFront', front);
       fd.append('nrcBack', back);
       try {
         const data = await api('/api/me/nrc', { method: 'POST', body: fd });
         state.user = data.user;
-        toast('NRC submitted for admin review');
+        toast(t('nrcSubmitted'));
         showProfile();
       } catch (e) {
-        toast(e.message);
+        toastErr(e);
       }
     };
   }
@@ -1182,23 +1224,26 @@ function showSettings() {
     <section class="screen settings-screen">
       <div class="screen-body">
         <div class="topbar">
-          <button type="button" class="icon-btn" id="back" aria-label="Back">${ICONS.back}</button>
-          <h2>Settings</h2>
+          <button type="button" class="icon-btn" id="back" aria-label="${t('back')}">${ICONS.back}</button>
+          <h2>${t('settingsTitle')}</h2>
+        </div>
+        <div class="settings-list settings-lang">
+          ${I18n.switcherHtml('lang-switch')}
         </div>
         <div class="settings-list">
-          ${settingsRow('go-edit', ICONS.me, 'Edit profile')}
-          ${settingsRow('go-blocked', ICONS.block, 'Blocked')}
+          ${settingsRow('go-edit', ICONS.me, t('editProfile'))}
+          ${settingsRow('go-blocked', ICONS.block, t('blockedList'))}
         </div>
         <div class="settings-list settings-note-card">
           <div class="settings-note">
-            <div class="settings-note-title">Forgot or change PIN</div>
-            <p>There is no self-serve reset. Contact the sakarwine admin with the <strong>phone number you used at registration</strong>. They will verify it and set a new 6-digit PIN.</p>
+            <div class="settings-note-title">${t('pinNoteTitle')}</div>
+            <p>${t('pinNoteBody')}</p>
             ${extraContact}
           </div>
         </div>
         <div class="settings-list">
           <button type="button" class="settings-row danger" id="logout">
-            <span class="settings-label">Log out</span>
+            <span class="settings-label">${t('logOut')}</span>
           </button>
         </div>
       </div>
@@ -1207,6 +1252,7 @@ function showSettings() {
   $('#go-edit').onclick = showEditProfile;
   $('#go-blocked').onclick = showBlocked;
   $('#logout').onclick = doLogout;
+  I18n.bindSwitcher('lang-switch');
 }
 
 function showEditProfile() {
@@ -1219,21 +1265,21 @@ function showEditProfile() {
     <section class="screen settings-screen">
       <div class="screen-body">
         <div class="topbar">
-          <button type="button" class="icon-btn" id="back" aria-label="Back">${ICONS.back}</button>
-          <h2>Edit profile</h2>
-          <button type="button" class="btn ghost" id="save-profile">Done</button>
+          <button type="button" class="icon-btn" id="back" aria-label="${t('back')}">${ICONS.back}</button>
+          <h2>${t('editProfile')}</h2>
+          <button type="button" class="btn ghost" id="save-profile">${t('done')}</button>
         </div>
         <div class="glass-card stack center">
           <label class="edit-photo">
             <input class="hidden-file" id="edit-photo" type="file" accept="image/*" />
             ${photo}
-            <span class="edit-photo-change">Change photo</span>
+            <span class="edit-photo-change">${t('changePhoto')}</span>
           </label>
           <div class="field" style="width:100%;text-align:left">
-            <label for="edit-username">Username</label>
+            <label for="edit-username">${t('username')}</label>
             <input id="edit-username" value="${escapeHtml(u.username)}" maxlength="20" autocomplete="username" />
           </div>
-          <p class="small muted" style="text-align:left;margin:0">Letters, numbers, and underscores · 3–20 characters. Gender, birth year, and PIN stay as they are.</p>
+          <p class="small muted" style="text-align:left;margin:0">${t('usernameHelp')}</p>
         </div>
       </div>
     </section>`;
@@ -1264,11 +1310,11 @@ function showEditProfile() {
     try {
       const data = await api('/api/me/profile', { method: 'PUT', body: fd });
       state.user = data.user;
-      toast('Profile updated');
+      toast(t('profileUpdated'));
       showSettings();
     } catch (e) {
       btn.disabled = false;
-      toast(e.message);
+      toastErr(e);
     }
   };
   $('#save-profile').onclick = save;
@@ -1280,11 +1326,11 @@ async function showBlocked() {
     <section class="screen settings-screen">
       <div class="screen-body">
         <div class="topbar">
-          <button type="button" class="icon-btn" id="back" aria-label="Back">${ICONS.back}</button>
-          <h2>Blocked</h2>
+          <button type="button" class="icon-btn" id="back" aria-label="${t('back')}">${ICONS.back}</button>
+          <h2>${t('blockedList')}</h2>
         </div>
-        <p class="muted small" style="margin-top:0">People you block cannot message you. Unblock anytime.</p>
-        <div id="blocked-list" class="blocked-list"><p class="muted">Loading…</p></div>
+        <p class="muted small" style="margin-top:0">${t('blockedHelp')}</p>
+        <div id="blocked-list" class="blocked-list"><p class="muted">${t('loading')}</p></div>
       </div>
     </section>`;
   $('#back').onclick = showSettings;
@@ -1292,7 +1338,7 @@ async function showBlocked() {
     const data = await api('/api/me/blocked');
     const box = $('#blocked-list');
     if (!data.users.length) {
-      box.innerHTML = '<div class="settings-empty">You’re not blocking anyone.</div>';
+      box.innerHTML = `<div class="settings-empty">${t('notBlocking')}</div>`;
       return;
     }
     box.innerHTML = data.users.map((u) => `
@@ -1300,24 +1346,24 @@ async function showBlocked() {
         ${avatarHtml(u, 'round')}
         <div class="meta">
           <div class="name">${escapeHtml(u.username)}</div>
-          <div class="sub">${u.online ? 'Online' : 'Offline'} · ${escapeHtml(u.gender || '')}</div>
+          <div class="sub">${u.online ? t('onlineNow') : t('offline')} · ${escapeHtml(genderLabel(u.gender))}</div>
         </div>
-        <button type="button" class="btn secondary unblock" data-unblock="${u.id}">Unblock</button>
+        <button type="button" class="btn secondary unblock" data-unblock="${u.id}">${t('unblock')}</button>
       </div>`).join('');
     box.querySelectorAll('[data-unblock]').forEach((btn) => {
       btn.onclick = async (e) => {
         e.stopPropagation();
         try {
           await api(`/api/users/${btn.dataset.unblock}/block`, { method: 'DELETE' });
-          toast('Unblocked');
+          toast(t('unblocked'));
           showBlocked();
         } catch (err) {
-          toast(err.message);
+          toastErr(err);
         }
       };
     });
   } catch (e) {
-    toast(e.message);
+    toastErr(e);
     const box = $('#blocked-list');
     if (box) box.innerHTML = `<p class="muted">${escapeHtml(e.message)}</p>`;
   }
@@ -1330,17 +1376,17 @@ function showHelp(inApp = false) {
       ${inApp ? '<div class="screen-body">' : ''}
       <div class="topbar">
         ${inApp ? '' : `<button class="icon-btn" id="back">${ICONS.back}</button>`}
-        <h2>Help</h2>
+        <h2>${t('helpTitle')}</h2>
       </div>
       <div class="glass-card">
-        <h3 style="margin-top:0">PIN recovery</h3>
-        <p>There is no self-serve reset. Contact the sakarwine admin and give the <strong>phone number you used at registration</strong>. They will verify it and set a new 6-digit PIN.</p>
+        <h3 style="margin-top:0">${t('pinRecovery')}</h3>
+        <p>${t('pinRecoveryBody')}</p>
         <p class="small muted">${escapeHtml(state.settings.adminContact || '')}</p>
-        <h3>Chat history</h3>
-        <p>Deleting a conversation removes it from <strong>your</strong> history only. The other person still keeps every message. You cannot edit any message after it is sent.</p>
-        <h3>Female host verification</h3>
-        <p>Female accounts include an income form and must upload Myanmar NRC (front + back) at registration. After admin approval, a blue <strong>host</strong> badge sits beside your level. NRC photos are stored for admin review only.</p>
-        <p>Hosts earn <strong>500</strong> only when an upgraded member (Lv 1+) <strong>comes to talk</strong> and you stay in a <strong>continuous 10-minute</strong> mutual chat. Chats you start do not count. Each visitor credits once. Going offline or blocking before 10 minutes voids that session. Withdraw opens at 100,000 via KBZ Pay or Wave. Hosts may keep talking without the 24-hour gate to members who visited them. Editing the income form needs Lv 1+.</p>
+        <h3>${t('chatHistory')}</h3>
+        <p>${t('chatHistoryBody')}</p>
+        <h3>${t('femaleHost')}</h3>
+        <p>${t('femaleHostBody')}</p>
+        <p>${t('femaleHostIncome')}</p>
       </div>
       ${inApp ? `</div>${nav('help')}` : ''}
     </section>`;
@@ -1348,4 +1394,4 @@ function showHelp(inApp = false) {
   if (inApp) bindNav();
 }
 
-boot().catch((e) => toast(e.message));
+boot().catch((e) => toastErr(e));

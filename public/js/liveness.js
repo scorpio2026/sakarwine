@@ -59,7 +59,7 @@ const Liveness = (() => {
       const timer = setInterval(() => {
         if (Date.now() - start > 45000) {
           cleanup();
-          reject(new Error('Scan timed out. Try brighter light and turn slowly.'));
+          reject(new Error(typeof I18n !== 'undefined' ? I18n.t('liveTimeout') : 'Scan timed out. Try brighter light and turn slowly.'));
           return;
         }
         ctx.save();
@@ -69,7 +69,7 @@ const Liveness = (() => {
         ctx.restore();
         const blob = skinMask(ctx.getImageData(0, 0, 160, 160).data);
         if (!blob) {
-          onHint('Center your face in the glow.');
+          onHint((typeof I18n !== 'undefined' ? I18n.t('liveCenter') : 'Center your face in the glow.'));
           return;
         }
         lastGender = estimateGender(blob);
@@ -77,8 +77,8 @@ const Liveness = (() => {
         const delta = blob.cx - baseline;
         if (delta < -12) seenLeft = true;
         if (delta > 12) seenRight = true;
-        if (!seenLeft) onHint('Gently turn your head left →');
-        else if (!seenRight) onHint('Nice. Now turn your head right ←');
+        if (!seenLeft) onHint((typeof I18n !== 'undefined' ? I18n.t('liveLeft') : 'Gently turn your head left →'));
+        else if (!seenRight) onHint((typeof I18n !== 'undefined' ? I18n.t('liveRight') : 'Nice. Now turn your head right ←'));
         else {
           cleanup();
           resolve({ left: true, right: true, estimatedGender: lastGender });
