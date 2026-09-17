@@ -462,29 +462,33 @@ function showWelcome() {
   state.view = 'welcome';
   app.innerHTML = `
     <section class="screen welcome-screen">
+      <div class="welcome-orbs" aria-hidden="true">
+        <span class="orb orb-a"></span>
+        <span class="orb orb-b"></span>
+        <span class="orb orb-c"></span>
+        <span class="orb orb-d"></span>
+      </div>
       <div class="welcome-hero">
         <div class="brand-lockup">
           <span class="logo-aura" aria-hidden="true"></span>
           <img class="brand-logo" src="/assets/sakarwine-logo.png" alt="SAKARWINE" />
         </div>
         <h1>SAKARWINE</h1>
-        <svg class="hero-wave" viewBox="0 0 375 56" preserveAspectRatio="none" aria-hidden="true">
-          <path d="M0 24C62 52 118 4 188 24C248 42 312 8 375 26V56H0Z" fill="#ffffff"/>
-        </svg>
       </div>
       <div class="welcome-card stack">
+        <h2 class="welcome-title">${t('enterLounge')}</h2>
         ${I18n.switcherHtml('lang-switch')}
         <div class="field">
-          <label>${t('username')}</label>
+          <label for="login-user">${t('username')}</label>
           <input id="login-user" autocomplete="username" />
         </div>
         <div class="field">
-          <label>${t('pin6')}</label>
+          <label for="login-pass">${t('pin6')}</label>
           <input id="login-pass" type="password" inputmode="numeric" maxlength="6" autocomplete="current-password" />
         </div>
-        <button class="btn block" id="login-btn">${t('enterLounge')}</button>
-        <button class="btn secondary block" id="goto-reg">${t('createAccount')}</button>
-        <button class="btn ghost" id="goto-help">${t('forgotPin')}</button>
+        <button class="btn block welcome-login-btn" id="login-btn">${t('enterLounge')}</button>
+        <button class="btn ghost welcome-forgot" id="goto-help">${t('forgotPin')}</button>
+        <button class="btn secondary block welcome-signup" id="goto-reg">${t('createAccount')}</button>
       </div>
     </section>`;
   $('#login-btn').onclick = login;

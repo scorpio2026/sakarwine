@@ -526,3 +526,37 @@ test('welcome login language switcher is not clipped on short mobile viewports',
   assert.match(css, /@media \(max-height: 800px\)/);
   assert.match(css, /@media \(max-height: 700px\)/);
 });
+
+test('auth login screens use glass neon chrome and keep existing login wiring', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const appCss = fs.readFileSync(path.join(__dirname, '../public/css/app.css'), 'utf8');
+  const adminCss = fs.readFileSync(path.join(__dirname, '../public/css/admin.css'), 'utf8');
+  const appJs = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
+  const adminJs = fs.readFileSync(path.join(__dirname, '../public/js/admin.js'), 'utf8');
+  const welcomeSlice = appJs.slice(appJs.indexOf('function showWelcome'), appJs.indexOf('async function login'));
+  const loginSlice = adminJs.slice(adminJs.indexOf('function showLogin'), adminJs.indexOf('function moderationButtons'));
+  assert.match(welcomeSlice, /welcome-orbs/);
+  assert.match(welcomeSlice, /sakarwine-logo\.png/);
+  assert.match(welcomeSlice, /id="login-user"/);
+  assert.match(welcomeSlice, /id="login-pass"/);
+  assert.match(welcomeSlice, /id="login-btn"/);
+  assert.match(welcomeSlice, /id="goto-reg"/);
+  assert.match(welcomeSlice, /id="goto-help"/);
+  assert.match(welcomeSlice, /t\('enterLounge'\)/);
+  assert.match(welcomeSlice, /t\('createAccount'\)/);
+  assert.match(welcomeSlice, /t\('forgotPin'\)/);
+  assert.equal(welcomeSlice.includes('hero-wave'), false);
+  assert.match(appCss, /\.welcome-card\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(appCss, /#7c3aed/);
+  assert.match(loginSlice, /sakarwine-logo\.png/);
+  assert.match(loginSlice, /id="u"/);
+  assert.match(loginSlice, /id="p"/);
+  assert.match(loginSlice, /id="go"/);
+  assert.match(loginSlice, /\/api\/admin\/login/);
+  assert.match(loginSlice, /setAdminLoginChrome\(true\)/);
+  assert.match(adminJs, /is-admin-login/);
+  assert.match(adminCss, /body\.is-admin-login/);
+  assert.match(adminCss, /backdrop-filter:\s*blur/);
+  assert.match(adminCss, /underline-field/);
+});
