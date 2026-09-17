@@ -80,6 +80,81 @@ button.block { width: 100%; }
 button.ghost { background: transparent; color: var(--rose); box-shadow: none; }
 button.warn { background: linear-gradient(180deg, #c45, #812); color: white; box-shadow: 0 5px 0 #501018; }
 button.danger { background: linear-gradient(180deg, #a22, #611); color: white; box-shadow: 0 5px 0 #300; }
+.desk-lead { margin: 16px 0 8px; }
+.desk-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin: 8px 0 24px;
+}
+@media (min-width: 640px) {
+  .desk-grid { grid-template-columns: 1fr 1fr; }
+}
+.desk-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  text-align: left;
+  min-height: 168px;
+  padding: 20px 18px;
+  background: #ffffff;
+  color: var(--cream);
+  box-shadow: 0 12px 28px rgba(5, 150, 105, 0.14);
+  border: 2px solid var(--stroke);
+}
+.desk-card[data-desk="money"] { border-color: #047857; }
+.desk-card[data-desk="other"] { border-color: #0369a1; }
+.desk-card-title {
+  font-family: var(--display);
+  font-size: 1.28rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  line-height: 1.25;
+}
+.desk-card-help {
+  font-weight: 600;
+  color: rgba(18, 48, 38, 0.72);
+  line-height: 1.45;
+}
+.desk-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.desk-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #e11d48;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 800;
+  box-shadow: none;
+}
+.desk-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 16px 0 4px;
+}
+.desk-bar-title {
+  margin: 0;
+  font-size: 1.15rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .tabs {
   display: flex;
   gap: 8px;

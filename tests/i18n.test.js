@@ -470,6 +470,39 @@ test('UI language pack covers Saka rules, Help, errors, and does not translate t
   assert.notEqual(I18n.t('upgradeTitle'), I18n.catalogs.en.upgradeTitle);
 });
 
+test('admin dashboard splits money/privilege and other-matters desks', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const adminJs = fs.readFileSync(path.join(__dirname, '../public/js/admin.js'), 'utf8');
+  const adminCss = fs.readFileSync(path.join(__dirname, '../public/css/admin.css'), 'utf8');
+  assert.match(adminJs, /const MONEY_TABS = \['upgrades', 'create', 'hosts', 'payouts'\]/);
+  assert.match(adminJs, /const OTHER_TABS = \['accounts', 'chats', 'pin-recovery', 'broadcast', 'ads', 'pricing', 'settings'\]/);
+  assert.match(adminJs, /data-desk="money"/);
+  assert.match(adminJs, /data-desk="other"/);
+  assert.match(adminJs, /id="desk-back"/);
+  assert.match(adminJs, /function enterDesk/);
+  assert.match(adminJs, /t\('adminDeskMoney'\)/);
+  assert.match(adminJs, /t\('adminDeskOther'\)/);
+  assert.match(adminCss, /\.desk-grid\s*\{/);
+  assert.match(adminCss, /\.desk-card\s*\{/);
+  assert.match(adminCss, /\.desk-badge\s*\{/);
+  const codes = I18n.LANGS.map((l) => l.code);
+  for (const code of codes) {
+    assert.ok(I18n.catalogs[code].adminDeskMoney, `${code} missing adminDeskMoney`);
+    assert.ok(I18n.catalogs[code].adminDeskOther, `${code} missing adminDeskOther`);
+    assert.ok(I18n.catalogs[code].adminDeskBack, `${code} missing adminDeskBack`);
+  }
+  I18n.setLang('my');
+  assert.equal(I18n.t('adminDeskChoose'), 'ဌာန ရွေးပါ');
+  assert.equal(I18n.t('adminDeskMoney'), 'ငွေ / အခွင့်အရေး');
+  assert.match(I18n.t('adminDeskMoneyHelp'), /ငွေထုတ်/);
+  assert.equal(I18n.t('adminDeskOther'), 'အခြားကိစ္စ');
+  assert.equal(I18n.t('adminDeskBack'), 'ဌာနအားလုံး');
+  I18n.setLang('en');
+  assert.equal(I18n.t('adminDeskMoney'), 'Money / privilege');
+  assert.equal(I18n.t('adminDeskOther'), 'Other matters');
+});
+
 test('welcome login language switcher is not clipped on short mobile viewports', () => {
   const fs = require('fs');
   const path = require('path');
