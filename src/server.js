@@ -486,25 +486,49 @@ function startAiWelcome(user) {
   const conv = getOrCreateConversation(user.id, ai.id);
   const existing = db.prepare('SELECT COUNT(*) AS n FROM messages WHERE conversation_id = ?').get(conv.id);
   if (existing.n > 0) return conv;
-  const lines = [
-    `Welcome to sakarwine, ${user.username}. I’m Saka — I’ll show you around.`,
-    'Home lists everyone. Online friends float to the top so you can tap and say hello.',
-    'Each new conversation has 24 hours of free chatting. After that, everyone in the chat sees an upgrade prompt.',
-    'Paid members can keep talking with unlimited people for the whole paid period. Level goes up by 1 each time admin approves an upgrade.',
-    'Send a photo with the raised picture button, or a voice note with the mic. Video is not allowed.',
-    'Photos stay softly locked until you reach Level 3 (three approved upgrades). Tap a locked photo to read why.',
-    'Please don’t send Myanmar numbers starting with 09, and don’t start a message with @.',
-    'You can delete a chat for yourself only — the other person still keeps the history. Sent messages cannot be edited.',
-    'Female members can apply as a host later from Settings (income form plus Myanmar NRC front and back). After admin approves, a blue host badge sits beside your level.',
-    'Hosts earn 500 each time admin approves an upgrade that used their 8-digit host code. The code is optional on upgrade. There is no per-person cap. Withdraw at 100,000 via KBZ Pay or Wave.',
-    'Host income withdraws at 100,000 via KBZ Pay or Wave. Admin confirms transfer with a system note.',
-    'Forgot your 6-digit PIN? There is no self-serve reset — contact admin and give the phone you registered.'
-  ];
+  const welcome = [
+    `sakarwine မှ ကြိုဆိုပါတယ်၊ ${user.username}။ ကျွန်တော် Saka — လမ်းညွှန်ပေးမည်။`,
+    `Welcome to sakarwine, ${user.username}. I’m Saka — I’ll show you around.`
+  ].join('\n\n');
+  const rules = [
+    'စည်းကမ်း / Rules',
+    '',
+    'အဆင့်မမြှင့်ရသေးပါက',
+    '• စကားပြောအသစ်တိုင်း အခမဲ့ ၂၄ နာရီသာ ရသည်။',
+    '• ဓာတ်ပုံများ အဆင့် ၃ မတိုင်မီ ပိတ်ထားသည်။',
+    '• 09 ဖုန်းနံပါတ်နှင့် @ ဖြင့် စသော စာ မပို့ရ။ ဗီဒီယို မရပါ။',
+    '',
+    'အဆင့်မြှင့်ပြီး',
+    '• ပေးပြီးကာလအတွင်း လူအကန့်အသတ်မရှိ စကားပြောနိုင်သည်။',
+    '• အဆင့် ၃ တွင် ဓာတ်ပုံ ရှင်းလင်းစွာ မြင်ရသည်။',
+    '• ၆ လ ၃၀% လျှော့၊ ၁၂ လ ၅၀% လျှော့။ အက်ဒမင် အတည်ပြုသည်နှင့် ပေးပြီးကာလ စသည်။',
+    '',
+    'Without upgrade',
+    '• Each new chat has 24 hours free.',
+    '• Photos stay locked until Level 3.',
+    '• No 09 phone numbers; do not start a message with @. No video.',
+    '',
+    'If you upgrade',
+    '• Unlimited chatting for the paid period.',
+    '• Photos unlock at Level 3.',
+    '• 6 months is 30% off; 12 months is 50% off. Admin approval starts paid time immediately.'
+  ].join('\n');
+  const hostNotice = [
+    'Host (မိန်းကလေးသာ)',
+    'ဆက်တင်မှ Host လျှောက်နိုင်သည်။ အတည်ပြုပြီး ကိုယ်ပိုင် ကုဒ် ၈ လုံး ရသည်။ အဆင့်မြှင့်ရာတွင် ထိုကုဒ် ထည့်ရန် မဖြစ်မနေ မဟုတ်။ အက်ဒမင် အတည်ပြုတိုင်း host က ၅၀၀ ရသည်။ စကားပြောချိန်ဖြင့် ၅၀၀ မရတော့ပါ။ ၁၀၀,၀၀၀ တွင် KBZ Pay သို့မဟုတ် Wave ဖြင့် ထုတ်ယူနိုင်သည်။',
+    '',
+    'Female host',
+    'Apply from Profile Settings. After admin approval you get a personal 8-digit code. Members may optionally enter it on Upgrade; each approved upgrade that used it credits you 500. Chat time no longer pays 500. Withdraw from 100,000 via KBZ Pay or Wave.'
+  ].join('\n');
   const ins = db.prepare(
     'INSERT INTO messages (conversation_id, sender_id, type, body, created_at, source_lang) VALUES (?, ?, ?, ?, ?, ?)'
   );
   const now = Date.now();
-  lines.forEach((body, i) => ins.run(conv.id, ai.id, 'text', body, now + i, 'en'));
+  ins.run(conv.id, ai.id, 'text', welcome, now, 'my');
+  ins.run(conv.id, null, 'system', rules, now + 1, null);
+  if (user.gender === 'female') {
+    ins.run(conv.id, null, 'system', hostNotice, now + 2, null);
+  }
   return conv;
 }
 
