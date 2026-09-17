@@ -15,11 +15,11 @@ test('i18n catalogs share the same keys and default to Myanmar', () => {
     assert.deepEqual(Object.keys(I18n.catalogs[code]).sort(), enKeys, `${code} missing keys`);
   }
   I18n.setLang('en');
-  assert.equal(I18n.t('enterLounge'), 'Enter lounge');
+  assert.equal(I18n.t('enterLounge'), 'Login');
   assert.equal(I18n.t('upgradePromoTitle'), 'Upgrade and save up to 50%');
   I18n.setLang('my');
   assert.equal(I18n.lang, 'my');
-  assert.notEqual(I18n.t('enterLounge'), 'Enter lounge');
+  assert.notEqual(I18n.t('enterLounge'), 'Login');
   assert.equal(I18n.t('helpTitle'), 'အကူအညီ');
   assert.equal(I18n.t('pinRecovery'), 'PIN ပြန်ရယူခြင်း');
   assert.equal(
