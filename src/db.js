@@ -238,12 +238,17 @@ function addBadge(db, label) {
   return getBadges(db);
 }
 
+function isAdminAccount(row) {
+  return String((row && row.badge) || '').toLowerCase() === 'admin';
+}
+
 function publicUser(row, { online = false, includePrivate = false, viewer = null, includeNrc = false } = {}) {
   if (!row) return null;
   const hide = Boolean(row.hide_account_id);
   const isSelf = viewer && Number(viewer.id) === Number(row.id);
   const showAccountId = includePrivate || isSelf || !hide;
   const isHost = Boolean(row.is_host);
+  const isAdmin = isAdminAccount(row);
   const out = {
     id: row.id,
     accountId: showAccountId ? row.account_id : null,
@@ -256,6 +261,8 @@ function publicUser(row, { online = false, includePrivate = false, viewer = null
     level: row.level,
     badge: row.badge || null,
     isSpecial: Boolean(row.is_special),
+    isAdmin,
+    blockable: !row.is_ai && !isAdmin,
     isHost,
     createdByAdmin: Boolean(row.created_by_admin),
     paidUntil: row.paid_until,
@@ -287,5 +294,6 @@ module.exports = {
   setSetting,
   getBadges,
   addBadge,
-  publicUser
+  publicUser,
+  isAdminAccount
 };

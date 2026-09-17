@@ -284,6 +284,36 @@ test('special accounts skip the upgrade gate and hide IDs', async () => {
   assert.equal(blockedFree.res.status, 402);
 });
 
+test('profile card shows account ID and admin accounts cannot be blocked', async () => {
+  await started;
+  const member = await register('fan2' + Date.now().toString().slice(-5), '121212', 'male');
+  const admin = await loginAdmin();
+  const form = new FormData();
+  form.set('username', 'adm' + Date.now().toString().slice(-5));
+  form.set('password', '999999');
+  form.set('gender', 'male');
+  form.set('birthYear', '1990');
+  form.set('phone', '0988888888');
+  form.set('badge', 'Admin');
+  const created = await req('/api/admin/accounts', { method: 'POST', form, jar: admin });
+  assert.equal(created.res.status, 200, created.data.error);
+  assert.equal(created.data.user.isAdmin, true);
+  assert.equal(created.data.user.blockable, false);
+
+  const listed = await req('/api/users', { jar: member.jar });
+  const adm = listed.data.users.find((u) => u.username === created.data.user.username);
+  assert.equal(adm.isAdmin, true);
+  assert.equal(adm.blockable, false);
+  assert.equal(adm.accountId, null);
+
+  const card = await req(`/api/users/${created.data.user.id}/card`, { jar: member.jar });
+  assert.equal(card.data.user.accountId, created.data.user.accountId);
+  assert.ok(card.data.user.photoUrl || card.data.user.accountId);
+
+  const noBlock = await req(`/api/users/${created.data.user.id}/block`, { method: 'POST', jar: member.jar });
+  assert.equal(noBlock.res.status, 403);
+});
+
 test('admin account ID search opens a full dossier', async () => {
   await started;
   const member = await register('seek' + Date.now().toString().slice(-6), '343434', 'male');

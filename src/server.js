@@ -8,7 +8,7 @@ const express = require('express');
 const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const { Server } = require('socket.io');
-const { openDb, ensureDir, getSetting, setSetting, getBadges, addBadge, publicUser } = require('./db');
+const { openDb, ensureDir, getSetting, setSetting, getBadges, addBadge, publicUser, isAdminAccount } = require('./db');
 const { messageFilterError, isAllowedImageMime, isAllowedVoiceMime, isForbiddenVideo } = require('./filters');
 const { quotePlan, allQuotes, addMonths, isPaid, isSpecial, canChatUnlimited, clampMonths } = require('./pricing');
 const {
@@ -890,10 +890,29 @@ app.get('/api/users', requireUser, requireActive, (req, res) => {
   res.json({ users });
 });
 
+app.get('/api/users/:id/card', requireUser, requireActive, (req, res) => {
+  const target = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(req.params.id));
+  if (!target || target.status === 'closed') return res.status(404).json({ error: 'User not found.' });
+  res.json({
+    user: {
+      id: target.id,
+      username: target.username,
+      photoUrl: target.photo_path ? `/api/media/profile/${path.basename(target.photo_path)}` : null,
+      accountId: target.account_id,
+      isAi: Boolean(target.is_ai),
+      isAdmin: isAdminAccount(target),
+      badge: target.badge || null
+    }
+  });
+});
+
 app.post('/api/users/:id/block', requireUser, requireActive, (req, res) => {
   const target = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(req.params.id));
   if (!target || target.is_ai) return res.status(400).json({ error: 'You cannot block this account.' });
   if (target.id === req.user.id) return res.status(400).json({ error: 'You cannot block yourself.' });
+  if (isAdminAccount(target)) {
+    return res.status(403).json({ error: 'Admin accounts cannot be blocked.' });
+  }
   db.prepare('INSERT OR IGNORE INTO blocks (blocker_id, blocked_id, created_at) VALUES (?, ?, ?)').run(
     req.user.id,
     target.id,

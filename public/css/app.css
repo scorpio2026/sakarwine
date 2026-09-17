@@ -234,6 +234,22 @@ body {
   background: #3a1624;
   box-shadow: 4px 6px 12px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.25);
 }
+.avatar[data-photo-user] { cursor: pointer; }
+.profile-lite { text-align: center; }
+.profile-lite-photo {
+  width: 100%;
+  max-height: 62vh;
+  object-fit: contain;
+  border-radius: 16px;
+  background: #1a0a12;
+}
+.profile-id {
+  font-family: var(--display);
+  font-size: 1.25rem;
+  letter-spacing: 0.06em;
+  color: var(--gold);
+  margin: 0 0 14px;
+}
 .avatar.ai {
   display: grid;
   place-items: center;

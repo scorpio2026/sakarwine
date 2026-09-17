@@ -67,10 +67,31 @@ async function api(path, opts = {}) {
 
 function avatarHtml(user, cls = '') {
   if (!user) return '';
+  const tap = user.id != null ? ` data-photo-user="${user.id}"` : '';
   if (user.isAi || !user.photoUrl) {
-    return `<div class="avatar ai ${cls}">🍷</div>`;
+    return `<div class="avatar ai ${cls}"${tap}>🍷</div>`;
   }
-  return `<img class="avatar ${cls}" alt="" src="${user.photoUrl}" />`;
+  return `<img class="avatar ${cls}" alt="" src="${user.photoUrl}"${tap} />`;
+}
+
+async function openProfilePhoto(userId) {
+  try {
+    const data = await api(`/api/users/${userId}/card`);
+    const u = data.user;
+    const photo = u.photoUrl
+      ? `<img class="profile-lite-photo" src="${escapeHtml(u.photoUrl)}" alt="${escapeHtml(u.username)}" />`
+      : `<div class="avatar ai profile-lite-photo" style="width:120px;height:120px;margin:0 auto;font-size:3rem">🍷</div>`;
+    modal(`
+      <div class="profile-lite">
+        ${photo}
+        <h3 style="margin:12px 0 4px">${escapeHtml(u.username)}</h3>
+        <p class="profile-id">${escapeHtml(u.accountId || '—')}</p>
+        <button class="btn secondary block" id="photo-close">Close</button>
+      </div>`);
+    $('#photo-close').onclick = closeModal;
+  } catch (e) {
+    toast(e.message);
+  }
 }
 
 function roleMark(user) {
@@ -195,6 +216,15 @@ async function refreshMe() {
 
 async function boot() {
   petals();
+  app.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-photo-user]');
+    if (!el || el.closest('#modal')) return;
+    const id = Number(el.dataset.photoUser);
+    if (state.user && id === Number(state.user.id)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    openProfilePhoto(id);
+  }, true);
   state.settings = await api('/api/public-settings');
   document.title = state.settings.siteName;
   try {
@@ -649,7 +679,7 @@ function renderChat(opts = {}) {
           <div class="sub">${c.peer.online ? 'Online' : 'Offline'} · ${formatRemain(c.window.remainingMs, c.window)}</div>
         </div>
         ${c.peer.isAi ? '' : `<div class="chat-actions">
-          <button class="icon-btn" id="block" title="Block">${ICONS.block}</button>
+          ${c.peer.isAdmin || c.peer.blockable === false ? '' : `<button class="icon-btn" id="block" title="Block">${ICONS.block}</button>`}
           <button class="icon-btn" id="delete-chat" title="Delete for me">${ICONS.trash}</button>
         </div>`}
       </div>
