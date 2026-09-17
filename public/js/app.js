@@ -207,6 +207,12 @@ function connectSocket() {
       if (state.view === 'chat') renderChat();
     }
   });
+  socket.on('chat:gate', ({ conversationId, adminGate }) => {
+    if (state.chat && state.chat.id === conversationId && adminGate) {
+      state.chat.adminGate = adminGate;
+      if (state.view === 'chat') renderChat();
+    }
+  });
   socket.on('presence', () => {
     if (state.view === 'home') loadHome();
   });
@@ -730,6 +736,13 @@ async function openChat(userId, opts = {}) {
     };
     renderChat(opts);
   } catch (e) {
+    const msg = I18n.error(e && e.message);
+    if (e && e.status === 403 && /Admin account/i.test(String(e.message || ''))) {
+      modal(`<h3 style="margin-top:0">${t('chatTitle')}</h3><p>${escapeHtml(msg)}</p><button class="btn block" id="m-ok">${t('close')}</button>`);
+      const ok = $('#m-ok');
+      if (ok) ok.onclick = closeModal;
+      return;
+    }
     toastErr(e);
   }
 }
@@ -934,9 +947,14 @@ function renderChat(opts = {}) {
       ta.value = '';
       syncComposer();
       c.window = data.window;
+      if (data.adminGate) c.adminGate = data.adminGate;
       addChatMessage(data.message);
       paintThread();
     } catch (e) {
+      if (e.data && e.data.adminGate) {
+        c.adminGate = e.data.adminGate;
+        renderChat();
+      }
       if (e.code === 'UPGRADE') showUpgrade();
       toastErr(e);
     } finally {

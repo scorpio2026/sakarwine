@@ -77,3 +77,17 @@ test('admin dashboard paints paid accounts green and badges extra upgrades', () 
   assert.match(js, /u\.extraUpgrade/);
   assert.equal(js.includes('extra-upgrade-badge'), true);
 });
+
+test('admin-badge chats block first contact and expose a live gate', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const js = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
+  assert.match(js, /socket\.on\('chat:gate'/);
+  assert.match(js, /errAdminFirst|Admin account/);
+  assert.match(js, /waitAdminFirst/);
+  assert.match(js, /toggle-msg/);
+  I18n.setLang('en');
+  assert.equal(I18n.error('You cannot start a chat with an Admin account.'), I18n.t('errAdminFirst'));
+  assert.equal(I18n.error('Wait for the admin to send a message first.'), I18n.t('waitAdminFirst'));
+  assert.equal(I18n.error('This chat is closed by admin.'), I18n.t('chatClosedByAdmin'));
+});

@@ -431,6 +431,22 @@ function adminChatGate(conv, viewer) {
   };
 }
 
+function emitAdminGate(conv) {
+  if (!conv) return;
+  const a = db.prepare('SELECT * FROM users WHERE id = ?').get(conv.user_lo);
+  const b = db.prepare('SELECT * FROM users WHERE id = ?').get(conv.user_hi);
+  if (!isAdminAccount(a) && !isAdminAccount(b)) return;
+  emitToUser(a.id, 'chat:gate', { conversationId: conv.id, adminGate: adminChatGate(conv, a) });
+  emitToUser(b.id, 'chat:gate', { conversationId: conv.id, adminGate: adminChatGate(conv, b) });
+}
+
+function conversationInvolvesAdmin(conv) {
+  if (!conv) return false;
+  const a = db.prepare('SELECT badge FROM users WHERE id = ?').get(conv.user_lo);
+  const b = db.prepare('SELECT badge FROM users WHERE id = ?').get(conv.user_hi);
+  return isAdminAccount(a) || isAdminAccount(b);
+}
+
 function setMemberMessaging(convId, open, emitTo) {
   const flag = open ? 1 : 0;
   db.prepare('UPDATE conversations SET member_messaging = ? WHERE id = ?').run(flag, convId);
@@ -440,6 +456,7 @@ function setMemberMessaging(convId, open, emitTo) {
     emitTo(conv.user_lo, 'chat:messaging', payload);
     emitTo(conv.user_hi, 'chat:messaging', payload);
   }
+  emitAdminGate(conv);
   return conv;
 }
 
@@ -1533,12 +1550,14 @@ app.post(
     if (peerView) await applyTranslations([forPeer], peerView);
     emitToUser(peerId, 'message', { conversationId: conv.id, message: forPeer });
     emitToUser(req.user.id, 'message', { conversationId: conv.id, message: forMe });
+    emitAdminGate(conv);
     const tick = touchPresence(conv, req.user.id, 'ping');
     res.json({
       message: forMe,
       window: freeWindow(conv, req.user),
       mutual: mutualSnapshot(db, conv, req.user, peer),
-      credited: tick ? tick.credited : []
+      credited: tick ? tick.credited : [],
+      adminGate: adminChatGate(conv, req.user)
     });
   }
 );
@@ -2110,6 +2129,9 @@ app.get('/api/admin/conversations/:id', requireAdmin, (req, res) => {
 app.post('/api/admin/conversations/:id/messaging', requireAdmin, (req, res) => {
   const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(Number(req.params.id));
   if (!conv) return res.status(404).json({ error: 'Conversation not found.' });
+  if (!conversationInvolvesAdmin(conv)) {
+    return res.status(400).json({ error: 'Messaging controls are only for chats with an Admin account.' });
+  }
   const open = req.body && (req.body.open === false || req.body.open === 0 || req.body.open === '0') ? false : true;
   const updated = setMemberMessaging(conv.id, open, emitToUser);
   res.json({ ok: true, messagingOpen: memberMessagingOpen(updated) });

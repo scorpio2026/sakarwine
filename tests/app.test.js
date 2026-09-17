@@ -331,7 +331,7 @@ test('profile card shows account ID and admin accounts cannot be blocked', async
 
   const noStart = await req(`/api/conversations/with/${created.data.user.id}`, { method: 'POST', jar: member.jar });
   assert.equal(noStart.res.status, 403);
-  assert.match(noStart.data.error, /Admin account/i);
+  assert.equal(noStart.data.error, 'You cannot start a chat with an Admin account.');
 
   const admJar = cookieJar();
   const admLogin = await req('/api/login', {
@@ -343,21 +343,28 @@ test('profile card shows account ID and admin accounts cannot be blocked', async
   const startedByAdmin = await req(`/api/conversations/with/${member.user.id}`, { method: 'POST', jar: admJar });
   assert.equal(startedByAdmin.res.status, 200, startedByAdmin.data.error);
   const cidAdmin = startedByAdmin.data.conversation.id;
+  assert.equal(startedByAdmin.data.conversation.adminGate.waitForAdmin, false);
+  const memberView = await req(`/api/conversations/${cidAdmin}`, { jar: member.jar });
+  assert.equal(memberView.data.conversation.adminGate.waitForAdmin, true);
+  assert.equal(memberView.data.conversation.adminGate.canSend, false);
   const tooSoon = await req(`/api/conversations/${cidAdmin}/messages`, {
     method: 'POST',
     json: { body: 'member cannot go first' },
     jar: member.jar
   });
   assert.equal(tooSoon.res.status, 403);
+  assert.equal(tooSoon.data.error, 'Wait for the admin to send a message first.');
   const first = await req(`/api/conversations/${cidAdmin}/messages`, {
     method: 'POST',
     json: { body: 'admin says hi first' },
     jar: admJar
   });
   assert.equal(first.res.status, 200, first.data.error);
+  assert.equal(first.data.adminGate.waitForAdmin, false);
 
   const opened = await req(`/api/conversations/with/${created.data.user.id}`, { method: 'POST', jar: member.jar });
   assert.equal(opened.res.status, 200, opened.data.error);
+  assert.equal(opened.data.conversation.adminGate.waitForAdmin, false);
   const reply = await req(`/api/conversations/${cidAdmin}/messages`, {
     method: 'POST',
     json: { body: 'member replies' },
@@ -378,6 +385,7 @@ test('profile card shows account ID and admin accounts cannot be blocked', async
     jar: member.jar
   });
   assert.equal(blockedSend.res.status, 403);
+  assert.equal(blockedSend.data.error, 'This chat is closed by admin.');
   const stillAdmin = await req(`/api/conversations/${cidAdmin}/messages`, {
     method: 'POST',
     json: { body: 'admin can still write' },
@@ -398,6 +406,15 @@ test('profile card shows account ID and admin accounts cannot be blocked', async
     jar: member.jar
   });
   assert.equal(again.res.status, 200, again.data.error);
+
+  const other = await register('plain' + Date.now().toString().slice(-5), '121212', 'female');
+  const peerChat = await req(`/api/conversations/with/${other.user.id}`, { method: 'POST', jar: member.jar });
+  const dashPeer = await req(`/api/admin/conversations/${peerChat.data.conversation.id}/messaging`, {
+    method: 'POST',
+    json: { open: false },
+    jar: dash
+  });
+  assert.equal(dashPeer.res.status, 400);
 
   const hijack = await req(`/api/conversations/${cidAdmin}/messaging`, {
     method: 'POST',
