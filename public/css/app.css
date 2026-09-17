@@ -163,10 +163,17 @@ body {
   margin: 0 auto;
   border-radius: 0;
   background: transparent;
+  filter:
+    drop-shadow(0 -1px 0 rgba(255, 255, 255, 0.55))
+    drop-shadow(0 1px 0 rgba(90, 20, 120, 0.28))
+    drop-shadow(0 6px 10px rgba(40, 10, 70, 0.22));
 }
 .welcome-hero .brand-logo {
   width: min(86%, 320px);
-  filter: drop-shadow(0 8px 18px rgba(0, 20, 12, 0.18));
+  filter:
+    drop-shadow(0 -1px 0 rgba(255, 255, 255, 0.5))
+    drop-shadow(0 1px 0 rgba(80, 20, 110, 0.3))
+    drop-shadow(0 8px 16px rgba(0, 20, 12, 0.2));
 }
 .masthead-logo {
   display: block;
@@ -175,6 +182,10 @@ body {
   margin: 0;
   border-radius: 0;
   background: transparent;
+  filter:
+    drop-shadow(0 -1px 0 rgba(255, 255, 255, 0.55))
+    drop-shadow(0 1px 0 rgba(90, 20, 120, 0.28))
+    drop-shadow(0 5px 8px rgba(40, 10, 70, 0.2));
 }
 .welcome-screen {
   padding: 0;
