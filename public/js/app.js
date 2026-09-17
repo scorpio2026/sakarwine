@@ -2299,8 +2299,7 @@ function showSettings() {
           <label class="lang-switch">
             <span>${t('chatViewLang')}</span>
             <select id="chat-view-lang" aria-label="${t('chatViewLang')}">
-              <option value="ask" ${state.user && state.user.chatViewLang ? '' : 'selected'}>${t('askEachChat')}</option>
-              ${I18n.LANGS.map((l) => `<option value="${l.code}" ${state.user && state.user.chatViewLang === l.code ? 'selected' : ''}>${l.native}</option>`).join('')}
+              ${I18n.LANGS.map((l) => `<option value="${l.code}" ${(state.user && state.user.chatViewLang ? state.user.chatViewLang : I18n.lang) === l.code ? 'selected' : ''}>${l.native}</option>`).join('')}
             </select>
           </label>
           <p class="muted settings-lang-help">${t('chatViewLangHelp')}</p>

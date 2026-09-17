@@ -1792,7 +1792,7 @@ test('money, levels, and roles cannot be set from the client', async () => {
   assert.equal(receiptPeek.status, 401);
 });
 
-test('usernames reject symbols; chat asks once for view language then translates', async () => {
+test('usernames reject symbols; chat translates using UI or settings language', async () => {
   await started;
   const badReg = new FormData();
   badReg.set('username', 'bad_name');
@@ -1862,28 +1862,28 @@ test('usernames reject symbols; chat asks once for view language then translates
 
     const forB = await req(`/api/conversations/${convId}`, { jar: b.jar });
     assert.equal(forB.res.status, 200, forB.data.error);
-    assert.equal(forB.data.conversation.askViewLang, true);
-    assert.equal(forB.data.conversation.viewLang, null);
-    assert.equal(forB.data.messages[0].body, 'Hello from Japan');
-    assert.equal(Boolean(forB.data.messages[0].translated), false);
+    assert.equal(forB.data.conversation.askViewLang, false);
+    assert.equal(forB.data.conversation.viewLang, 'my');
+    assert.equal(forB.data.messages[0].translated, true);
     assert.equal(forB.data.messages[0].originalBody, 'Hello from Japan');
+    assert.equal(forB.data.messages[0].body, '[my] Hello from Japan');
 
     const picked = await req(`/api/conversations/${convId}/view-lang`, {
       method: 'PUT',
-      json: { lang: 'my' },
+      json: { lang: 'en' },
       jar: b.jar
     });
     assert.equal(picked.res.status, 200, picked.data.error);
     assert.equal(picked.data.askViewLang, false);
-    assert.equal(picked.data.viewLang, 'my');
+    assert.equal(picked.data.viewLang, 'en');
     assert.equal(picked.data.messages[0].translated, true);
     assert.equal(picked.data.messages[0].originalBody, 'Hello from Japan');
-    assert.equal(picked.data.messages[0].body, '[my] Hello from Japan');
+    assert.equal(picked.data.messages[0].body, '[en] Hello from Japan');
 
     const forB2 = await req(`/api/conversations/${convId}`, { jar: b.jar });
     assert.equal(forB2.data.conversation.askViewLang, false);
-    assert.equal(forB2.data.conversation.viewLang, 'my');
-    assert.equal(forB2.data.messages[0].body, '[my] Hello from Japan');
+    assert.equal(forB2.data.conversation.viewLang, 'en');
+    assert.equal(forB2.data.messages[0].body, '[en] Hello from Japan');
 
     const more = await req(`/api/conversations/${convId}/messages`, {
       method: 'POST',
@@ -1895,11 +1895,12 @@ test('usernames reject symbols; chat asks once for view language then translates
 
     const forB3 = await req(`/api/conversations/${convId}`, { jar: b.jar });
     const last = forB3.data.messages[forB3.data.messages.length - 1];
-    assert.equal(last.body, '[my] Second from Japan');
+    assert.equal(last.body, '[en] Second from Japan');
     assert.equal(last.originalBody, 'Second from Japan');
 
     const forA = await req(`/api/conversations/${convId}`, { jar: a.jar });
-    assert.equal(forA.data.conversation.askViewLang, true);
+    assert.equal(forA.data.conversation.askViewLang, false);
+    assert.equal(forA.data.conversation.viewLang, 'ja');
     assert.equal(forA.data.messages[0].body, 'Hello from Japan');
     assert.equal(Boolean(forA.data.messages[0].translated), false);
   } finally {

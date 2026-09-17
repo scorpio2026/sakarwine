@@ -612,13 +612,7 @@ function conversationViewMeta(user, conv, peer, messages) {
   const ui = userLang(user);
   const chosen = chosenViewLang(user, conv.id);
   const peerLang = userLang(peer);
-  const otherSources = (messages || [])
-    .filter((m) => m.sender && m.sender.id !== user.id && m.sourceLang)
-    .map((m) => m.sourceLang);
-  const mismatch = (peerLang && peerLang !== ui) || otherSources.some((s) => s && s !== ui);
-  if (chosen) return { viewLang: chosen, askViewLang: false, peerLang };
-  if (!mismatch) return { viewLang: ui, askViewLang: false, peerLang };
-  return { viewLang: null, askViewLang: true, peerLang };
+  return { viewLang: chosen || ui, askViewLang: false, peerLang };
 }
 
 async function cachedTranslate(messageId, original, from, to) {

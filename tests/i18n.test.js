@@ -731,6 +731,8 @@ test('chat DM surfaces use glass neon chrome and keep bubble clustering', () => 
   assert.match(welcomeSlice, /I18n\.switcherHtml\('lang-switch'\)/);
   assert.match(settingsSlice, /I18n\.switcherHtml\('lang-switch'\)/);
   assert.match(settingsSlice, /id="chat-view-lang"/);
+  assert.equal(settingsSlice.includes('askEachChat'), false);
+  assert.equal(settingsSlice.includes('value="ask"'), false);
   assert.equal(sakaSvg.includes('#10b981'), false);
   assert.match(sakaSvg, /#7c3aed/);
 });
