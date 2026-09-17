@@ -419,6 +419,8 @@ body {
   border-radius: 16px;
   background: #ecfdf5;
 }
+.profile-lite-photo.fallback-female { background: #ffc2d4; }
+.profile-lite-photo.fallback-male { background: #0a0a0a; }
 .profile-id {
   font-family: var(--display);
   font-size: 1.25rem;
