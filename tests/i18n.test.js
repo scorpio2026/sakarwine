@@ -87,6 +87,7 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   assert.equal(js.includes('formatChatMs'), false);
   assert.match(js, /id="host-code"/);
   assert.match(js, /t\('optional'\)/);
+  assert.match(js, /hostCredited[\s\S]*amount:\s*6000/);
   assert.match(js, /hostCode && !\/\^\\d\{8\}\$\/\.test\(hostCode\)/);
   assert.match(js, /id="edit-bio"/);
   assert.match(js, /profile-bio/);
@@ -108,6 +109,11 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   assert.match(I18n.t('idDocPassportHelp'), /passport/i);
   assert.equal(I18n.t('optional'), 'optional');
   assert.match(I18n.t('hostCodeHelp'), /Optional/i);
+  assert.match(I18n.t('hostCodeHelp'), /500 ×/);
+  assert.match(I18n.t('hostRules'), /2 months → 1000/);
+  assert.match(I18n.t('hostRules'), /12 months → 6000/);
+  assert.match(I18n.t('hostCredited', { amount: 6000, months: 12 }), /6000/);
+  assert.match(I18n.t('hostCredited', { amount: 6000, months: 12 }), /12/);
   assert.equal(I18n.t('errHostCode'), 'Enter a valid host code.');
   assert.equal(I18n.t('bio'), 'Bio');
   assert.match(I18n.t('bioHelp'), /280/);

@@ -1310,6 +1310,10 @@ test('new accounts get dual-language rules in Saka chat; host income is female-o
   assert.match(femaleText, /optionally enter that code when upgrading/i);
   assert.match(femaleText, /\+500/);
   assert.match(femaleText, /\+၅၀၀/);
+  assert.match(femaleText, /2 months → \+1000/);
+  assert.match(femaleText, /12 → \+6000/);
+  assert.match(femaleText, /၂ လ → \+၁၀၀၀/);
+  assert.match(femaleText, /၁၂ လ → \+၆၀၀၀/);
   assert.match(femaleText, /Chat time no longer pays/);
   assert.match(femaleText, /စကားပြောချိန်ဖြင့် \+၅၀၀ မရတော့ပါ/);
   assert.match(femaleText, /100,000/);

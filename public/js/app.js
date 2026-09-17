@@ -1874,7 +1874,7 @@ function incomeDemoBlock(u) {
             <video class="income-video" controls playsinline preload="metadata" src="${escapeHtml(src)}"></video>
             <span class="small muted">${t('demoWalkthrough')}</span>
           </div>
-          <div class="host-earn">${t('hostCredited', { amount: 500 })}</div>
+          <div class="host-earn">${t('hostCredited', { amount: 6000, months: 12 })}</div>
         </div>
         <div class="chat-demo-bar muted small">${t('demoComposer')}</div>
       </div>
@@ -1894,7 +1894,7 @@ async function showProfile() {
           <p class="small muted">${escapeHtml(hostStatusLine(u))}</p>
           ${u.hostCode ? `<p><span class="small muted">${t('hostCode')}</span><br><strong id="host-code-value">${escapeHtml(u.hostCode)}</strong></p>` : ''}
           <p><strong>${Number(u.hostBalance != null ? u.hostBalance : u.hostEarnings || 0).toLocaleString()} MMK</strong> ${t('available')}
-            <span class="small muted"> · ${t('earned')} ${Number(u.hostEarnings || 0).toLocaleString()} · ${Number(u.hostCreditAmount || 500).toLocaleString()} ${t('perVisitor')}</span></p>
+            <span class="small muted"> · ${t('earned')} ${Number(u.hostEarnings || 0).toLocaleString()} · ${Number(u.hostCreditAmount || 500).toLocaleString()} × ${t('perVisitor')}</span></p>
           <p class="small muted">${t('hostRules')}</p>
           ${(u.hostIncomeLedger || []).length
             ? `<div class="ledger">${u.hostIncomeLedger.map((row) => `<div class="ledger-row">+${row.amount} · ${escapeHtml(row.partner.username)} · ${t('lv', { n: row.partner.level })} · ${I18n.formatWhen(row.createdAt)}</div>`).join('')}</div>`
