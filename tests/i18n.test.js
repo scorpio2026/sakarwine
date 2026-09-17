@@ -769,6 +769,17 @@ test('admin dashboard interior uses glass neon chrome and keeps desk wiring', ()
   assert.match(adminJs, /id="desk-back"/);
   assert.match(adminJs, /\/api\/admin\/stats/);
   assert.match(adminJs, /\/api\/admin\/accounts/);
+  const accountsSlice = adminJs.slice(adminJs.indexOf("if (tab === 'accounts')"), adminJs.indexOf("} else if (tab === 'create')"));
+  assert.match(accountsSlice, /account-id-list/);
+  assert.match(accountsSlice, /account-id-chip/);
+  assert.match(accountsSlice, /data-open-id/);
+  assert.match(accountsSlice, /openDossier\(open\.dataset\.openId\)/);
+  assert.equal(accountsSlice.includes('<table>'), false);
+  assert.equal(accountsSlice.includes('moderationButtons(a)'), false);
+  assert.match(adminJs, /async function paintDossier/);
+  assert.match(adminJs, /moderationButtons\(a\)/);
+  assert.match(adminCss, /\.account-id-list\s*\{/);
+  assert.match(adminCss, /\.account-id-chip\s*\{[^}]*backdrop-filter:\s*blur/);
   assert.match(adminJs, /\/api\/admin\/login/);
   assert.match(adminCss, /\.admin-head\s*\{[^}]*backdrop-filter:\s*blur/);
   assert.match(adminCss, /\.desk-card\s*\{[^}]*border-radius:\s*28px/);

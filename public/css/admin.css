@@ -271,6 +271,39 @@ th {
   text-transform: uppercase;
 }
 tr.paid-active td { background: var(--paid-glow); }
+.account-id-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 8px;
+}
+.account-id-chip {
+  appearance: none;
+  width: 100%;
+  margin: 0;
+  text-align: left;
+  font-family: inherit;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 10px 12px;
+  min-height: 44px;
+  border-radius: 14px;
+  border: 1px solid var(--glass-stroke, rgba(255, 255, 255, 0.18));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(14, 10, 24, 0.28));
+  color: var(--auth-ink, var(--cream));
+  backdrop-filter: blur(14px) saturate(1.25);
+  -webkit-backdrop-filter: blur(14px) saturate(1.25);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  cursor: pointer;
+}
+.account-id-chip.paid-active {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 0 0 1px rgba(34, 211, 238, 0.28);
+}
+.account-id-chip:hover,
+.account-id-chip:focus {
+  border-color: rgba(34, 211, 238, 0.55);
+}
 .dossier.paid-active {
   background: var(--paid-glow);
   border: 1px solid rgba(34, 211, 238, 0.35);

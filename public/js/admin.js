@@ -633,31 +633,12 @@ async function bootDash() {
     }
     if (tab === 'accounts') {
       const { accounts } = await api('/api/admin/accounts');
-      panel.innerHTML = `<div class="table-scroll"><table><thead><tr><th>${t('accounts')}</th><th>${t('phone')}</th><th>${t('rolePaid')}</th><th>${t('idVisibility')}</th><th>${t('status')}</th><th></th></tr></thead><tbody>${accounts.map((a) => `
-        <tr class="${a.paidActive ? 'paid-active' : ''}">
-          <td><strong>${esc(a.username)}</strong>${a.extraUpgrade ? ` <span class="extra-upgrade-badge">${esc(t('extraUpgrade'))}</span>` : ''}<br>
-            <button class="ghost" data-open-id="${esc(a.accountId)}">${esc(a.accountId)}</button>
-            ${a.isSpecial ? `<br><span class="badge-neon" data-badge="${esc(a.badge || 'special')}">${esc(a.badge || 'special')}</span>` : ''}${a.isHost ? `<br><span class="badge-neon badge-host" data-badge="host">${t('host')}</span>` : ''}${a.hostStatus === 'pending' ? `<br><span class="muted">${t('nrcPending')}</span>` : ''}</td>
-          <td>${esc(a.phone)}<br><span class="muted">${esc(gLabel(a.gender))} · ${a.birthYear}</span></td>
-          <td>${a.isSpecial ? `${t('unlimitedChat')} · ${esc(a.badge || 'special')}` : `<span class="badge-lv">${t('lv', { n: a.level })}</span><br>${remainingPaidParts(a.paidUntil).ms ? `${new Date(a.paidUntil).toLocaleDateString(I18n.locale())} · ${esc(paidHoursLabel(a.paidUntil))}` : '—'}`}</td>
-          <td>${a.accountIdHidden ? t('hiddenFromLounge') : t('visible')}</td>
-          <td><span class="badge ${a.status}">${st(a.status)}</span> ${a.online ? `· ${t('onlineShort')}` : ''}${a.createdByAdmin ? `<br><span class="muted">${t('adminCreated')}</span>` : ''}</td>
-          <td class="actions">${moderationButtons(a)}</td>
-        </tr>`).join('')}</tbody></table></div>`;
-      panel.onclick = async (e) => {
+      panel.innerHTML = `<div class="account-id-list">${accounts.map((a) => `
+        <button type="button" class="account-id-chip ${a.paidActive ? 'paid-active' : ''}" data-open-id="${esc(a.accountId)}">${esc(a.accountId)}</button>`).join('')}
+      </div>`;
+      panel.onclick = (e) => {
         const open = e.target.closest('[data-open-id]');
-        if (open) {
-          openDossier(open.dataset.openId);
-          return;
-        }
-        const btn = e.target.closest('button[data-act]');
-        if (!btn) return;
-        try {
-          await runAccountAction(btn);
-          render();
-        } catch (err) {
-          alert(I18n.error(err.message));
-        }
+        if (open) openDossier(open.dataset.openId);
       };
     } else if (tab === 'create') {
       const { badges } = await api('/api/admin/accounts');
