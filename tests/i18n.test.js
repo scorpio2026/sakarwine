@@ -404,6 +404,27 @@ test('Lv, Host, and Admin chips use frosted glass neon edges', () => {
   assert.match(appJs, /data-badge="host"/);
 });
 
+test('host earnings profile shows glass host code chip and stacked MMK block', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const js = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
+  const css = fs.readFileSync(path.join(__dirname, '../public/css/app.css'), 'utf8');
+  const profileFn = js.slice(js.indexOf('async function showProfile'), js.indexOf('function settingsRow'));
+  assert.match(profileFn, /host-code-frame/);
+  assert.match(profileFn, /id="host-code-value"/);
+  assert.match(profileFn, /host-balance-block/);
+  assert.match(profileFn, /host-balance-amount/);
+  assert.match(profileFn, /host-balance-meta/);
+  assert.match(profileFn, /hostBalance != null \? u\.hostBalance : u\.hostEarnings/);
+  assert.match(profileFn, /u\.hostCreditAmount \|\| 500/);
+  assert.match(profileFn, /host-balance-meta">\$\{t\('earned'\)\}/);
+  assert.equal(profileFn.includes("span class=\"small muted\"> · ${t('earned')}"), false);
+  assert.match(css, /\.host-code-frame,\s*\.host-balance-block\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(css, /\.host-code-frame,\s*\.host-balance-block\s*\{[^}]*--glass-stroke/);
+  assert.match(css, /\.host-balance-meta\s*\{[^}]*display:\s*block/);
+  assert.match(css, /\.host-code-frame\s*\{[^}]*width:\s*fit-content/);
+});
+
 test('settings PIN change is translated and separate from Help recovery', () => {
   const fs = require('fs');
   const path = require('path');

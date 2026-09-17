@@ -2025,6 +2025,71 @@ button:disabled, .btn:disabled, .icon-btn:disabled, .chat-tool:disabled, .chat-s
 .profile-screen .me-actions .btn.block {
   grid-column: 1 / -1;
 }
+.host-code-frame,
+.host-balance-block {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(14, 10, 24, 0.28));
+  border: 1px solid var(--glass-stroke);
+  backdrop-filter: blur(16px) saturate(1.35);
+  -webkit-backdrop-filter: blur(16px) saturate(1.35);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 10px 24px rgba(0, 0, 0, 0.22);
+}
+.host-code-frame {
+  width: fit-content;
+  max-width: 100%;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    0 0 0 1px rgba(34, 211, 238, 0.16),
+    0 10px 24px rgba(0, 0, 0, 0.22);
+}
+.host-code-label {
+  display: block;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sw-muted);
+}
+.host-code-digits,
+#host-code-value {
+  display: block;
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.host-balance-block {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    0 0 0 1px rgba(232, 121, 249, 0.14),
+    0 10px 24px rgba(0, 0, 0, 0.22);
+}
+.host-balance-amount {
+  margin: 0;
+  display: block;
+  font-size: 1.02rem;
+  color: var(--sw-ink);
+}
+.host-balance-amount strong {
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.host-balance-meta {
+  margin: 0;
+  display: block;
+  font-size: 0.82rem;
+  color: var(--sw-muted);
+}
 @media (prefers-reduced-motion: reduce) {
   .profile-orb { filter: blur(12px); }
 }
