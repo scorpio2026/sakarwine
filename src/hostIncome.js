@@ -355,7 +355,8 @@ function listPayouts(db, publicUserFn) {
       reviewedAt: p.reviewed_at,
       host: publicUserFn
         ? publicUserFn(db.prepare('SELECT * FROM users WHERE id = ?').get(p.host_id), {
-            includePrivate: true
+            includePrivate: true,
+            includePhone: true
           })
         : { id: p.host_id, username: p.username, accountId: p.account_id, phone: p.host_phone }
     }));

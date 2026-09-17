@@ -242,7 +242,7 @@ function isAdminAccount(row) {
   return String((row && row.badge) || '').toLowerCase() === 'admin';
 }
 
-function publicUser(row, { online = false, includePrivate = false, viewer = null, includeNrc = false } = {}) {
+function publicUser(row, { online = false, includePrivate = false, includePhone = false, viewer = null, includeNrc = false } = {}) {
   if (!row) return null;
   const hide = Boolean(row.hide_account_id);
   const isSelf = viewer && Number(viewer.id) === Number(row.id);
@@ -274,17 +274,23 @@ function publicUser(row, { online = false, includePrivate = false, viewer = null
     createdAt: row.created_at
   };
   if (includePrivate) {
-    out.phone = row.phone;
     out.hostStatus = row.host_status || 'none';
     out.occupation = row.occupation || null;
     out.monthlyIncome = row.income_monthly != null ? row.income_monthly : null;
     out.incomeSource = row.income_source || null;
+  }
+  if (includePhone) {
+    out.phone = row.phone;
   }
   if (includeNrc) {
     out.nrcFrontUrl = row.nrc_front_path ? `/api/admin/accounts/${row.id}/nrc/front` : null;
     out.nrcBackUrl = row.nrc_back_path ? `/api/admin/accounts/${row.id}/nrc/back` : null;
   }
   return out;
+}
+
+function adminUser(row, extra = {}) {
+  return publicUser(row, { includePrivate: true, includePhone: true, ...extra });
 }
 
 module.exports = {
@@ -295,5 +301,6 @@ module.exports = {
   getBadges,
   addBadge,
   publicUser,
+  adminUser,
   isAdminAccount
 };

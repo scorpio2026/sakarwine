@@ -314,6 +314,42 @@ test('profile card shows account ID and admin accounts cannot be blocked', async
   assert.equal(noBlock.res.status, 403);
 });
 
+test('members never receive phone numbers; admin still does', async () => {
+  await started;
+  const member = await register('priv' + Date.now().toString().slice(-6), '121212', 'male');
+  const other = await register('seen' + Date.now().toString().slice(-6), '343434', 'female');
+  const assertNoPhone = (obj, label) => {
+    const json = JSON.stringify(obj);
+    assert.equal(Object.prototype.hasOwnProperty.call(obj || {}, 'phone'), false, `${label} has phone key`);
+    assert.equal(json.includes('091111111'), false, `${label} leaked 091111111: ${json}`);
+  };
+
+  const me = await req('/api/me', { jar: member.jar });
+  assert.equal(me.res.status, 200);
+  assertNoPhone(me.data.user, '/api/me');
+
+  const listed = await req('/api/users', { jar: member.jar });
+  for (const u of listed.data.users) assertNoPhone(u, `list ${u.username}`);
+
+  const card = await req(`/api/users/${other.user.id}/card`, { jar: member.jar });
+  assert.equal(card.res.status, 200);
+  assertNoPhone(card.data.user, 'card');
+  assert.ok(card.data.user.accountId);
+
+  const opened = await req(`/api/conversations/with/${other.user.id}`, { method: 'POST', jar: member.jar });
+  assertNoPhone(opened.data.conversation.peer, 'open peer');
+  const thread = await req(`/api/conversations/${opened.data.conversation.id}`, { jar: member.jar });
+  assertNoPhone(thread.data.conversation.peer, 'thread peer');
+  for (const m of thread.data.messages) {
+    if (m.sender) assertNoPhone(m.sender, 'sender');
+  }
+
+  const admin = await loginAdmin();
+  const accounts = await req('/api/admin/accounts', { jar: admin });
+  const row = accounts.data.accounts.find((a) => a.id === member.user.id);
+  assert.equal(row.phone, '091111111');
+});
+
 test('admin account ID search opens a full dossier', async () => {
   await started;
   const member = await register('seek' + Date.now().toString().slice(-6), '343434', 'male');
@@ -339,7 +375,7 @@ test('admin account ID search opens a full dossier', async () => {
   assert.ok(search.data.matches.some((m) => m.accountId === member.user.accountId));
   const dossier = await req(`/api/admin/dossier?q=${member.user.accountId}`, { jar: admin });
   assert.equal(dossier.data.user.username, member.user.username);
-  assert.equal(dossier.data.user.phone, member.user.phone);
+  assert.equal(dossier.data.user.phone, '091111111');
   assert.ok(dossier.data.conversations.length >= 1);
   assert.ok(['active', 'pending_liveness'].includes(dossier.data.user.status));
   const hide = await req(`/api/admin/accounts/${member.user.id}/hide-id`, { method: 'POST', jar: admin });

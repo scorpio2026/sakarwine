@@ -8,7 +8,7 @@ const express = require('express');
 const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const { Server } = require('socket.io');
-const { openDb, ensureDir, getSetting, setSetting, getBadges, addBadge, publicUser, isAdminAccount } = require('./db');
+const { openDb, ensureDir, getSetting, setSetting, getBadges, addBadge, publicUser, adminUser, isAdminAccount } = require('./db');
 const { messageFilterError, isAllowedImageMime, isAllowedVoiceMime, isForbiddenVideo } = require('./filters');
 const { quotePlan, allQuotes, addMonths, isPaid, isSpecial, canChatUnlimited, clampMonths } = require('./pricing');
 const {
@@ -500,7 +500,8 @@ function serializeMessage(msg, viewer) {
       ? publicUser(sender, {
           online: isOnline(sender.id),
           viewer,
-          includePrivate: Boolean(isAdminViewer)
+          includePrivate: Boolean(isAdminViewer),
+          includePhone: Boolean(isAdminViewer)
         })
       : null,
     mediaUrl,
@@ -1271,7 +1272,7 @@ app.get('/api/admin/accounts', requireAdmin, (_req, res) => {
   const rows = db.prepare('SELECT * FROM users WHERE is_ai = 0 ORDER BY id DESC').all();
   res.json({
     accounts: rows.map((u) =>
-      publicUser(u, { online: isOnline(u.id), includePrivate: true })
+      adminUser(u, { online: isOnline(u.id) })
     ),
     badges: getBadges(db)
   });
@@ -1297,7 +1298,7 @@ app.get('/api/admin/search', requireAdmin, (req, res) => {
     )
     .all(like, like, like, q, `${safe}%`);
   res.json({
-    matches: rows.map((u) => publicUser(u, { online: isOnline(u.id), includePrivate: true }))
+    matches: rows.map((u) => adminUser(u, { online: isOnline(u.id) }))
   });
 });
 
@@ -1339,7 +1340,7 @@ app.get('/api/admin/dossier', requireAdmin, (req, res) => {
     else {
       return res.status(404).json({
         error: hits.length ? 'Several accounts match. Pick one from the list.' : 'No account found for that ID.',
-        matches: hits.map((u) => publicUser(u, { includePrivate: true, online: isOnline(u.id) }))
+        matches: hits.map((u) => adminUser(u, { online: isOnline(u.id) }))
       });
     }
   }
@@ -1357,7 +1358,7 @@ app.get('/api/admin/dossier', requireAdmin, (req, res) => {
         id: c.id,
         startedAt: c.started_at,
         messageCount: count,
-        peer: publicUser(peer, { includePrivate: true, online: isOnline(peerId) }),
+        peer: adminUser(peer, { online: isOnline(peerId) }),
         lastMessage: last ? { type: last.type, body: last.body, createdAt: last.created_at } : null
       };
     });
@@ -1370,22 +1371,22 @@ app.get('/api/admin/dossier', requireAdmin, (req, res) => {
       `SELECT u.* FROM blocks b JOIN users u ON u.id = b.blocked_id WHERE b.blocker_id = ?`
     )
     .all(user.id)
-    .map((u) => publicUser(u, { includePrivate: true }));
+    .map((u) => adminUser(u));
   const blockedBy = db
     .prepare(
       `SELECT u.* FROM blocks b JOIN users u ON u.id = b.blocker_id WHERE b.blocked_id = ?`
     )
     .all(user.id)
-    .map((u) => publicUser(u, { includePrivate: true }));
+    .map((u) => adminUser(u));
   res.json({
-    user: publicUser(user, { includePrivate: true, includeNrc: true, online: isOnline(user.id) }),
+    user: adminUser(user, { includeNrc: true, online: isOnline(user.id) }),
     conversations: convos,
     upgrades,
     blocked,
     blockedBy,
     badges: getBadges(db),
     hostIncome: hostIncomeSummary(db, user.id, publicUser),
-    payouts: listPayouts(db, publicUser).filter((p) => p.host && p.host.id === user.id)
+    payouts: listPayouts(db, adminUser).filter((p) => p.host && p.host.id === user.id)
   });
 });
 
@@ -1438,7 +1439,7 @@ app.post('/api/admin/accounts', requireAdmin, multerSingle(uploadProfile, 'photo
       .run(accountId, username, hash, gender, birthYear, phone, photo, badge, Date.now());
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
     res.json({
-      user: publicUser(user, { includePrivate: true, online: false }),
+      user: adminUser(user, { online: false }),
       badges: getBadges(db)
     });
   } catch (err) {
@@ -1475,7 +1476,7 @@ app.post('/api/admin/accounts/:id/badge', requireAdmin, (req, res) => {
   badge = matched || badge;
   db.prepare('UPDATE users SET badge = ?, is_special = 1 WHERE id = ?').run(badge, id);
   const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
-  res.json({ user: publicUser(updated, { includePrivate: true }) });
+  res.json({ user: adminUser(updated) });
 });
 
 app.post('/api/admin/accounts/:id/suspend', requireAdmin, (req, res) => {
@@ -1531,7 +1532,7 @@ app.get('/api/admin/hosts', requireAdmin, (_req, res) => {
     )
     .all();
   res.json({
-    hosts: rows.map((u) => publicUser(u, { includePrivate: true, includeNrc: true, online: isOnline(u.id) }))
+    hosts: rows.map((u) => adminUser(u, { includeNrc: true, online: isOnline(u.id) }))
   });
 });
 
@@ -1550,7 +1551,7 @@ app.post('/api/admin/accounts/:id/host-approve', requireAdmin, (req, res) => {
   emitToUser(id, 'host:approved', { isHost: true });
   res.json({
     ok: true,
-    user: publicUser(updated, { includePrivate: true, includeNrc: true, online: isOnline(id) })
+    user: adminUser(updated, { includeNrc: true, online: isOnline(id) })
   });
 });
 
@@ -1566,7 +1567,7 @@ app.post('/api/admin/accounts/:id/host-reject', requireAdmin, (req, res) => {
   emitToUser(id, 'host:rejected', { isHost: false });
   res.json({
     ok: true,
-    user: publicUser(updated, { includePrivate: true, includeNrc: true, online: isOnline(id) })
+    user: adminUser(updated, { includeNrc: true, online: isOnline(id) })
   });
 });
 
@@ -1581,7 +1582,7 @@ app.get('/api/admin/conversations', requireAdmin, (_req, res) => {
     return {
       id: c.id,
       startedAt: c.started_at,
-      users: [publicUser(a, { includePrivate: true }), publicUser(b, { includePrivate: true })],
+      users: [adminUser(a), adminUser(b)],
       lastMessage: last
         ? { type: last.type, body: last.body, createdAt: last.created_at }
         : null
@@ -1604,7 +1605,7 @@ app.get('/api/admin/conversations/:id', requireAdmin, (req, res) => {
     conversation: {
       id: conv.id,
       startedAt: conv.started_at,
-      users: [publicUser(a, { includePrivate: true }), publicUser(b, { includePrivate: true })]
+      users: [adminUser(a), adminUser(b)]
     },
     messages
   });
@@ -1641,7 +1642,7 @@ app.post('/api/admin/upgrades/:id/approve', requireAdmin, (req, res) => {
     paidUntil,
     level: updated.level
   });
-  res.json({ ok: true, user: publicUser(updated, { includePrivate: true }) });
+  res.json({ ok: true, user: adminUser(updated) });
 });
 
 app.post('/api/admin/upgrades/:id/reject', requireAdmin, (req, res) => {
@@ -1655,7 +1656,7 @@ app.post('/api/admin/upgrades/:id/reject', requireAdmin, (req, res) => {
 });
 
 app.get('/api/admin/payouts', requireAdmin, (_req, res) => {
-  res.json({ payouts: listPayouts(db, publicUser) });
+  res.json({ payouts: listPayouts(db, adminUser) });
 });
 
 app.post('/api/admin/payouts/:id/done', requireAdmin, (req, res) => {

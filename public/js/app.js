@@ -1066,7 +1066,7 @@ function showProfile() {
           <div style="font-family:var(--display);font-size:1.6rem">${u.username}</div>
           <div class="muted">${u.accountId || 'Account ID hidden from the lounge'}</div>
         </div>
-        <div class="small">${roleMark(u)} · ${u.gender} · born ${u.birthYear}<br>Phone ${u.phone}<br>${u.isSpecial ? 'Unlimited chat · special account' : paidLine}${u.gender === 'female' && u.occupation ? `<br>${escapeHtml(u.occupation)} · ${Number(u.monthlyIncome || 0).toLocaleString()} MMK` : ''}</div>
+        <div class="small">${roleMark(u)} · ${u.gender} · born ${u.birthYear}<br>${u.isSpecial ? 'Unlimited chat · special account' : paidLine}${u.gender === 'female' && u.occupation ? `<br>${escapeHtml(u.occupation)} · ${Number(u.monthlyIncome || 0).toLocaleString()} MMK` : ''}</div>
         <button class="btn secondary block" id="logout">Sign out</button>
       </div>
       ${femaleForm}

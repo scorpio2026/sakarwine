@@ -99,5 +99,5 @@ Balances, levels, host credits, payouts, and admin rights are **server-authorita
 - `/admin` uses a separate cookie. Member requests cannot set admin, host, VVIP, or level.
 - Rate limits on register, login, admin login, withdraw, broadcast, and presence.
 - Foreign `Origin` rejected on mutating requests. CSP + `nosniff` + `DENY` framing.
-- Uploads use MIME-derived extensions (client filenames ignored). NRC and receipts are admin-only.
+- Uploads use MIME-derived extensions (client filenames ignored). NRC, receipts, and **phone numbers** are admin-only. Member APIs never include `phone` (home, chat, lightbox, `/api/me`).
 - Parameterized SQL. UI strings are escaped. Production 500s do not leak internals.
