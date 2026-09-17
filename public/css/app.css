@@ -1256,6 +1256,10 @@ button:disabled, .btn:disabled, .icon-btn:disabled, .chat-tool:disabled, .chat-s
   margin-bottom: 12px;
   padding: 12px 14px;
 }
+.settings-lang-help {
+  margin: 8px 0 0;
+  line-height: 1.45;
+}
 .lang-choices {
   display: grid;
   gap: 8px;

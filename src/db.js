@@ -167,6 +167,7 @@ function migrate(db) {
   ensureColumn(db, 'users', 'last_seen', 'INTEGER');
   ensureColumn(db, 'conversations', 'opened_by', 'INTEGER');
   ensureColumn(db, 'users', 'ui_lang', "TEXT NOT NULL DEFAULT 'my'");
+  ensureColumn(db, 'users', 'chat_view_lang', 'TEXT');
   ensureColumn(db, 'messages', 'source_lang', 'TEXT');
   db.exec('CREATE INDEX IF NOT EXISTS idx_users_host ON users(host_status)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_users_last_seen ON users(last_seen)');
@@ -306,6 +307,7 @@ function publicUser(row, { online = false, includePrivate = false, includePhone 
   };
   if (isSelf || includePrivate) {
     out.uiLang = row.ui_lang || 'my';
+    out.chatViewLang = row.chat_view_lang || null;
   }
   if (includePrivate) {
     out.hostStatus = row.host_status || 'none';

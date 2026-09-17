@@ -489,19 +489,21 @@ function setConversationLang(userId, conversationId, lang) {
   return code;
 }
 
-function viewLangFor(user, conversationId) {
-  return getConversationLang(user.id, conversationId) || userLang(user);
+function chosenViewLang(user, conversationId) {
+  return getConversationLang(user.id, conversationId) || normalizeLang(user && user.chat_view_lang) || null;
 }
 
 function conversationViewMeta(user, conv, peer, messages) {
   const ui = userLang(user);
-  const viewLang = viewLangFor(user, conv.id);
+  const chosen = chosenViewLang(user, conv.id);
   const peerLang = userLang(peer);
   const otherSources = (messages || [])
     .filter((m) => m.sender && m.sender.id !== user.id && m.sourceLang)
     .map((m) => m.sourceLang);
   const mismatch = (peerLang && peerLang !== ui) || otherSources.some((s) => s && s !== ui);
-  return { viewLang, askViewLang: false, peerLang, mismatch };
+  if (chosen) return { viewLang: chosen, askViewLang: false, peerLang };
+  if (!mismatch) return { viewLang: ui, askViewLang: false, peerLang };
+  return { viewLang: null, askViewLang: true, peerLang };
 }
 
 async function cachedTranslate(messageId, original, from, to) {
@@ -540,7 +542,7 @@ async function applyTranslations(messages, viewLang) {
 
 async function emitTranslated(userId, conversationId, msg, viewer) {
   const payload = serializeMessage(msg, viewer);
-  const lang = viewer ? viewLangFor(viewer, conversationId) : null;
+  const lang = viewer ? chosenViewLang(viewer, conversationId) : null;
   if (lang) await applyTranslations([payload], lang);
   emitToUser(userId, 'message', { conversationId, message: payload });
 }
@@ -841,9 +843,25 @@ app.get('/api/me', requireUser, (req, res) => {
 });
 
 app.put('/api/me/lang', requireUser, (req, res) => {
-  const lang = normalizeLang(req.body && req.body.lang);
-  if (!lang) return res.status(400).json({ error: 'Choose a supported language.' });
-  db.prepare('UPDATE users SET ui_lang = ? WHERE id = ?').run(lang, req.user.id);
+  const lang = req.body && req.body.lang != null && String(req.body.lang).trim() !== ''
+    ? normalizeLang(req.body.lang)
+    : null;
+  if (req.body && req.body.lang != null && String(req.body.lang).trim() !== '' && !lang) {
+    return res.status(400).json({ error: 'Choose a supported language.' });
+  }
+  if (lang) db.prepare('UPDATE users SET ui_lang = ? WHERE id = ?').run(lang, req.user.id);
+  if (req.body && Object.prototype.hasOwnProperty.call(req.body, 'chatViewLang')) {
+    const raw = req.body.chatViewLang;
+    if (raw == null || raw === '' || raw === 'ask') {
+      db.prepare('UPDATE users SET chat_view_lang = NULL WHERE id = ?').run(req.user.id);
+    } else {
+      const chatLang = normalizeLang(raw);
+      if (!chatLang) return res.status(400).json({ error: 'Choose a supported language.' });
+      db.prepare('UPDATE users SET chat_view_lang = ? WHERE id = ?').run(chatLang, req.user.id);
+    }
+  } else if (!lang) {
+    return res.status(400).json({ error: 'Choose a supported language.' });
+  }
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   res.json({ user: serializeMe(user) });
 });
@@ -1127,7 +1145,7 @@ app.get('/api/conversations/:id', requireUser, requireActive, async (req, res) =
   const tick = blocked ? null : touchPresence(conv, req.user.id, 'ping');
   const messages = listMessagesForViewer(conv.id, req.user);
   const view = conversationViewMeta(req.user, conv, peer, messages);
-  if (view.viewLang) {
+  if (view.viewLang && !view.askViewLang) {
     await applyTranslations(messages, view.viewLang);
   }
   res.json({
@@ -1276,8 +1294,10 @@ app.post(
     const msg = db.prepare('SELECT * FROM messages WHERE id = ?').get(info.lastInsertRowid);
     const forMe = serializeMessage(msg, req.user);
     const forPeer = serializeMessage(msg, peer);
-    await applyTranslations([forMe], viewLangFor(req.user, conv.id));
-    await applyTranslations([forPeer], viewLangFor(peer, conv.id));
+    const myView = chosenViewLang(req.user, conv.id);
+    const peerView = chosenViewLang(peer, conv.id);
+    if (myView) await applyTranslations([forMe], myView);
+    if (peerView) await applyTranslations([forPeer], peerView);
     emitToUser(peerId, 'message', { conversationId: conv.id, message: forPeer });
     emitToUser(req.user.id, 'message', { conversationId: conv.id, message: forMe });
     const tick = touchPresence(conv, req.user.id, 'ping');

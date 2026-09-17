@@ -911,7 +911,7 @@ test('money, levels, and roles cannot be set from the client', async () => {
   assert.equal(receiptPeek.status, 401);
 });
 
-test('usernames reject symbols; chat auto-translates to each viewer’s UI language', async () => {
+test('usernames reject symbols; chat asks once for view language then translates', async () => {
   await started;
   const a = await register('trena' + Date.now().toString().slice(-5), '121212', 'male');
   const b = await register('trenb' + Date.now().toString().slice(-5), '343434', 'female');
@@ -942,29 +942,98 @@ test('usernames reject symbols; chat auto-translates to each viewer’s UI langu
 
     const forB = await req(`/api/conversations/${convId}`, { jar: b.jar });
     assert.equal(forB.res.status, 200, forB.data.error);
-    assert.equal(forB.data.conversation.viewLang, 'my');
-    assert.equal(forB.data.conversation.askViewLang, false);
-    assert.equal(forB.data.messages[0].translated, true);
+    assert.equal(forB.data.conversation.askViewLang, true);
+    assert.equal(forB.data.conversation.viewLang, null);
+    assert.equal(forB.data.messages[0].body, 'Hello from Japan');
+    assert.equal(Boolean(forB.data.messages[0].translated), false);
     assert.equal(forB.data.messages[0].originalBody, 'Hello from Japan');
-    assert.equal(forB.data.messages[0].body, '[my] Hello from Japan');
+
+    const picked = await req(`/api/conversations/${convId}/view-lang`, {
+      method: 'PUT',
+      json: { lang: 'my' },
+      jar: b.jar
+    });
+    assert.equal(picked.res.status, 200, picked.data.error);
+    assert.equal(picked.data.askViewLang, false);
+    assert.equal(picked.data.viewLang, 'my');
+    assert.equal(picked.data.messages[0].translated, true);
+    assert.equal(picked.data.messages[0].originalBody, 'Hello from Japan');
+    assert.equal(picked.data.messages[0].body, '[my] Hello from Japan');
+
+    const forB2 = await req(`/api/conversations/${convId}`, { jar: b.jar });
+    assert.equal(forB2.data.conversation.askViewLang, false);
+    assert.equal(forB2.data.conversation.viewLang, 'my');
+    assert.equal(forB2.data.messages[0].body, '[my] Hello from Japan');
+
+    const more = await req(`/api/conversations/${convId}/messages`, {
+      method: 'POST',
+      json: { type: 'text', body: 'Second from Japan' },
+      jar: a.jar
+    });
+    assert.equal(more.res.status, 200, more.data.error);
+    assert.equal(more.data.message.body, 'Second from Japan');
+
+    const forB3 = await req(`/api/conversations/${convId}`, { jar: b.jar });
+    const last = forB3.data.messages[forB3.data.messages.length - 1];
+    assert.equal(last.body, '[my] Second from Japan');
+    assert.equal(last.originalBody, 'Second from Japan');
 
     const forA = await req(`/api/conversations/${convId}`, { jar: a.jar });
+    assert.equal(forA.data.conversation.askViewLang, true);
     assert.equal(forA.data.messages[0].body, 'Hello from Japan');
     assert.equal(Boolean(forA.data.messages[0].translated), false);
   } finally {
     process.env.TRANSLATE_API_KEY = prev;
   }
 
-  const second = await req(`/api/conversations/${convId}/messages`, {
+  const sameA = await register('trenc' + Date.now().toString().slice(-5), '121212', 'male');
+  const sameB = await register('trend' + Date.now().toString().slice(-5), '343434', 'female');
+  await req('/api/me/lang', { method: 'PUT', json: { lang: 'my' }, jar: sameA.jar });
+  await req('/api/me/lang', { method: 'PUT', json: { lang: 'my' }, jar: sameB.jar });
+  const sameOpened = await req(`/api/conversations/with/${sameB.user.id}`, { method: 'POST', jar: sameA.jar });
+  const sameId = sameOpened.data.conversation.id;
+  await req(`/api/conversations/${sameId}/messages`, {
     method: 'POST',
-    json: { type: 'text', body: 'Second line stays original' },
-    jar: a.jar
+    json: { type: 'text', body: 'Same language hello' },
+    jar: sameA.jar
   });
-  assert.equal(second.res.status, 200, second.data.error);
-  const degraded = await req(`/api/conversations/${convId}`, { jar: b.jar });
-  const last = degraded.data.messages[degraded.data.messages.length - 1];
-  assert.equal(last.body, 'Second line stays original');
-  assert.equal(Boolean(last.translated), false);
+  const sameView = await req(`/api/conversations/${sameId}`, { jar: sameB.jar });
+  assert.equal(sameView.data.conversation.askViewLang, false);
+  assert.equal(sameView.data.conversation.viewLang, 'my');
+  assert.equal(sameView.data.messages[0].body, 'Same language hello');
+  assert.equal(Boolean(sameView.data.messages[0].translated), false);
+
+  const globA = await register('trene' + Date.now().toString().slice(-5), '121212', 'male');
+  const globB = await register('trenf' + Date.now().toString().slice(-5), '343434', 'female');
+  await req('/api/me/lang', { method: 'PUT', json: { lang: 'ja' }, jar: globA.jar });
+  const globPref = await req('/api/me/lang', {
+    method: 'PUT',
+    json: { lang: 'my', chatViewLang: 'en' },
+    jar: globB.jar
+  });
+  assert.equal(globPref.res.status, 200, globPref.data.error);
+  assert.equal(globPref.data.user.chatViewLang, 'en');
+  const globOpened = await req(`/api/conversations/with/${globB.user.id}`, { method: 'POST', jar: globA.jar });
+  const globId = globOpened.data.conversation.id;
+  process.env.TRANSLATE_API_KEY = 'test';
+  try {
+    await req(`/api/conversations/${globId}/messages`, {
+      method: 'POST',
+      json: { type: 'text', body: 'Hello from Japan' },
+      jar: globA.jar
+    });
+    const globView = await req(`/api/conversations/${globId}`, { jar: globB.jar });
+    assert.equal(globView.data.conversation.askViewLang, false);
+    assert.equal(globView.data.conversation.viewLang, 'en');
+    assert.equal(globView.data.messages[0].body, '[en] Hello from Japan');
+    assert.equal(globView.data.messages[0].originalBody, 'Hello from Japan');
+  } finally {
+    process.env.TRANSLATE_API_KEY = prev;
+  }
+
+  const cleared = await req('/api/me/lang', { method: 'PUT', json: { chatViewLang: 'ask' }, jar: globB.jar });
+  assert.equal(cleared.res.status, 200, cleared.data.error);
+  assert.equal(cleared.data.user.chatViewLang, null);
 });
 
 after(() => new Promise((resolve) => server.close(resolve)));
