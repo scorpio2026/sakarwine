@@ -74,6 +74,7 @@ function rerender() {
   else if (v === 'settings') showSettings();
   else if (v === 'host-apply') showHostApply();
   else if (v === 'edit-profile') showEditProfile();
+  else if (v === 'change-pin') showChangePin();
   else if (v === 'blocked') showBlocked();
   else if (v === 'help') showHelp(Boolean(state.user));
 }
@@ -1464,22 +1465,30 @@ function showChangePin() {
         <div class="glass-card stack" style="text-align:left">
           <p class="small muted">${t('changePinHelp')}</p>
           <form id="pin-change-form" class="stack">
-            <div class="field"><label for="pin-cur">${t('currentPin')}</label><input id="pin-cur" type="password" inputmode="numeric" maxlength="6" autocomplete="current-password" required /></div>
-            <div class="field"><label for="pin-new">${t('newPin')}</label><input id="pin-new" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" required /></div>
-            <div class="field"><label for="pin-confirm">${t('confirmPin')}</label><input id="pin-confirm" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" required /></div>
+            <div class="field"><label for="pin-cur">${t('currentPin')}</label><input id="pin-cur" class="pin-digits" type="password" inputmode="numeric" pattern="\\d{6}" maxlength="6" autocomplete="current-password" required /></div>
+            <div class="field"><label for="pin-new">${t('newPin')}</label><input id="pin-new" class="pin-digits" type="password" inputmode="numeric" pattern="\\d{6}" maxlength="6" autocomplete="new-password" required /></div>
+            <div class="field"><label for="pin-confirm">${t('confirmPin')}</label><input id="pin-confirm" class="pin-digits" type="password" inputmode="numeric" pattern="\\d{6}" maxlength="6" autocomplete="new-password" required /></div>
             <button type="submit" class="btn block" id="pin-save">${t('changePin')}</button>
           </form>
         </div>
       </div>
     </section>`;
   $('#back').onclick = showSettings;
+  document.querySelectorAll('.pin-digits').forEach((el) => {
+    el.addEventListener('input', () => {
+      el.value = el.value.replace(/\D/g, '').slice(0, 6);
+    });
+  });
   $('#pin-change-form').onsubmit = async (e) => {
     e.preventDefault();
     const currentPin = $('#pin-cur').value.trim();
     const newPin = $('#pin-new').value.trim();
     const confirmPin = $('#pin-confirm').value.trim();
-    if (!/^\d{6}$/.test(currentPin) || !/^\d{6}$/.test(newPin)) return toast(t('errPin'));
+    if (!/^\d{6}$/.test(currentPin) || !/^\d{6}$/.test(newPin) || !/^\d{6}$/.test(confirmPin)) {
+      return toast(t('errPin'));
+    }
     if (newPin !== confirmPin) return toast(t('errPinMismatch'));
+    if (newPin === currentPin) return toast(t('errPinSame'));
     const btn = $('#pin-save');
     btn.disabled = true;
     try {

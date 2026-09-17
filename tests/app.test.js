@@ -514,12 +514,21 @@ test('settings: members can edit display profile and manage blocked list, not PI
     jar: member.jar
   });
   assert.equal(pinBad.res.status, 400);
+  assert.equal(pinBad.data.error, 'Current PIN is wrong.');
   const pinMismatch = await req('/api/me/pin', {
     method: 'POST',
     json: { currentPin: '121212', newPin: '654321', confirmPin: '111111' },
     jar: member.jar
   });
   assert.equal(pinMismatch.res.status, 400);
+  assert.equal(pinMismatch.data.error, 'New PIN and confirmation do not match.');
+  const pinSame = await req('/api/me/pin', {
+    method: 'POST',
+    json: { currentPin: '121212', newPin: '121212', confirmPin: '121212' },
+    jar: member.jar
+  });
+  assert.equal(pinSame.res.status, 400);
+  assert.equal(pinSame.data.error, 'Choose a different 6-digit PIN.');
   const pinOk = await req('/api/me/pin', {
     method: 'POST',
     json: { currentPin: '121212', newPin: '654321', confirmPin: '654321' },

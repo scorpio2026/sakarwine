@@ -111,3 +111,21 @@ test('bottom nav is Help-only; Me stays reachable from the header', () => {
   const css = fs.readFileSync(path.join(__dirname, '../public/css/app.css'), 'utf8');
   assert.match(css, /\.nav\.nav-help-only\s*\{[^}]*grid-template-columns:\s*1fr/);
 });
+
+test('settings PIN change is translated and separate from Help recovery', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const js = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
+  assert.match(js, /function showChangePin/);
+  assert.match(js, /\/api\/me\/pin/);
+  assert.match(js, /go-pin/);
+  assert.match(js, /function showHelp/);
+  assert.match(js, /pin-recovery-form/);
+  I18n.setLang('en');
+  assert.equal(I18n.t('changePin'), 'Change PIN');
+  assert.equal(I18n.t('currentPin'), 'Current PIN');
+  assert.equal(I18n.error('Current PIN is wrong.'), I18n.t('errWrongPin'));
+  assert.equal(I18n.error('New PIN and confirmation do not match.'), I18n.t('errPinMismatch'));
+  I18n.setLang('my');
+  assert.equal(I18n.t('changePin'), 'PIN ပြောင်းရန်');
+});
