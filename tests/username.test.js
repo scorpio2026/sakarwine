@@ -9,6 +9,7 @@ test('usernames allow English or Myanmar letters and digits up to 12', () => {
   assert.equal(usernameError('မောင်မောင်'), null);
   assert.equal(usernameError('သ1'), null);
   assert.equal(usernameError('A'), null);
+  assert.equal(usernameError('Koကို1'), null);
   assert.ok(USERNAME_RE.test('abcdefghijkl'));
 });
 

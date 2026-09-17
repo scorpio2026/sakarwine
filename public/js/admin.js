@@ -30,6 +30,9 @@ function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+const USERNAME_RE = /^(?:[A-Za-z0-9\u1000-\u109F\uAA60-\uAA7F\uA9E0-\uA9FF]){1,12}$/;
+const USERNAME_HINT = 'Letters and numbers only (English or Myanmar) · max 12. No spaces or symbols.';
+
 const $ = (s, el = document) => el.querySelector(s);
 const t = (k, p) => I18n.t(k, p);
 let paintUi = null;
@@ -431,7 +434,7 @@ async function bootDash() {
         <p class="muted">These accounts skip the 24-hour / paid upgrade gate (unlimited chatting). Role badges replace the normal level chip in the lounge with a neon glow. Account IDs are hidden from other members until you unhide them.</p>
         <form id="create-special">
           <div class="grid-form">
-            <div class="field"><label>Username</label><input name="username" required minlength="1" maxlength="12" /></div>
+            <div class="field"><label>Username</label><input name="username" required minlength="1" maxlength="12" autocomplete="username" spellcheck="false" autocapitalize="none" pattern="[A-Za-z0-9\u1000-\u109F\uAA60-\uAA7F\uA9E0-\uA9FF]{1,12}" title="${esc(USERNAME_HINT)}" /></div>
             <div class="field"><label>6-digit PIN</label><input name="password" required pattern="\\d{6}" maxlength="6" /></div>
             <div class="field"><label>Gender</label>
               <select name="gender"><option value="female">Female</option><option value="male">Male</option></select>
@@ -445,6 +448,7 @@ async function bootDash() {
               </select>
             </div>
           </div>
+          <p class="muted">${esc(USERNAME_HINT)}</p>
           <div class="field" id="custom-badge-wrap" hidden>
             <label>Custom badge</label>
             <input id="custom-badge" maxlength="24" placeholder="e.g. ambassador" />
@@ -468,6 +472,10 @@ async function bootDash() {
       $('#create-special').onsubmit = async (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
+        if (!USERNAME_RE.test(String(fd.get('username') || '').trim())) {
+          $('#create-msg').textContent = USERNAME_HINT;
+          return;
+        }
         let badge = fd.get('badge');
         if (badge === '__custom') badge = custom.value.trim();
         fd.set('badge', badge);

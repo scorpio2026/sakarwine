@@ -160,8 +160,10 @@ function syncLang(code) {
   api('/api/me/lang', { method: 'PUT', json: { lang: code || I18n.lang } }).catch(() => {});
 }
 
+const USERNAME_CHAR_CLASS = '[A-Za-z0-9\u1000-\u109F\uAA60-\uAA7F\uA9E0-\uA9FF]';
+
 function usernamePatternOk(value) {
-  return /^(?:[A-Za-z0-9\u1000-\u109F\uAA60-\uAA7F\uA9E0-\uA9FF]){1,12}$/.test(String(value || '').trim());
+  return new RegExp(`^${USERNAME_CHAR_CLASS}{1,12}$`).test(String(value || '').trim());
 }
 
 function connectSocket() {
@@ -350,7 +352,11 @@ function showRegister() {
           <div id="photo-preview" class="avatar ai">📷</div>
           <span class="small muted">${t('profilePhoto')}</span>
         </label>
-        <div class="field"><label>${t('username')}</label><input name="username" required minlength="1" maxlength="12" /></div>
+        <div class="field">
+          <label>${t('username')}</label>
+          <input name="username" required minlength="1" maxlength="12" autocomplete="username" spellcheck="false" autocapitalize="none" pattern="${USERNAME_CHAR_CLASS}{1,12}" title="${t('errUsername')}" />
+          <p class="small muted" style="margin:6px 0 0">${t('usernameRule')}</p>
+        </div>
         <div class="field"><label>${t('pinExactly6')}</label><input name="password" inputmode="numeric" pattern="\\d{6}" maxlength="6" required /></div>
         <div class="row-2">
           <div class="field"><label>${t('gender')}</label>
@@ -1411,7 +1417,7 @@ function showEditProfile() {
           </label>
           <div class="field" style="width:100%;text-align:left">
             <label for="edit-username">${t('username')}</label>
-            <input id="edit-username" value="${escapeHtml(u.username)}" maxlength="12" autocomplete="username" />
+            <input id="edit-username" value="${escapeHtml(u.username)}" required minlength="1" maxlength="12" autocomplete="username" spellcheck="false" autocapitalize="none" pattern="${USERNAME_CHAR_CLASS}{1,12}" title="${t('errUsername')}" />
           </div>
           <p class="small muted" style="text-align:left;margin:0">${t('usernameHelp')}</p>
         </div>

@@ -913,6 +913,45 @@ test('money, levels, and roles cannot be set from the client', async () => {
 
 test('usernames reject symbols; chat asks once for view language then translates', async () => {
   await started;
+  const badReg = new FormData();
+  badReg.set('username', 'bad_name');
+  badReg.set('password', '121212');
+  badReg.set('gender', 'male');
+  badReg.set('birthYear', '1998');
+  badReg.set('phone', '091111111');
+  const regUnderscore = await req('/api/register', { method: 'POST', form: badReg, jar: cookieJar() });
+  assert.equal(regUnderscore.res.status, 400);
+  assert.match(regUnderscore.data.error, /letters and numbers/i);
+
+  const longReg = new FormData();
+  longReg.set('username', 'abcdefghijklm');
+  longReg.set('password', '121212');
+  longReg.set('gender', 'male');
+  longReg.set('birthYear', '1998');
+  longReg.set('phone', '091111111');
+  const regLong = await req('/api/register', { method: 'POST', form: longReg, jar: cookieJar() });
+  assert.equal(regLong.res.status, 400);
+
+  const spaceReg = new FormData();
+  spaceReg.set('username', 'hello world');
+  spaceReg.set('password', '121212');
+  spaceReg.set('gender', 'male');
+  spaceReg.set('birthYear', '1998');
+  spaceReg.set('phone', '091111111');
+  const regSpace = await req('/api/register', { method: 'POST', form: spaceReg, jar: cookieJar() });
+  assert.equal(regSpace.res.status, 400);
+
+  const admin = await loginAdmin();
+  const badAdmin = new FormData();
+  badAdmin.set('username', 'vip_user');
+  badAdmin.set('password', '999999');
+  badAdmin.set('gender', 'male');
+  badAdmin.set('birthYear', '1990');
+  badAdmin.set('phone', '0988888888');
+  badAdmin.set('badge', 'VVIP');
+  const adminBad = await req('/api/admin/accounts', { method: 'POST', form: badAdmin, jar: admin });
+  assert.equal(adminBad.res.status, 400);
+
   const a = await register('trena' + Date.now().toString().slice(-5), '121212', 'male');
   const b = await register('trenb' + Date.now().toString().slice(-5), '343434', 'female');
   const langA = await req('/api/me/lang', { method: 'PUT', json: { lang: 'ja' }, jar: a.jar });
