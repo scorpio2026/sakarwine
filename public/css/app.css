@@ -132,18 +132,25 @@ body {
 }
 .logo-aura {
   position: absolute;
-  left: 12%;
-  right: 12%;
-  top: 18%;
-  bottom: 18%;
+  left: 50%;
+  top: 50%;
+  width: 150%;
+  height: 78%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #ff8a3d, #ff4ecd, #8b5cff, #3d7eff, #ff8a3d);
-  background-size: 280% 100%;
-  filter: blur(16px);
-  opacity: 0.28;
-  animation: logo-drift 16s ease-in-out infinite;
+  background: linear-gradient(
+    90deg,
+    #ff8a3d 0%,
+    #ff4ecd 25%,
+    #8b5cff 50%,
+    #3d7eff 75%,
+    #ff8a3d 100%
+  );
+  filter: blur(28px);
+  opacity: 0.14;
   pointer-events: none;
   z-index: 0;
+  transform: translate(-58%, -50%);
+  animation: logo-drift 36s ease-in-out infinite;
 }
 .masthead-logo,
 .brand-lockup .brand-logo {
@@ -151,12 +158,16 @@ body {
   z-index: 1;
 }
 @keyframes logo-drift {
-  0% { background-position: 0% 50%; opacity: 0.2; }
-  50% { background-position: 100% 50%; opacity: 0.34; }
-  100% { background-position: 0% 50%; opacity: 0.2; }
+  0%,
+  100% { transform: translate(-62%, -50%); }
+  50% { transform: translate(-38%, -50%); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .logo-aura { animation: none; opacity: 0.22; }
+  .logo-aura {
+    animation: none;
+    opacity: 0.1;
+    transform: translate(-50%, -50%);
+  }
 }
 .brand-logo {
   display: block;
