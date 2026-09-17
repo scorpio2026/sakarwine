@@ -1659,7 +1659,7 @@ function renderChat(opts = {}) {
           <button type="button" id="mic-btn">${t('voice')}</button>
         </div>`}
         <div class="composer-pill">
-          <textarea id="text" rows="1" ${composerOff ? 'disabled' : ''} placeholder="${c.peer.isAi ? t('sakaFaqHint') : t('typeHere')}"></textarea>
+          <textarea id="text" rows="1" ${composerOff ? 'disabled' : ''} placeholder="${t('typeHere')}"></textarea>
         </div>
         <button class="chat-send" id="send" ${composerOff ? 'disabled' : ''} aria-label="${t('send')}">${ICONS.send}</button>
         ${c.peer.isAi ? '' : `<input id="img-file" class="hidden-file" type="file" accept="image/*" />`}
