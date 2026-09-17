@@ -134,11 +134,13 @@ test('bottom nav has Home, Chat, Profile, and Help — no Upgrade tab', () => {
   const js = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
   const navSlice = js.slice(js.indexOf('function nav('), js.indexOf('function bindNav('));
   assert.equal(navSlice.includes('nav-help-only'), false);
-  assert.match(navSlice, /data-go="home"/);
-  assert.match(navSlice, /data-go="chats"/);
-  assert.match(navSlice, /data-go="profile"/);
-  assert.match(navSlice, /data-go="help"/);
-  assert.equal(navSlice.includes('data-go="people"'), false);
+  assert.match(navSlice, /data-go="\$\{go\}"/);
+  assert.match(navSlice, /tab\('home'/);
+  assert.match(navSlice, /tab\('chats'/);
+  assert.match(navSlice, /tab\('profile'/);
+  assert.match(navSlice, /tab\('help'/);
+  assert.equal(navSlice.includes("tab('people'"), false);
+  assert.equal(navSlice.includes("tab('upgrade'"), false);
   assert.equal(navSlice.includes('data-go="upgrade"'), false);
   assert.match(navSlice, /navHome/);
   assert.match(navSlice, /navChat/);
