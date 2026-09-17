@@ -489,17 +489,19 @@ function setConversationLang(userId, conversationId, lang) {
   return code;
 }
 
+function viewLangFor(user, conversationId) {
+  return getConversationLang(user.id, conversationId) || userLang(user);
+}
+
 function conversationViewMeta(user, conv, peer, messages) {
-  const stored = getConversationLang(user.id, conv.id);
   const ui = userLang(user);
+  const viewLang = viewLangFor(user, conv.id);
   const peerLang = userLang(peer);
-  if (stored) return { viewLang: stored, askViewLang: false, peerLang };
   const otherSources = (messages || [])
-    .filter((m) => m.type === 'text' && m.sender && m.sender.id !== user.id && m.sourceLang)
+    .filter((m) => m.sender && m.sender.id !== user.id && m.sourceLang)
     .map((m) => m.sourceLang);
   const mismatch = (peerLang && peerLang !== ui) || otherSources.some((s) => s && s !== ui);
-  if (!mismatch) return { viewLang: ui, askViewLang: false, peerLang };
-  return { viewLang: null, askViewLang: true, peerLang };
+  return { viewLang, askViewLang: false, peerLang, mismatch };
 }
 
 async function cachedTranslate(messageId, original, from, to) {
@@ -520,8 +522,9 @@ async function applyTranslations(messages, viewLang) {
   const lang = normalizeLang(viewLang);
   if (!lang || !messages) return messages || [];
   for (const m of messages) {
-    if (!m || m.type !== 'text' || !m.body) continue;
-    if (!m.sender) continue;
+    if (!m || !m.body || !m.sender) continue;
+    if (m.type === 'system' || m.type === 'voice') continue;
+    if (m.type !== 'text' && m.type !== 'image') continue;
     const from = normalizeLang(m.sourceLang);
     if (!from || from === lang) continue;
     const original = m.originalBody || m.body;
@@ -537,8 +540,8 @@ async function applyTranslations(messages, viewLang) {
 
 async function emitTranslated(userId, conversationId, msg, viewer) {
   const payload = serializeMessage(msg, viewer);
-  const pref = getConversationLang(userId, conversationId);
-  if (pref) await applyTranslations([payload], pref);
+  const lang = viewer ? viewLangFor(viewer, conversationId) : null;
+  if (lang) await applyTranslations([payload], lang);
   emitToUser(userId, 'message', { conversationId, message: payload });
 }
 
@@ -1124,7 +1127,7 @@ app.get('/api/conversations/:id', requireUser, requireActive, async (req, res) =
   const tick = blocked ? null : touchPresence(conv, req.user.id, 'ping');
   const messages = listMessagesForViewer(conv.id, req.user);
   const view = conversationViewMeta(req.user, conv, peer, messages);
-  if (view.viewLang && !view.askViewLang) {
+  if (view.viewLang) {
     await applyTranslations(messages, view.viewLang);
   }
   res.json({
@@ -1268,15 +1271,13 @@ app.post(
         body || null,
         mediaPath,
         Date.now(),
-        type === 'text' ? userLang(req.user) : null
+        type === 'voice' || !body ? null : userLang(req.user)
       );
     const msg = db.prepare('SELECT * FROM messages WHERE id = ?').get(info.lastInsertRowid);
     const forMe = serializeMessage(msg, req.user);
     const forPeer = serializeMessage(msg, peer);
-    const myView = getConversationLang(req.user.id, conv.id);
-    const peerView = getConversationLang(peerId, conv.id);
-    if (myView) await applyTranslations([forMe], myView);
-    if (peerView) await applyTranslations([forPeer], peerView);
+    await applyTranslations([forMe], viewLangFor(req.user, conv.id));
+    await applyTranslations([forPeer], viewLangFor(peer, conv.id));
     emitToUser(peerId, 'message', { conversationId: conv.id, message: forPeer });
     emitToUser(req.user.id, 'message', { conversationId: conv.id, message: forMe });
     const tick = touchPresence(conv, req.user.id, 'ping');

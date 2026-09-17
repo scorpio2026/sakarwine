@@ -911,7 +911,7 @@ test('money, levels, and roles cannot be set from the client', async () => {
   assert.equal(receiptPeek.status, 401);
 });
 
-test('usernames reject symbols; chat view-lang translates with stub key', async () => {
+test('usernames reject symbols; chat auto-translates to each viewer’s UI language', async () => {
   await started;
   const a = await register('trena' + Date.now().toString().slice(-5), '121212', 'male');
   const b = await register('trenb' + Date.now().toString().slice(-5), '343434', 'female');
@@ -927,38 +927,44 @@ test('usernames reject symbols; chat view-lang translates with stub key', async 
 
   const opened = await req(`/api/conversations/with/${b.user.id}`, { method: 'POST', jar: a.jar });
   const convId = opened.data.conversation.id;
-  const sent = await req(`/api/conversations/${convId}/messages`, {
-    method: 'POST',
-    json: { type: 'text', body: 'Hello from Japan' },
-    jar: a.jar
-  });
-  assert.equal(sent.res.status, 200, sent.data.error);
-  assert.equal(sent.data.message.sourceLang, 'ja');
-  assert.equal(sent.data.message.body, 'Hello from Japan');
-
-  const thread = await req(`/api/conversations/${convId}`, { jar: b.jar });
-  assert.equal(thread.res.status, 200, thread.data.error);
-  assert.equal(thread.data.conversation.askViewLang, true);
-  assert.equal(thread.data.messages[0].body, 'Hello from Japan');
-  assert.equal(thread.data.messages[0].originalBody, 'Hello from Japan');
-
   const prev = process.env.TRANSLATE_API_KEY;
   process.env.TRANSLATE_API_KEY = 'test';
   try {
-    const picked = await req(`/api/conversations/${convId}/view-lang`, {
-      method: 'PUT',
-      json: { lang: 'my' },
-      jar: b.jar
+    const sent = await req(`/api/conversations/${convId}/messages`, {
+      method: 'POST',
+      json: { type: 'text', body: 'Hello from Japan' },
+      jar: a.jar
     });
-    assert.equal(picked.res.status, 200, picked.data.error);
-    assert.equal(picked.data.askViewLang, false);
-    assert.equal(picked.data.viewLang, 'my');
-    assert.equal(picked.data.messages[0].translated, true);
-    assert.equal(picked.data.messages[0].originalBody, 'Hello from Japan');
-    assert.equal(picked.data.messages[0].body, '[my] Hello from Japan');
+    assert.equal(sent.res.status, 200, sent.data.error);
+    assert.equal(sent.data.message.sourceLang, 'ja');
+    assert.equal(sent.data.message.body, 'Hello from Japan');
+    assert.equal(sent.data.message.originalBody, 'Hello from Japan');
+
+    const forB = await req(`/api/conversations/${convId}`, { jar: b.jar });
+    assert.equal(forB.res.status, 200, forB.data.error);
+    assert.equal(forB.data.conversation.viewLang, 'my');
+    assert.equal(forB.data.conversation.askViewLang, false);
+    assert.equal(forB.data.messages[0].translated, true);
+    assert.equal(forB.data.messages[0].originalBody, 'Hello from Japan');
+    assert.equal(forB.data.messages[0].body, '[my] Hello from Japan');
+
+    const forA = await req(`/api/conversations/${convId}`, { jar: a.jar });
+    assert.equal(forA.data.messages[0].body, 'Hello from Japan');
+    assert.equal(Boolean(forA.data.messages[0].translated), false);
   } finally {
     process.env.TRANSLATE_API_KEY = prev;
   }
+
+  const second = await req(`/api/conversations/${convId}/messages`, {
+    method: 'POST',
+    json: { type: 'text', body: 'Second line stays original' },
+    jar: a.jar
+  });
+  assert.equal(second.res.status, 200, second.data.error);
+  const degraded = await req(`/api/conversations/${convId}`, { jar: b.jar });
+  const last = degraded.data.messages[degraded.data.messages.length - 1];
+  assert.equal(last.body, 'Second line stays original');
+  assert.equal(Boolean(last.translated), false);
 });
 
 after(() => new Promise((resolve) => server.close(resolve)));
