@@ -96,19 +96,49 @@ function monthsLabel(n) {
 }
 let paintUi = null;
 
+function setAdminLoginChrome(on) {
+  document.body.classList.toggle('is-admin-login', on);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = on ? '#0b0714' : '#047857';
+}
+
 function showLogin() {
   paintUi = showLogin;
+  setAdminLoginChrome(true);
   document.title = t('adminTitle');
   root.innerHTML = `
-    <div class="card login">
-      <img class="admin-logo" src="/assets/sakarwine-logo.png" alt="SAKARWINE" />
-      <h1>${t('adminTitle')}</h1>
-      <p class="muted">${t('adminSub')}</p>
-      <div class="field"><label>${t('username')}</label><input id="u" /></div>
-      <div class="field"><label>${t('password')}</label><input id="p" type="password" /></div>
-      <button id="go" class="block">${t('signIn')}</button>
-      ${I18n.switcherHtml('admin-lang')}
-      <p id="err" class="muted"></p>
+    <div class="admin-login-stage">
+      <div class="admin-login-glow" aria-hidden="true"></div>
+      <div class="card login">
+        <img class="admin-logo" src="/assets/sakarwine-logo.png" alt="SAKARWINE" />
+        <h1>${t('adminTitle')}</h1>
+        <p class="muted">${t('adminSub')}</p>
+        <div class="field underline-field">
+          <div class="underline-wrap">
+            <span class="field-ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.2"/><path d="M5 19c1.4-3.2 3.8-5 7-5s5.6 1.8 7 5"/></svg>
+            </span>
+            <div class="underline-body">
+              <label for="u">${t('username')}</label>
+              <input id="u" autocomplete="username" />
+            </div>
+          </div>
+        </div>
+        <div class="field underline-field">
+          <div class="underline-wrap">
+            <span class="field-ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+            </span>
+            <div class="underline-body">
+              <label for="p">${t('password')}</label>
+              <input id="p" type="password" autocomplete="current-password" />
+            </div>
+          </div>
+        </div>
+        <button id="go" class="block login-cta">${t('signIn')}</button>
+        ${I18n.switcherHtml('admin-lang')}
+        <p id="err" class="err-msg"></p>
+      </div>
     </div>`;
   I18n.bindSwitcher('admin-lang');
   $('#go').onclick = async () => {
@@ -321,6 +351,7 @@ function upgradeCard(u) {
 }
 
 async function bootDash() {
+  setAdminLoginChrome(false);
   const me = await api('/api/admin/me');
   socket = io({ transports: ['websocket', 'polling'] });
   socket.on('upgrade:new', () => render());
