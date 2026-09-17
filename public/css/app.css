@@ -1575,6 +1575,22 @@ button:disabled, .btn:disabled, .icon-btn:disabled, .chat-tool:disabled, .chat-s
   font-size: 1.55rem;
   overflow-wrap: anywhere;
 }
+.me-identity {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  text-align: center;
+}
+.me-identity .me-ava {
+  display: block;
+  margin: 0 auto;
+}
+.me-identity .me-name {
+  text-align: center;
+}
 .me-ava {
   width: 96px;
   height: 96px;

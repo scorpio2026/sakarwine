@@ -2102,8 +2102,8 @@ async function showProfile() {
         <button type="button" class="icon-btn" id="open-settings" aria-label="${t('settings')}">${ICONS.gear}</button>
       </div>
       <div class="glass-card stack center me-card">
-        ${avatarHtml(u, 'round me-ava')}
-        <div>
+        <div class="me-identity">
+          ${avatarHtml(u, 'round me-ava')}
           <div class="me-name">${escapeHtml(u.username)}</div>
           <div class="muted">${escapeHtml(u.accountId || t('idHidden'))}</div>
         </div>

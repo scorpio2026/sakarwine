@@ -303,6 +303,12 @@ test('bottom nav has Home, Chat, Group, Profile, and Help — no Upgrade tab', (
   assert.match(js, /async function showHome[\s\S]*?bindPaidRemain\(\);/);
   assert.match(js, /async function showInbox[\s\S]*?bindPaidRemain\(\);/);
   assert.match(js, /async function showProfile[\s\S]*?bindPaidRemain\(\);/);
+  const profileFn = js.slice(js.indexOf('async function showProfile'), js.indexOf('function settingsRow'));
+  assert.match(profileFn, /me-identity/);
+  assert.match(profileFn, /me-ava/);
+  assert.match(profileFn, /me-name/);
+  assert.match(css, /\.me-identity\s*\{[^}]*flex-direction:\s*column/);
+  assert.match(css, /\.me-identity\s*\{[^}]*align-items:\s*center/);
   assert.match(js, /id="home-title">\$\{escapeHtml\(\(u && u\.username\) \|\| ''\)\}/);
   assert.equal(js.includes("id=\"home-title\">${t('contactsTitle')}"), false);
   const pillFn = js.slice(js.indexOf('function statusPill'), js.indexOf('function bindPaidRemain'));
