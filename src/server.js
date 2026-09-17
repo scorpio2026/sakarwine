@@ -532,10 +532,14 @@ function startAiWelcome(user) {
   ].join('\n');
   const hostNotice = [
     'Host (မိန်းကလေးသာ)',
-    'ဆက်တင်မှ Host လျှောက်နိုင်သည်။ အတည်ပြုပြီး ကိုယ်ပိုင် ကုဒ် ၈ လုံး ရသည်။ အဆင့်မြှင့်ရာတွင် ထိုကုဒ် ထည့်ရန် မဖြစ်မနေ မဟုတ်။ အက်ဒမင် အတည်ပြုတိုင်း host က ၅၀၀ ရသည်။ စကားပြောချိန်ဖြင့် ၅၀၀ မရတော့ပါ။ ၁၀၀,၀၀၀ တွင် KBZ Pay သို့မဟုတ် Wave ဖြင့် ထုတ်ယူနိုင်သည်။',
+    'ပရိုဖိုင် ဆက်တင်မှ Host လျှောက်နိုင်သည်။ အက်ဒမင် အတည်ပြုပြီး ကိုယ်ပိုင် ရည်ညွှန်းကုဒ် ၈ လုံး ရသည်။',
+    'အဆင့်မြှင့်သူများ ထိုကုဒ်ကို ထည့်ရန် မဖြစ်မနေ မဟုတ်။ မှန်ကန်သော ကုဒ်ဖြင့် အတည်ပြုသော အဆင့်မြှင့်တိုင်း host က +၅၀၀ ရသည်။ စကားပြောချိန်ဖြင့် +၅၀၀ မရတော့ပါ။',
+    '၁၀၀,၀၀၀ တွင် KBZ Pay သို့မဟုတ် Wave ဖြင့် ထုတ်ယူနိုင်သည်။',
     '',
     'Female host',
-    'Apply from Profile Settings. After admin approval you get a personal 8-digit code. Members may optionally enter it on Upgrade; each approved upgrade that used it credits you 500. Chat time no longer pays 500. Withdraw from 100,000 via KBZ Pay or Wave.'
+    'Apply to become a host from Profile Settings. After admin approval you get your own personal 8-digit referral code.',
+    'Members may optionally enter that code when upgrading. Each time a valid code is used on an approved upgrade, you earn +500. Chat time no longer pays +500.',
+    'Withdraw from 100,000 via KBZ Pay or Wave.'
   ].join('\n');
   const ins = db.prepare(
     'INSERT INTO messages (conversation_id, sender_id, type, body, created_at, source_lang) VALUES (?, ?, ?, ?, ?, ?)'

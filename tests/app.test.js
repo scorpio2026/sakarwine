@@ -933,12 +933,18 @@ test('new accounts get dual-language rules in Saka chat; host income is female-o
   assert.match(maleText, /24 hours free/i);
   assert.match(maleText, /50%/);
   assert.match(maleText, /Level 3/);
-  assert.equal(/8-digit|ကုဒ် ၈ လုံး|Host \(မိန်းကလေး/i.test(maleText), false);
+  assert.equal(/8-digit|referral code|ကုဒ် ၈ လုံး|ရည်ညွှန်းကုဒ်|Host \(မိန်းကလေး|\+500|\+၅၀၀/i.test(maleText), false);
   assert.match(femaleText, /24 hours free/i);
   assert.match(femaleText, /50%/);
-  assert.match(femaleText, /ကုဒ် ၈ လုံး/);
-  assert.match(femaleText, /8-digit/);
+  assert.match(femaleText, /ပရိုဖိုင် ဆက်တင်/);
+  assert.match(femaleText, /ရည်ညွှန်းကုဒ် ၈ လုံး/);
   assert.match(femaleText, /Profile Settings/);
+  assert.match(femaleText, /8-digit referral code/);
+  assert.match(femaleText, /optionally enter that code when upgrading/i);
+  assert.match(femaleText, /\+500/);
+  assert.match(femaleText, /\+၅၀၀/);
+  assert.match(femaleText, /Chat time no longer pays/);
+  assert.match(femaleText, /စကားပြောချိန်ဖြင့် \+၅၀၀ မရတော့ပါ/);
   assert.match(femaleText, /100,000/);
   await req('/api/me/liveness', {
     method: 'POST',
