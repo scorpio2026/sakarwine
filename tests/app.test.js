@@ -1974,4 +1974,35 @@ test('PIN recovery Help form queues an admin request without resetting the PIN',
   assert.equal(still, before);
 });
 
+test('admin can freeze members with maintenance mode; health and admin stay up', async () => {
+  await started;
+  const member = await register('mnt' + Date.now().toString().slice(-6), '121212', 'male');
+  const pub0 = await req('/api/public-settings');
+  assert.equal(pub0.data.maintenance, false);
+  const me0 = await req('/api/me', { jar: member.jar });
+  assert.equal(me0.res.status, 200);
+
+  const admin = await loginAdmin();
+  const on = await req('/api/admin/settings', { method: 'PUT', json: { maintenance: true }, jar: admin });
+  assert.equal(on.res.status, 200, on.data.error);
+  assert.equal(on.data.maintenance, true);
+  const pub1 = await req('/api/public-settings');
+  assert.equal(pub1.data.maintenance, true);
+  const health = await req('/health');
+  assert.equal(health.data.ok, true);
+  const me1 = await req('/api/me', { jar: member.jar });
+  assert.equal(me1.res.status, 503);
+  assert.equal(me1.data.code, 'MAINTENANCE');
+  const users = await req('/api/users', { jar: member.jar });
+  assert.equal(users.res.status, 503);
+  const accounts = await req('/api/admin/accounts', { jar: admin });
+  assert.equal(accounts.res.status, 200);
+
+  const off = await req('/api/admin/settings', { method: 'PUT', json: { maintenance: false }, jar: admin });
+  assert.equal(off.data.maintenance, false);
+  const me2 = await req('/api/me', { jar: member.jar });
+  assert.equal(me2.res.status, 200);
+  assert.ok(me2.data.user);
+});
+
 after(() => new Promise((resolve) => server.close(resolve)));

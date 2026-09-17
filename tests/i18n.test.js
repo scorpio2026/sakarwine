@@ -91,6 +91,15 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   assert.match(js, /t\('howHostWorks'\)/);
   assert.match(js, /t\('hostIncomeHelp'\)/);
   assert.match(js, /t\('hostIncomeExample'\)/);
+  assert.match(js, /host-guide-videos/);
+  assert.match(js, /host-demo-apply\.mp4/);
+  assert.match(js, /host-demo-code\.mp4/);
+  assert.match(js, /host-demo-income\.mp4/);
+  assert.match(css, /\.host-guide-videos/);
+  assert.match(js, /class="settings-flow"/);
+  assert.match(css, /\.settings-screen\s*\{[^}]*font-size:\s*0\.8rem/);
+  assert.match(css, /\.settings-screen \.screen-body\s*\{[^}]*display:\s*block/);
+  assert.match(css, /\.settings-flow\s*\{/);
   assert.equal(js.includes('sampleChatOnly'), false);
   assert.equal(js.includes('visitedSample'), false);
   assert.equal(js.includes('demoHi'), false);
@@ -288,6 +297,10 @@ test('UI language pack covers Saka rules, Help, errors, and does not translate t
   const adminHtml = fs.readFileSync(path.join(__dirname, '../public/admin.html'), 'utf8');
   assert.match(html, /i18n-pack\.js/);
   assert.match(adminHtml, /i18n-pack\.js/);
+  assert.match(html, /id="maintenance-screen"/);
+  assert.match(html, /alt="SAKARWINE"/);
+  assert.match(admin, /id="maint"/);
+  assert.match(js, /function applyMaintenance/);
   assert.match(js, /<h1>SAKARWINE<\/h1>/);
   assert.match(js, /alt="SAKARWINE"/);
   assert.match(js, /t\('pinRecoveryBody'\)/);
@@ -301,6 +314,11 @@ test('UI language pack covers Saka rules, Help, errors, and does not translate t
     assert.ok(I18n.catalogs[code].sakaRules, `${code} missing sakaRules`);
     assert.ok(I18n.catalogs[code].sakaHostNotice, `${code} missing sakaHostNotice`);
     assert.ok(I18n.catalogs[code].sakaWelcome, `${code} missing sakaWelcome`);
+    assert.equal(/09/.test(I18n.catalogs[code].sakaRules), false, `${code} sakaRules mentions 09`);
+    assert.equal(/@/.test(I18n.catalogs[code].sakaRules), false, `${code} sakaRules mentions @`);
+    assert.equal(/09/.test(I18n.catalogs[code].tourChat1), false, `${code} tourChat1 mentions 09`);
+    assert.equal(/@/.test(I18n.catalogs[code].tourChat1), false, `${code} tourChat1 mentions @`);
+    assert.equal(/09/.test(I18n.catalogs[code].bioHelp), false, `${code} bioHelp mentions 09`);
   }
   I18n.setLang('en');
   assert.match(I18n.t('sakaWelcome', { name: 'Aung' }), /Aung/);

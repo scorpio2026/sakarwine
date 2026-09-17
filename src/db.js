@@ -275,7 +275,8 @@ function seed(db) {
       'Transfer the amount due to the sakarwine admin wallet / bank shown here, then upload your receipt.\n\nKBZPay / WavePay / bank transfer — update these details in Admin → Settings.',
     admin_contact: 'Message the sakarwine admin with the phone number you used at registration. There is no self-serve password reset.',
     badges: JSON.stringify(['Admin', 'officer', 'sponsor', 'VVIP']),
-    income_demo_video_url: '/demo/income-host.mp4'
+    income_demo_video_url: '/demo/income-host.mp4',
+    maintenance_mode: '0'
   };
   const insert = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
   for (const [key, value] of Object.entries(defaults)) insert.run(key, value);

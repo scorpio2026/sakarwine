@@ -747,6 +747,19 @@ function touchPresence(conv, userId, action = 'ping') {
   return markPresence(db, conv, userId, action, Date.now(), emitToUser);
 }
 
+function maintenanceOn() {
+  return getSetting(db, 'maintenance_mode', '0') === '1';
+}
+
+app.use((req, res, next) => {
+  if (!maintenanceOn()) return next();
+  const p = req.path || '';
+  if (p === '/health' || p === '/api/public-settings') return next();
+  if (p.startsWith('/api/admin')) return next();
+  if (!p.startsWith('/api/')) return next();
+  return res.status(503).json({ error: 'update server', code: 'MAINTENANCE' });
+});
+
 app.get('/health', (_req, res) => {
   db.prepare('SELECT 1').get();
   res.json({ ok: true, name: getSetting(db, 'site_name', 'sakarwine') });
@@ -761,8 +774,21 @@ app.get('/api/public-settings', (_req, res) => {
     adminContact: getSetting(db, 'admin_contact', ''),
     quotes: allQuotes(Number(getSetting(db, 'monthly_price', '15000'))),
     incomeDemoVideoUrl: getSetting(db, 'income_demo_video_url', '/demo/income-host.mp4'),
-    adRotateMs: AD_ROTATE_MS
+    adRotateMs: AD_ROTATE_MS,
+    maintenance: maintenanceOn()
   });
+});
+
+app.get('/uploads/host-demo-:kind.mp4', (req, res) => {
+  const kind = String(req.params.kind || '');
+  if (!['apply', 'code', 'income'].includes(kind)) return res.status(404).end();
+  const name = `host-demo-${kind}.mp4`;
+  const fromData = path.join(UPLOADS, name);
+  const fromPublic = path.join(PUBLIC, 'demo', name);
+  const file = fs.existsSync(fromData) ? fromData : fromPublic;
+  if (!fs.existsSync(file)) return res.status(404).end();
+  res.type('video/mp4');
+  res.sendFile(path.resolve(file));
 });
 
 const PHONE_RE = /^[0-9+\s\-()]{7,20}$/;
@@ -2872,7 +2898,8 @@ app.get('/api/admin/settings', requireAdmin, (_req, res) => {
     adminContact: getSetting(db, 'admin_contact', ''),
     incomeDemoVideoUrl: getSetting(db, 'income_demo_video_url', '/demo/income-host.mp4'),
     quotes: allQuotes(monthly),
-    badges: getBadges(db)
+    badges: getBadges(db),
+    maintenance: maintenanceOn()
   });
 });
 
@@ -2895,6 +2922,9 @@ app.put('/api/admin/settings', requireAdmin, (req, res) => {
     }
     setSetting(db, 'income_demo_video_url', url || '/demo/income-host.mp4');
   }
+  if (req.body.maintenance != null) {
+    setSetting(db, 'maintenance_mode', req.body.maintenance === true || req.body.maintenance === '1' ? '1' : '0');
+  }
   if (Array.isArray(req.body.badges)) {
     const cleaned = req.body.badges.map((b) => String(b || '').trim()).filter((b) => b && b.length <= 24);
     const merged = [];
@@ -2913,7 +2943,8 @@ app.put('/api/admin/settings', requireAdmin, (req, res) => {
     adminContact: getSetting(db, 'admin_contact', ''),
     incomeDemoVideoUrl: getSetting(db, 'income_demo_video_url', '/demo/income-host.mp4'),
     quotes: allQuotes(monthly),
-    badges: getBadges(db)
+    badges: getBadges(db),
+    maintenance: maintenanceOn()
   });
 });
 
@@ -2944,6 +2975,7 @@ io.use((socket, next) => {
       return next();
     }
   }
+  if (maintenanceOn()) return next(new Error('MAINTENANCE'));
   const token = cookies.sw_sid;
   if (!token) return next(new Error('auth'));
   const row = db

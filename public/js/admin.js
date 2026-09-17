@@ -811,6 +811,10 @@ async function bootDash() {
         <div class="field"><label>${t('adminContactLabel')}</label><textarea id="ac" rows="3">${esc(s.adminContact)}</textarea></div>
         <div class="field"><label>${t('incomeDemoUrl')}</label><input id="dv" value="${esc(s.incomeDemoVideoUrl || '/demo/income-host.mp4')}" /></div>
         <p class="muted">${t('incomeDemoHelp')}</p>
+        <div class="field">
+          <label><input type="checkbox" id="maint" ${s.maintenance ? 'checked' : ''} /> ${t('maintenanceMode')}</label>
+        </div>
+        <p class="muted">${t('maintenanceHelp')}</p>
         <button id="saves">${t('saveSettings')}</button>`;
       $('#saves').onclick = async () => {
         await api('/api/admin/settings', {
@@ -819,7 +823,8 @@ async function bootDash() {
             siteName: $('#sn').value,
             paymentInstructions: $('#pi').value,
             adminContact: $('#ac').value,
-            incomeDemoVideoUrl: $('#dv').value
+            incomeDemoVideoUrl: $('#dv').value,
+            maintenance: $('#maint').checked
           }
         });
         alert(t('saved'));

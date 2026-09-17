@@ -114,6 +114,7 @@ async function api(path, opts = {}) {
   }
   const res = await fetch(path, { credentials: 'include', ...opts, headers });
   const data = await res.json().catch(() => ({}));
+  if (data && data.code === 'MAINTENANCE') applyMaintenance(true);
   if (!res.ok) {
     const err = new Error(data.error || 'Request failed');
     err.code = data.code;
@@ -122,6 +123,29 @@ async function api(path, opts = {}) {
     throw err;
   }
   return data;
+}
+
+function applyMaintenance(on) {
+  const el = $('#maintenance-screen');
+  if (!el) return;
+  el.hidden = !on;
+  const msg = $('#maintenance-msg');
+  if (msg) msg.textContent = t('maintenanceMsg');
+  document.body.classList.toggle('is-maintenance', Boolean(on));
+}
+
+function startMaintenancePoll() {
+  const tick = async () => {
+    try {
+      const s = await fetch('/api/public-settings', { credentials: 'include' }).then((r) => r.json());
+      state.settings = { ...(state.settings || {}), ...s };
+      applyMaintenance(Boolean(s.maintenance));
+    } catch {
+      /* ignore poll errors */
+    }
+  };
+  tick();
+  if (!state.maintTick) state.maintTick = setInterval(tick, 8000);
 }
 
 function mastheadHtml() {
@@ -344,6 +368,7 @@ async function boot() {
   I18n.init();
   I18n.onChange((code) => {
     syncLang(code);
+    applyMaintenance(Boolean(state.settings && state.settings.maintenance));
     rerender();
   });
   petals();
@@ -356,8 +381,10 @@ async function boot() {
     e.stopPropagation();
     openProfilePhoto(id);
   }, true);
+  startMaintenancePoll();
   state.settings = await api('/api/public-settings');
   document.title = state.settings.siteName;
+  applyMaintenance(Boolean(state.settings.maintenance));
   document.addEventListener('visibilitychange', () => {
     if (document.hidden || !state.user) return;
     refreshMe().then(() => bindPaidRemain()).catch(() => {});
@@ -1878,11 +1905,24 @@ function hostStatusLine(u) {
 }
 
 function incomeDemoBlock() {
+  const slots = [
+    { src: '/uploads/host-demo-apply.mp4', title: t('hostDemoApply') },
+    { src: '/uploads/host-demo-code.mp4', title: t('hostDemoCode') },
+    { src: '/uploads/host-demo-income.mp4', title: t('hostDemoIncome') }
+  ];
   return `
     <div class="income-demo">
       <h3>${t('howHostWorks')}</h3>
       <p>${t('hostIncomeHelp')}</p>
       <p class="host-earn">${t('hostIncomeExample')}</p>
+      <div class="host-guide-videos">
+        ${slots.map((s) => `
+          <figure class="host-guide-slot">
+            <figcaption>${escapeHtml(s.title)}</figcaption>
+            <video class="host-guide-video" controls playsinline preload="metadata" src="${escapeHtml(s.src)}"></video>
+            <p class="muted host-guide-ph">${t('hostDemoPlaceholder')}</p>
+          </figure>`).join('')}
+      </div>
     </div>`;
 }
 
@@ -2118,6 +2158,7 @@ function showSettings() {
           <button type="button" class="icon-btn" id="back" aria-label="${t('back')}">${ICONS.back}</button>
           <h2>${t('settingsTitle')}</h2>
         </div>
+        <div class="settings-flow">
         <div class="settings-list settings-lang">
           ${I18n.switcherHtml('lang-switch')}
         </div>
@@ -2129,7 +2170,7 @@ function showSettings() {
               ${I18n.LANGS.map((l) => `<option value="${l.code}" ${state.user && state.user.chatViewLang === l.code ? 'selected' : ''}>${l.native}</option>`).join('')}
             </select>
           </label>
-          <p class="small muted settings-lang-help">${t('chatViewLangHelp')}</p>
+          <p class="muted settings-lang-help">${t('chatViewLangHelp')}</p>
         </div>
         <div class="settings-list">
           ${settingsRow('go-edit', ICONS.me, t('editProfile'))}
@@ -2148,6 +2189,7 @@ function showSettings() {
           <button type="button" class="settings-row danger" id="logout">
             <span class="settings-label">${t('logOut')}</span>
           </button>
+        </div>
         </div>
       </div>
       ${nav('profile')}
