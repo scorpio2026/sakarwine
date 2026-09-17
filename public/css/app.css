@@ -1356,7 +1356,8 @@ body.is-maintenance #tour {
   box-shadow: none;
   vertical-align: middle;
 }
-.badge-neon[data-badge="Admin"] {
+.badge-neon[data-badge="Admin"],
+.badge-neon[data-badge="guide"] {
   border-color: #9d174d;
   background-image: linear-gradient(90deg, #be185d, #db2777, #0e7490, #be185d);
 }

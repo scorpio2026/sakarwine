@@ -223,6 +223,9 @@ async function openProfilePhoto(userId) {
 }
 
 function roleMark(user) {
+  if (user && user.isAi) {
+    return `<span class="badge-neon" data-badge="guide">${t('guide')}</span>`;
+  }
   let core = '';
   if (user && user.badge) {
     core = `<span class="badge-neon" data-badge="${escapeHtml(user.badge)}">${escapeHtml(user.badge)}</span>`;
@@ -237,6 +240,7 @@ function roleMark(user) {
 }
 
 function statusPill(user) {
+  if (user && user.isAi) return roleMark(user);
   if (user && user.isSpecial) return roleMark(user);
   if (user && remainingPaidParts(user.paidUntil).ms) {
     return `<span class="pill paid-tick" id="paid-remain-pill">${t('paid')} · ${escapeHtml(paidCountdownLabel(user.paidUntil))} · <span class="badge-lv">${t('lv', { n: user.level })}</span></span>`;
@@ -694,7 +698,7 @@ function paintHomeList() {
     <div class="user-row ${u.isAi ? '' : (u.gender === 'female' ? 'gender-female' : 'gender-male')}" data-id="${u.id}">
       ${avatarHtml(u)}
       <div class="meta">
-        <div class="name">${escapeHtml(u.username)} ${u.isAi ? '· ' + t('guide') : ''} ${roleMark(u)}</div>
+        <div class="name">${escapeHtml(u.username)} ${roleMark(u)}</div>
         <div class="sub">${u.online ? t('onlineNow') : t('offline')} · ${genderLabel(u.gender)}${u.blocked ? ' · ' + t('blocked') : ''}</div>
       </div>
       <span class="when">${u.online ? t('onlineNow') : ''}</span>
@@ -735,7 +739,7 @@ function paintInboxList(conversations) {
     <div class="user-row ${gClass}" data-kind="dm" data-peer="${peer.id}">
       ${avatarHtml(peer)}
       <div class="meta">
-        <div class="name">${escapeHtml(peer.username || '')} ${peer.isAi ? '· ' + t('guide') : ''} ${roleMark(peer)}</div>
+        <div class="name">${escapeHtml(peer.username || '')} ${roleMark(peer)}</div>
         <div class="sub">${escapeHtml(inboxPreview(last))}</div>
       </div>
       <span class="when">${last.createdAt ? formatMsgTime(last.createdAt) : ''}</span>
