@@ -1085,6 +1085,7 @@ async function showUpgrade() {
     fd.append('accountId', state.user.accountId);
     fd.append('months', $('#months').value);
     const hostCode = $('#host-code').value.trim();
+    if (hostCode && !/^\d{8}$/.test(hostCode)) return toast(t('errHostCode'));
     if (hostCode) fd.append('hostCode', hostCode);
     const file = $('#receipt').files[0];
     if (!file) return toast(t('addScreenshot'));

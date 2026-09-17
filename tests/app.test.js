@@ -878,6 +878,9 @@ test('hosts earn 500 per approved upgrade that used their code', async () => {
   bad.set('receipt', new Blob([PNG], { type: 'image/png' }), 'pay.png');
   const badCode = await req('/api/upgrade', { method: 'POST', form: bad, jar: paid.jar });
   assert.equal(badCode.res.status, 400);
+  assert.equal(badCode.data.error, 'Enter a valid host code.');
+  const stillNone = await req('/api/me', { jar: host.jar });
+  assert.equal(stillNone.data.user.hostEarnings, 0);
 
   await giveUpgrade(admin, paid, code);
   const me = await req('/api/me', { jar: host.jar });

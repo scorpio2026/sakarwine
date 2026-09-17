@@ -56,4 +56,11 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   assert.match(js, /upgrade-promo/);
   assert.equal(js.includes('hostCreditBanner'), false);
   assert.equal(js.includes('formatChatMs'), false);
+  assert.match(js, /id="host-code"/);
+  assert.match(js, /t\('optional'\)/);
+  assert.match(js, /hostCode && !\/\^\\d\{8\}\$\/\.test\(hostCode\)/);
+  I18n.setLang('en');
+  assert.equal(I18n.t('optional'), 'optional');
+  assert.match(I18n.t('hostCodeHelp'), /Optional/i);
+  assert.equal(I18n.t('errHostCode'), 'Enter a valid host code.');
 });
