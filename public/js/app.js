@@ -136,8 +136,7 @@ function connectSocket() {
   state.socket = socket;
   socket.on('message', ({ conversationId, message }) => {
     if (state.chat && state.chat.id === conversationId) {
-      const exists = message && message.id != null && state.chat.messages.some((m) => m.id === message.id);
-      if (!exists) state.chat.messages.push(message);
+      addChatMessage(message);
       const box = $('#messages');
       if (box) {
         box.innerHTML = renderThread(state.chat.messages);
@@ -547,6 +546,13 @@ async function showHome(opts = {}) {
   }
 }
 
+function addChatMessage(message) {
+  if (!state.chat || !message) return false;
+  if (message.id != null && state.chat.messages.some((m) => m.id === message.id)) return false;
+  state.chat.messages.push(message);
+  return true;
+}
+
 function sameBubbleGroup(a, b) {
   if (!a || !b || !a.sender || !b.sender) return false;
   if (a.type === 'system' || b.type === 'system') return false;
@@ -823,7 +829,7 @@ function renderChat(opts = {}) {
       ta.value = '';
       syncComposer();
       c.window = data.window;
-      c.messages.push(data.message);
+      addChatMessage(data.message);
       paintThread();
     } catch (e) {
       if (e.code === 'UPGRADE') showUpgrade();
@@ -856,7 +862,7 @@ function renderChat(opts = {}) {
     fd.append('file', f);
     try {
       const data = await api(`/api/conversations/${c.id}/messages`, { method: 'POST', body: fd });
-      c.messages.push(data.message);
+      addChatMessage(data.message);
       paintThread();
     } catch (e) {
       toast(e.message);
@@ -882,7 +888,7 @@ function renderChat(opts = {}) {
         fd.append('file', blob, 'voice.webm');
         try {
           const data = await api(`/api/conversations/${c.id}/messages`, { method: 'POST', body: fd });
-          c.messages.push(data.message);
+          addChatMessage(data.message);
           paintThread();
         } catch (e) {
           toast(e.message);
