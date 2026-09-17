@@ -137,12 +137,6 @@ function hostMark(a) {
   return a.isHost ? ' <span class="badge-neon badge-host" data-badge="host">host</span>' : '';
 }
 
-function incomeLine(a) {
-  if (a.gender !== 'female') return '';
-  const src = { salary: 'Salary', business: 'Business', family: 'Family support', other: 'Other' }[a.incomeSource] || a.incomeSource || '—';
-  return `${esc(a.occupation || '—')} · ${Number(a.monthlyIncome || 0).toLocaleString()} MMK · ${esc(src)}`;
-}
-
 function nrcBlock(a) {
   if (a.gender !== 'female') return '';
   const passport = a.idDocType === 'passport';
@@ -294,8 +288,7 @@ async function bootDash() {
             Level ${a.level} · Paid until <span id="admin-paid-remain" class="paid-tick">${esc(paidLine)}</span><br>
             Account ID ${a.accountIdHidden ? 'hidden from lounge' : 'visible to lounge'}
             ${a.hostCode ? `<br>Host code ${esc(a.hostCode)}` : ''}
-            ${a.bio ? `<br>Bio: ${esc(a.bio)}` : ''}
-            ${a.gender === 'female' ? `<br>Income: ${incomeLine(a)}` : ''}</p>
+            ${a.bio ? `<br>Bio: ${esc(a.bio)}` : ''}</p>
           ${a.gender === 'female' ? `<h3>ID verification</h3>${nrcBlock(a)}` : ''}
           ${data.hostIncome ? `<h3>Host earnings</h3>
             <p><strong>${Number(data.hostIncome.hostBalance != null ? data.hostIncome.hostBalance : data.hostIncome.hostEarnings || 0).toLocaleString()} MMK</strong> available
@@ -637,7 +630,7 @@ async function bootDash() {
               <strong>${esc(a.username)}</strong>
               ${a.extraUpgrade ? `<span class="extra-upgrade-badge">${esc(t('extraUpgrade'))}</span>` : ''}
               <button class="ghost" data-open-id="${esc(a.accountId)}">${esc(a.accountId)}</button><br>
-              Phone ${esc(a.phone)} · ${incomeLine(a)}
+              Phone ${esc(a.phone)}
             </div>
           </div>
           ${nrcBlock(a)}
@@ -807,7 +800,7 @@ async function bootDash() {
         <div class="field"><label>Payment instructions</label><textarea id="pi" rows="5">${esc(s.paymentInstructions)}</textarea></div>
         <div class="field"><label>Admin contact (PIN recovery)</label><textarea id="ac" rows="3">${esc(s.adminContact)}</textarea></div>
         <div class="field"><label>Income demo video URL</label><input id="dv" value="${esc(s.incomeDemoVideoUrl || '/demo/income-host.mp4')}" /></div>
-        <p class="muted">Shown on the host income form as a chat-style sample. Default ships with the app. Use a site path or https URL.</p>
+        <p class="muted">Shown on the host application screen as a chat-style sample. Default ships with the app. Use a site path or https URL.</p>
         <button id="saves">Save settings</button>`;
       $('#saves').onclick = async () => {
         await api('/api/admin/settings', {

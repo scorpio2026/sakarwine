@@ -1845,10 +1845,6 @@ async function showUpgrade() {
   };
 }
 
-function incomeSourceLabel(v) {
-  return { salary: t('salary'), business: t('business'), family: t('family'), other: t('other') }[v] || v || '—';
-}
-
 function hostStatusLine(u) {
   if (u.gender !== 'female') return '';
   if (u.isHost) return t('hostVerified');
@@ -1925,7 +1921,7 @@ async function showProfile() {
           <div class="me-name">${escapeHtml(u.username)}</div>
           <div class="muted">${escapeHtml(u.accountId || t('idHidden'))}</div>
         </div>
-        <div class="small">${roleMark(u)} · ${genderLabel(u.gender)} · ${t('born', { year: u.birthYear })}<br><span id="paid-remain">${paidLine}</span>${u.gender === 'female' && u.occupation ? `<br>${escapeHtml(u.occupation)} · ${Number(u.monthlyIncome || 0).toLocaleString()} MMK` : ''}</div>
+        <div class="small">${roleMark(u)} · ${genderLabel(u.gender)} · ${t('born', { year: u.birthYear })}<br><span id="paid-remain">${paidLine}</span></div>
         ${u.bio ? `<p class="profile-bio">${escapeHtml(u.bio)}</p>` : ''}
         <div class="me-actions">
           <button type="button" class="btn secondary" id="edit-profile">${t('editProfile')}</button>
@@ -1999,7 +1995,6 @@ function showHostApply() {
   state.view = 'host-apply';
   const u = state.user;
   if (!u || u.gender !== 'female') return showSettings();
-  const formLocked = u.isHost && !u.canEditIncome;
   const canApply = u.hostStatus === 'none' || u.hostStatus === 'rejected';
   app.innerHTML = `
     <section class="screen settings-screen">
@@ -2014,19 +2009,6 @@ function showHostApply() {
           ${u.hostCode ? `<p><span class="small muted">${t('hostCode')}</span><br><strong>${escapeHtml(u.hostCode)}</strong></p>` : ''}
           ${incomeDemoBlock(u)}
           ${u.hostStatus === 'pending' ? `<p class="small muted">${t('hostPending')}</p>` : ''}
-          ${formLocked ? `<p class="small muted">${t('incomeLocked')}</p>` : ''}
-          <div class="field"><label>${t('occupation')}</label><input id="inc-occ" ${formLocked ? 'disabled' : ''} value="${escapeHtml(u.occupation || '')}" minlength="2" maxlength="80" /></div>
-          <div class="row-2">
-            <div class="field"><label>${t('monthlyIncome')}</label><input id="inc-amt" ${formLocked ? 'disabled' : ''} inputmode="numeric" value="${u.monthlyIncome != null ? escapeHtml(String(u.monthlyIncome)) : ''}" /></div>
-            <div class="field"><label>${t('incomeSource')}</label>
-              <select id="inc-src" ${formLocked ? 'disabled' : ''}>
-                ${['salary', 'business', 'family', 'other'].map((s) => `<option value="${s}" ${u.incomeSource === s ? 'selected' : ''}>${incomeSourceLabel(s)}</option>`).join('')}
-              </select>
-            </div>
-          </div>
-          ${u.isHost
-            ? `<button class="btn block" id="save-income" ${formLocked ? 'disabled' : ''}>${t('saveIncome')}</button>`
-            : ''}
           ${canApply ? `
           <h3>${t('idDocTitle')}</h3>
           <div class="id-doc-filter" role="tablist" aria-label="${t('idDocTitle')}">
@@ -2087,25 +2069,6 @@ function showHostApply() {
     };
   });
   syncIdDocUi();
-  if ($('#save-income')) {
-    $('#save-income').onclick = async () => {
-      try {
-        const data = await api('/api/me/income', {
-          method: 'PUT',
-          json: {
-            occupation: $('#inc-occ').value,
-            monthlyIncome: $('#inc-amt').value,
-            incomeSource: $('#inc-src').value
-          }
-        });
-        state.user = data.user;
-        toast(t('incomeSaved'));
-        showHostApply();
-      } catch (e) {
-        toastErr(e);
-      }
-    };
-  }
   if ($('#host-apply-send')) {
     $('#host-apply-send').onclick = async () => {
       const idType = syncIdDocUi();
@@ -2117,9 +2080,6 @@ function showHostApply() {
         return toast(t('uploadNrcBoth'));
       }
       const fd = new FormData();
-      fd.append('occupation', $('#inc-occ').value);
-      fd.append('monthlyIncome', $('#inc-amt').value);
-      fd.append('incomeSource', $('#inc-src').value);
       fd.append('idType', idType);
       fd.append('nrcFront', front);
       if (idType === 'nrc') fd.append('nrcBack', back);

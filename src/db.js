@@ -396,9 +396,6 @@ function publicUser(row, { online = false, includePrivate = false, includePhone 
   }
   if (includePrivate) {
     out.hostStatus = row.host_status || 'none';
-    out.occupation = row.occupation || null;
-    out.monthlyIncome = row.income_monthly != null ? row.income_monthly : null;
-    out.incomeSource = row.income_source || null;
     out.idDocType = row.id_doc_type === 'passport' ? 'passport' : 'nrc';
   }
   if (includePhone) {

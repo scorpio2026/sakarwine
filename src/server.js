@@ -281,24 +281,6 @@ function unlinkQuiet(file) {
   if (file && file.path) fs.unlink(file.path, () => {});
 }
 
-const INCOME_SOURCES = ['salary', 'business', 'family', 'other'];
-
-function parseIncome(body) {
-  const occupation = String(body.occupation || '').trim();
-  const monthlyIncome = Number(String(body.monthlyIncome || '').replace(/[, ]/g, ''));
-  const incomeSource = String(body.incomeSource || '').trim().toLowerCase();
-  if (occupation.length < 2 || occupation.length > 80) {
-    return { error: 'Enter your occupation or work (2–80 characters).' };
-  }
-  if (!Number.isFinite(monthlyIncome) || monthlyIncome < 0 || monthlyIncome > 999999999) {
-    return { error: 'Enter your monthly income in MMK.' };
-  }
-  if (!INCOME_SOURCES.includes(incomeSource)) {
-    return { error: 'Choose where your income comes from.' };
-  }
-  return { occupation, monthlyIncome: Math.round(monthlyIncome), incomeSource };
-}
-
 function parseIdDocType(body) {
   const raw = String((body && (body.idType || body.idDocType || body.docType)) || 'nrc')
     .trim()
@@ -788,7 +770,6 @@ function rejectMessageEdit(_req, res) {
 function serializeMe(user) {
   const out = publicUser(user, { includePrivate: true, online: true, viewer: user });
   Object.assign(out, hostIncomeSummary(db, user.id, publicUser));
-  out.canEditIncome = user.gender === 'female' && Number(user.level || 0) >= 1;
   out.incomeDemoVideoUrl = getSetting(db, 'income_demo_video_url', '/demo/income-host.mp4');
   return out;
 }
@@ -1177,25 +1158,6 @@ app.post('/api/me/tour-complete', requireUser, requireActive, (req, res) => {
   res.json({ ok: true });
 });
 
-app.put('/api/me/income', requireUser, requireActive, (req, res) => {
-  if (req.user.gender !== 'female') {
-    return res.status(400).json({ error: 'Income form is for female profiles.' });
-  }
-  if (Number(req.user.level || 0) < 1) {
-    return res.status(403).json({
-      error: 'Upgrade at least once (Lv 1+) to use the income form.',
-      code: 'INCOME_LEVEL'
-    });
-  }
-  const income = parseIncome(req.body);
-  if (income.error) return res.status(400).json({ error: income.error });
-  db.prepare(
-    'UPDATE users SET occupation = ?, income_monthly = ?, income_source = ? WHERE id = ?'
-  ).run(income.occupation, income.monthlyIncome, income.incomeSource, req.user.id);
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
-  res.json({ user: serializeMe(user) });
-});
-
 app.post(
   '/api/me/withdraw',
   requireUser,
@@ -1269,23 +1231,14 @@ app.post(
       drop();
       return res.status(409).json({ error: 'Your host verification is already approved.' });
     }
-    const income = parseIncome(req.body);
-    if (income.error) {
-      drop();
-      return res.status(400).json({ error: income.error });
-    }
     if (photos.error) {
       return res.status(400).json({ error: photos.error });
     }
     replaceHostIdFiles(req.user);
     db.prepare(
-      `UPDATE users SET occupation = ?, income_monthly = ?, income_source = ?,
-         nrc_front_path = ?, nrc_back_path = ?, id_doc_type = ?, host_status = 'pending', is_host = 0
+      `UPDATE users SET nrc_front_path = ?, nrc_back_path = ?, id_doc_type = ?, host_status = 'pending', is_host = 0
        WHERE id = ?`
     ).run(
-      income.occupation,
-      income.monthlyIncome,
-      income.incomeSource,
       photos.front.filename,
       photos.back ? photos.back.filename : null,
       idType,

@@ -84,11 +84,11 @@ async function register(name, pin, gender = 'female') {
 
 async function applyHost(member, extras = {}) {
   const form = new FormData();
-  form.set('occupation', extras.occupation || 'Lounge host');
-  form.set('monthlyIncome', extras.monthlyIncome || '450000');
-  form.set('incomeSource', extras.incomeSource || 'salary');
+  if (extras.idType) form.set('idType', extras.idType);
   form.set('nrcFront', extras.nrcFront || new Blob([PNG], { type: 'image/png' }), 'front.png');
-  form.set('nrcBack', extras.nrcBack || new Blob([PNG], { type: 'image/png' }), 'back.png');
+  if (extras.idType !== 'passport') {
+    form.set('nrcBack', extras.nrcBack || new Blob([PNG], { type: 'image/png' }), 'back.png');
+  }
   const applied = await req('/api/me/host-apply', { method: 'POST', form, jar: member.jar });
   assert.equal(applied.res.status, 200, applied.data.error);
   member.user = applied.data.user;
@@ -1100,13 +1100,13 @@ test('female registration matches male; host apply is later from Settings', asyn
   assert.equal(created.res.status, 200, created.data.error);
   assert.equal(created.data.user.hostStatus, 'none');
   assert.equal(created.data.user.isHost, false);
-  assert.equal(created.data.user.occupation, null);
+  assert.equal(created.data.user.occupation, undefined);
 
   const female = await register('hosty' + Date.now().toString().slice(-5), '343434', 'female');
   assert.equal(female.user.gender, 'female');
   assert.equal(female.user.isHost, false);
   assert.equal(female.user.hostStatus, 'none');
-  assert.equal(female.user.occupation, null);
+  assert.equal(female.user.occupation, undefined);
   assert.equal(female.user.nrcFrontUrl, undefined);
 
   const listed = await req('/api/users', { jar: female.jar });
@@ -1122,9 +1122,6 @@ test('female registration matches male; host apply is later from Settings', asyn
     method: 'POST',
     form: (() => {
       const form = new FormData();
-      form.set('occupation', 'Nope');
-      form.set('monthlyIncome', '1000');
-      form.set('incomeSource', 'salary');
       form.set('nrcFront', new Blob([PNG], { type: 'image/png' }), 'front.png');
       form.set('nrcBack', new Blob([PNG], { type: 'image/png' }), 'back.png');
       return form;
@@ -1135,8 +1132,8 @@ test('female registration matches male; host apply is later from Settings', asyn
 
   await applyHost(female);
   assert.equal(female.user.hostStatus, 'pending');
-  assert.equal(female.user.occupation, 'Lounge host');
-  assert.equal(female.user.monthlyIncome, 450000);
+  assert.equal(female.user.occupation, undefined);
+  assert.equal(female.user.monthlyIncome, undefined);
 
   const nrcAsUser = await fetch(base + `/api/admin/accounts/${female.user.id}/nrc/front`, {
     headers: { cookie: female.jar.header() }
@@ -1192,26 +1189,12 @@ test('female registration matches male; host apply is later from Settings', asyn
   assert.equal(host.nrcFrontUrl, undefined);
   assert.equal(host.occupation, undefined);
 
-  const locked = await req('/api/me/income', {
+  const goneIncome = await req('/api/me/income', {
     method: 'PUT',
     json: { occupation: 'Singer', monthlyIncome: '800000', incomeSource: 'business', level: 99, isHost: true },
     jar: female.jar
   });
-  assert.equal(locked.res.status, 403);
-  assert.match(locked.data.error, /Lv 1/i);
-  const stillLv = await req('/api/me', { jar: female.jar });
-  assert.equal(stillLv.data.user.level, 0);
-  assert.equal(stillLv.data.user.canEditIncome, false);
-
-  await giveUpgrade(admin, female);
-  const income = await req('/api/me/income', {
-    method: 'PUT',
-    json: { occupation: 'Singer', monthlyIncome: '800000', incomeSource: 'business' },
-    jar: female.jar
-  });
-  assert.equal(income.res.status, 200);
-  assert.equal(income.data.user.occupation, 'Singer');
-  assert.equal(income.data.user.canEditIncome, true);
+  assert.equal(goneIncome.res.status, 404);
 });
 
 test('host apply accepts passport front only instead of NRC pair', async () => {
@@ -1220,9 +1203,6 @@ test('host apply accepts passport front only instead of NRC pair', async () => {
   const admin = await loginAdmin();
 
   const missingBack = new FormData();
-  missingBack.set('occupation', 'Singer');
-  missingBack.set('monthlyIncome', '200000');
-  missingBack.set('incomeSource', 'salary');
   missingBack.set('idType', 'nrc');
   missingBack.set('nrcFront', new Blob([PNG], { type: 'image/png' }), 'front.png');
   const nrcOne = await req('/api/me/host-apply', { method: 'POST', form: missingBack, jar: female.jar });
@@ -1230,18 +1210,12 @@ test('host apply accepts passport front only instead of NRC pair', async () => {
   assert.match(nrcOne.data.error, /NRC front and back/i);
 
   const missingPass = new FormData();
-  missingPass.set('occupation', 'Singer');
-  missingPass.set('monthlyIncome', '200000');
-  missingPass.set('incomeSource', 'salary');
   missingPass.set('idType', 'passport');
   const noFront = await req('/api/me/host-apply', { method: 'POST', form: missingPass, jar: female.jar });
   assert.equal(noFront.res.status, 400);
   assert.match(noFront.data.error, /passport/i);
 
   const passForm = new FormData();
-  passForm.set('occupation', 'Singer');
-  passForm.set('monthlyIncome', '200000');
-  passForm.set('incomeSource', 'salary');
   passForm.set('idType', 'passport');
   passForm.set('nrcFront', new Blob([PNG], { type: 'image/png' }), 'pass.png');
   const applied = await req('/api/me/host-apply', { method: 'POST', form: passForm, jar: female.jar });
@@ -1664,10 +1638,10 @@ test('hosts keep chatting visitors after 24h; ads, broadcast, and stale purge', 
 
   const escalate = await req('/api/me', { jar: host.jar });
   assert.equal(escalate.data.user.level, 0);
-  const csrf = await fetch(base + '/api/me/income', {
+  const csrf = await fetch(base + '/api/me/lang', {
     method: 'PUT',
     headers: { 'content-type': 'application/json', cookie: host.jar.header(), origin: 'https://evil.example' },
-    body: JSON.stringify({ occupation: 'Nope', monthlyIncome: 1, incomeSource: 'salary' })
+    body: JSON.stringify({ lang: 'en' })
   });
   assert.equal(csrf.status, 403);
 });

@@ -97,6 +97,12 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   assert.match(js, /id-doc-filter/);
   assert.match(js, /data-id-type="nrc"/);
   assert.match(js, /data-id-type="passport"/);
+  assert.match(js, /id="host-apply-send"/);
+  assert.equal(js.includes('inc-occ'), false);
+  assert.equal(js.includes('/api/me/income'), false);
+  I18n.setLang('en');
+  assert.equal(I18n.t('hostApplyHelp').includes('income form'), false);
+  assert.equal(I18n.t('femaleHostBody').includes('income form'), false);
   assert.match(css, /\.id-doc-filter\s*\{/);
   assert.match(js, /data-gender="all"/);
   assert.match(js, /data-gender="male"/);
@@ -135,6 +141,7 @@ test('admin dashboard paints paid accounts green and badges extra upgrades', () 
   assert.match(js, /admin-paid-remain/);
   assert.match(js, /setInterval\(paint, 1000\)/);
   assert.equal(js.includes('paidHoursLeft'), false);
+  assert.equal(js.includes('function incomeLine'), false);
 });
 
 test('admin-badge chats block first contact and expose a live gate', () => {
