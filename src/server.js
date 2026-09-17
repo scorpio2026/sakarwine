@@ -27,6 +27,7 @@ const {
   creditHostForUpgrade
 } = require('./hostIncome');
 const { rateLimit, securityHeaders, csrfGuard, rejectClientPrivilege, safeEqual } = require('./security');
+const { matchTopic: matchGuideTopic, replyKey: guideReplyKey } = require('./sakaFaq');
 const {
   AD_ROTATE_MS,
   OFFLINE_PURGE_MS,
@@ -628,6 +629,7 @@ async function applyTranslations(messages, viewLang) {
     const from = normalizeLang(m.sourceLang);
     if (!from || from === lang) continue;
     const original = m.originalBody || m.body;
+    if (String(original).startsWith('__SW__:')) continue;
     const translated = await cachedTranslate(m.id, original, from, lang);
     if (translated && translated !== original) {
       m.body = translated;
@@ -1301,6 +1303,9 @@ app.get('/api/users/:id/card', requireUser, requireActive, (req, res) => {
       isAi: Boolean(target.is_ai),
       isAdmin: isAdminAccount(target),
       badge: target.badge || null,
+      level: Number(target.level) || 0,
+      isSpecial: Boolean(target.is_special),
+      isHost: Boolean(target.is_host),
       bio: target.bio ? String(target.bio) : ''
     }
   });
@@ -1354,7 +1359,8 @@ app.post('/api/conversations/with/:userId', requireUser, requireActive, (req, re
         id: existing.id,
         peer: publicUser(target, { online: isOnline(target.id), viewer: req.user }),
         window: freeWindow(existing, req.user),
-        adminGate: gate
+        adminGate: gate,
+        faqHelper: Boolean(target.is_ai)
       }
     });
   }
@@ -1364,7 +1370,8 @@ app.post('/api/conversations/with/:userId', requireUser, requireActive, (req, re
       id: conv.id,
       peer: publicUser(target, { online: isOnline(target.id), viewer: req.user }),
       window: freeWindow(conv, req.user),
-      adminGate: adminChatGate(conv, req.user)
+      adminGate: adminChatGate(conv, req.user),
+      faqHelper: Boolean(target.is_ai)
     }
   });
 });
@@ -1582,8 +1589,11 @@ app.get('/api/groups/lookup', requireUser, requireActive, (req, res) => {
 });
 
 app.get('/api/groups/discover', requireUser, requireActive, (req, res) => {
-  const mine = new Set(
-    db.prepare('SELECT group_id FROM group_members WHERE user_id = ?').all(req.user.id).map((r) => r.group_id)
+  const mine = new Map(
+    db
+      .prepare('SELECT group_id, role FROM group_members WHERE user_id = ?')
+      .all(req.user.id)
+      .map((r) => [r.group_id, r.role])
   );
   const pending = new Set(
     db
@@ -1598,10 +1608,14 @@ app.get('/api/groups/discover', requireUser, requireActive, (req, res) => {
     .prepare('SELECT * FROM user_groups ORDER BY created_at DESC')
     .all()
     .map((row) => ({
-      ...serializeGroupPreview(row, { memberCount: countStmt.get(row.id).n }),
+      ...serializeGroupPreview(row, {
+        memberCount: countStmt.get(row.id).n,
+        role: mine.get(row.id) || null
+      }),
       joined: mine.has(row.id),
       requested: pending.has(row.id)
     }));
+  groups.sort((a, b) => Number(Boolean(b.joined)) - Number(Boolean(a.joined)));
   res.json({ groups });
 });
 
@@ -1976,7 +1990,8 @@ app.get('/api/conversations/:id', requireUser, requireActive, async (req, res) =
       viewLang: view.viewLang,
       askViewLang: view.askViewLang,
       peerLang: view.peerLang,
-      adminGate: adminChatGate(conv, req.user)
+      adminGate: adminChatGate(conv, req.user),
+      faqHelper: Boolean(peer.is_ai)
     },
     messages,
     credited: tick ? tick.credited : []
@@ -2086,6 +2101,10 @@ app.post(
         window: win
       });
     }
+    if (peer.is_ai && req.file) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ error: 'Saka only answers the four FAQ topics.' });
+    }
     const kind = String(req.body.type || (req.file ? 'file' : 'text'));
     let type = 'text';
     let body = String(req.body.body || '').trim();
@@ -2139,8 +2158,26 @@ app.post(
     emitToUser(req.user.id, 'message', { conversationId: conv.id, message: forMe });
     emitAdminGate(conv);
     const tick = touchPresence(conv, req.user.id, 'ping');
+    let guideReply = null;
+    let faqTopic = null;
+    if (peer.is_ai) {
+      faqTopic = matchGuideTopic({
+        faqTopic: req.body && req.body.faqTopic,
+        body
+      });
+      const replyInfo = db
+        .prepare(
+          'INSERT INTO messages (conversation_id, sender_id, type, body, media_path, created_at, source_lang) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        )
+        .run(conv.id, peer.id, 'text', guideReplyKey(faqTopic), null, Date.now(), null);
+      const replyRow = db.prepare('SELECT * FROM messages WHERE id = ?').get(replyInfo.lastInsertRowid);
+      guideReply = serializeMessage(replyRow, req.user);
+      emitToUser(req.user.id, 'message', { conversationId: conv.id, message: guideReply });
+    }
     res.json({
       message: forMe,
+      guideReply,
+      faqTopic,
       window: freeWindow(conv, req.user),
       mutual: mutualSnapshot(db, conv, req.user, peer),
       credited: tick ? tick.credited : [],

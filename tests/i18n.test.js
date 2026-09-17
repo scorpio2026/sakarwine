@@ -74,6 +74,33 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   assert.match(js, /function showHelp/);
   assert.match(js, /pin-recovery-form/);
   assert.match(js, /back-home-btn/);
+  const photoFn = js.slice(js.indexOf('async function openProfilePhoto'), js.indexOf('function roleMark'));
+  assert.match(photoFn, /roleMark\(u\)/);
+  assert.match(photoFn, /profile-lite-roles/);
+  assert.match(css, /\.profile-lite-roles/);
+  const roleFn = js.slice(js.indexOf('function roleMark'), js.indexOf('function statusPill'));
+  const aiBranch = roleFn.slice(roleFn.indexOf('isAi'), roleFn.indexOf('let core'));
+  assert.match(aiBranch, /data-badge="guide"/);
+  assert.match(aiBranch, /t\('guide'\)/);
+  assert.equal(aiBranch.includes('badge-lv'), false);
+  assert.match(roleFn, /badge-lv/);
+  assert.match(roleFn, /badge-host/);
+  const homeFn = js.slice(js.indexOf('function paintHomeList'), js.indexOf('function inboxPreview'));
+  assert.match(homeFn, /roleMark\(u\)/);
+  assert.equal(homeFn.includes("t('guide')"), false);
+  const inboxFn = js.slice(js.indexOf('function paintInboxList'), js.indexOf('async function loadInbox'));
+  assert.match(inboxFn, /roleMark\(peer\)/);
+  assert.equal(inboxFn.includes("t('guide')"), false);
+  assert.match(js, /roleMark\(c\.peer\)/);
+  I18n.setLang('en');
+  assert.equal(I18n.t('guide'), 'guide');
+  I18n.setLang('my');
+  assert.equal(I18n.t('guide'), 'လမ်းညွှန်');
+  assert.match(js, /id="saka-faq-chips"/);
+  assert.match(js, /data-faq=/);
+  assert.match(js, /SAKA_FAQ/);
+  assert.match(js, /faqTopic/);
+  assert.match(css, /\.saka-faq-chip/);
   assert.match(js, /function showRegister/);
   assert.equal(js.includes('nrcFront'), true);
   const registerSlice = js.slice(js.indexOf('function showRegister'), js.indexOf('function showScan'));
@@ -97,10 +124,16 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   assert.match(js, /host-demo-apply\.mp4/);
   assert.match(js, /host-demo-code\.mp4/);
   assert.match(js, /host-demo-income\.mp4/);
+  assert.match(js, /host-demo-apply\.png/);
+  assert.match(js, /host-demo-code\.png/);
+  assert.match(js, /host-demo-income\.png/);
+  assert.match(js, /data-guide-img/);
+  assert.match(js, /id="host-guide-img"/);
   assert.equal(js.includes('income-host.mp4'), false);
   assert.equal(js.includes('income-video'), false);
   assert.match(css, /\.host-guide-videos/);
   assert.match(css, /\.host-guide-tabs/);
+  assert.match(css, /\.host-guide-img/);
   assert.equal(css.includes('income-video'), false);
   assert.equal(css.includes('chat-demo'), false);
   assert.match(js, /class="settings-flow"/);
@@ -228,6 +261,17 @@ test('bottom nav has Home, Chat, Group, Profile, and Help — no Upgrade tab', (
   assert.match(js, /\/api\/groups\/discover/);
   assert.match(js, /\/api\/conversations/);
   assert.match(js, /\/api\/groups/);
+  const groupsFn = js.slice(js.indexOf('async function showGroups'), js.indexOf('function showDiscoverPreview'));
+  assert.match(groupsFn, /Number\(Boolean\(b\.joined\)\) - Number\(Boolean\(a\.joined\)\)/);
+  assert.match(groupsFn, /g && g\.joined\) showGroupDetail/);
+  assert.match(groupsFn, /showDiscoverPreview/);
+  assert.equal(groupsFn.includes('data-join='), false);
+  assert.equal(groupsFn.includes("t('requestJoin')"), false);
+  assert.equal(groupsFn.includes('group-discover'), false);
+  const previewFn = js.slice(js.indexOf('function showDiscoverPreview'), js.indexOf('function showCreateGroup'));
+  assert.match(previewFn, /id="req-join"/);
+  assert.match(previewFn, /t\('requestJoin'\)/);
+  assert.match(previewFn, /\/api\/groups\/\$\{g\.id\}\/join/);
   assert.match(js, /function meBtnHtml/);
   assert.match(js, /id="goto-me"/);
   assert.match(js, /id="up-back"/);
@@ -259,6 +303,12 @@ test('bottom nav has Home, Chat, Group, Profile, and Help — no Upgrade tab', (
   assert.match(js, /async function showHome[\s\S]*?bindPaidRemain\(\);/);
   assert.match(js, /async function showInbox[\s\S]*?bindPaidRemain\(\);/);
   assert.match(js, /async function showProfile[\s\S]*?bindPaidRemain\(\);/);
+  const profileFn = js.slice(js.indexOf('async function showProfile'), js.indexOf('function settingsRow'));
+  assert.match(profileFn, /me-identity/);
+  assert.match(profileFn, /me-ava/);
+  assert.match(profileFn, /me-name/);
+  assert.match(css, /\.me-identity\s*\{[^}]*flex-direction:\s*column/);
+  assert.match(css, /\.me-identity\s*\{[^}]*align-items:\s*center/);
   assert.match(js, /id="home-title">\$\{escapeHtml\(\(u && u\.username\) \|\| ''\)\}/);
   assert.equal(js.includes("id=\"home-title\">${t('contactsTitle')}"), false);
   const pillFn = js.slice(js.indexOf('function statusPill'), js.indexOf('function bindPaidRemain'));
@@ -276,12 +326,33 @@ test('bottom nav has Home, Chat, Group, Profile, and Help — no Upgrade tab', (
   assert.equal(I18n.t('freeCountdown', { h: 23, m: '01', s: '09' }), '23h 01m 09s free remaining');
   I18n.setLang('my');
   assert.match(I18n.t('freeCountdown', { h: 23, m: '01', s: '09' }), /အခမဲ့/);
-  assert.match(css, /\.badge-lv\s*\{[^}]*font-size:\s*0\.7rem/);
-  assert.match(css, /\.badge-lv\s*\{[^}]*padding:\s*2px 7px/);
-  assert.match(css, /\.badge-lv\s*\{[^}]*border-radius:\s*999px/);
-  assert.match(css, /\.badge-lv\s*\{[^}]*neon-run/);
-  assert.match(css, /\.badge-lv\s*\{[^}]*background-clip:\s*text/);
-  assert.match(css, /\.badge-neon\s*\{[^}]*neon-run/);
+  const lvBlock = css.match(/(?:^|\n)\.badge-lv\s*\{[^}]*\}/)[0];
+  assert.match(lvBlock, /font-size:\s*0\.7rem/);
+  assert.match(lvBlock, /padding:\s*2px 7px/);
+  assert.match(lvBlock, /border-radius:\s*999px/);
+  assert.match(lvBlock, /neon-run/);
+  assert.match(lvBlock, /color:\s*#fff/);
+  assert.match(lvBlock, /filter:\s*none/);
+  assert.equal(/drop-shadow/.test(lvBlock), false);
+  assert.match(lvBlock, /text-shadow:\s*none/);
+  assert.match(lvBlock, /box-shadow:\s*none/);
+  assert.equal(/background-clip:\s*text/.test(lvBlock), false);
+  const neonBlock = css.match(/(?:^|\n)\.badge-neon\s*\{[^}]*\}/)[0];
+  assert.match(neonBlock, /neon-run/);
+  assert.match(neonBlock, /color:\s*#fff/);
+  assert.match(neonBlock, /filter:\s*none/);
+  assert.equal(/drop-shadow/.test(neonBlock), false);
+  assert.match(css, /\.badge-neon\[data-badge="Admin"\],\s*\.badge-neon\[data-badge="guide"\]/);
+  const adminCss = fs.readFileSync(path.join(__dirname, '../public/css/admin.css'), 'utf8');
+  const adminLv = adminCss.match(/(?:^|\n)\.badge-lv\s*\{[^}]*\}/)[0];
+  const adminNeon = adminCss.match(/(?:^|\n)\.badge-neon\s*\{[^}]*\}/)[0];
+  assert.match(adminLv, /neon-run/);
+  assert.match(adminLv, /filter:\s*none/);
+  assert.equal(/drop-shadow/.test(adminLv), false);
+  assert.match(adminNeon, /neon-run/);
+  assert.equal(/drop-shadow/.test(adminNeon), false);
+  const adminJs = fs.readFileSync(path.join(__dirname, '../public/js/admin.js'), 'utf8');
+  assert.match(adminJs, /class="badge-lv"/);
 });
 
 test('settings PIN change is translated and separate from Help recovery', () => {
@@ -328,6 +399,9 @@ test('UI language pack covers Saka rules, Help, errors, and does not translate t
     assert.ok(I18n.catalogs[code].sakaRules, `${code} missing sakaRules`);
     assert.ok(I18n.catalogs[code].sakaHostNotice, `${code} missing sakaHostNotice`);
     assert.ok(I18n.catalogs[code].sakaWelcome, `${code} missing sakaWelcome`);
+    assert.ok(I18n.catalogs[code].sakaFaqQRegister, `${code} missing sakaFaqQRegister`);
+    assert.ok(I18n.catalogs[code].sakaFaqAUpgrade, `${code} missing sakaFaqAUpgrade`);
+    assert.ok(I18n.catalogs[code].sakaFaqRefuse, `${code} missing sakaFaqRefuse`);
     assert.ok(I18n.catalogs[code].maintenanceMsg, `${code} missing maintenanceMsg`);
     assert.equal(/SAKARWINE/.test(I18n.catalogs[code].maintenanceMsg), false, `${code} translated logo into maintenanceMsg`);
     assert.equal(/09/.test(I18n.catalogs[code].sakaRules), false, `${code} sakaRules mentions 09`);
@@ -344,6 +418,17 @@ test('UI language pack covers Saka rules, Help, errors, and does not translate t
   assert.match(I18n.t('sakaWelcome', { name: 'Aung' }), /Aung/);
   assert.match(I18n.localizeChatBody('__SW__:rules'), /24 hours free/i);
   assert.match(I18n.localizeChatBody('__SW__:host'), /500/);
+  assert.equal(I18n.localizeChatBody('__SW__:faq:register'), I18n.t('sakaFaqARegister'));
+  assert.equal(I18n.localizeChatBody('__SW__:faq:pin'), I18n.t('sakaFaqAPin'));
+  assert.equal(I18n.localizeChatBody('__SW__:faq:host'), I18n.t('sakaFaqAHost'));
+  assert.equal(I18n.localizeChatBody('__SW__:faq:upgrade'), I18n.t('sakaFaqAUpgrade'));
+  assert.equal(I18n.localizeChatBody('__SW__:faq:refuse'), I18n.t('sakaFaqRefuse'));
+  assert.equal(I18n.t('sakaFaqQRegister'), 'How to register');
+  I18n.setLang('my');
+  assert.equal(I18n.t('sakaFaqQRegister'), 'အကောင့်ဖွင့်ပုံ');
+  assert.equal(I18n.t('sakaFaqQPin'), 'PIN တောင်းပုံ');
+  assert.equal(I18n.t('sakaFaqQHost'), 'host လျှောက်ပုံ');
+  assert.equal(I18n.t('sakaFaqQUpgrade'), 'upgrade လုပ်ပုံ');
   const oldStored = [
     'Rules\n\nWithout upgrade\n• Each new chat has 24 hours free.\n• Photos stay locked until Level 3.\n• No 09 phone numbers; do not start a message with @. No video.\n\nIf you upgrade\n• Unlimited chatting for the paid period.',
     'စည်းကမ်း\n\nအဆင့်မမြှင့်ရသေးပါက\n• စကားပြောအသစ်တိုင်း အခမဲ့ ၂၄ နာရီသာ ရသည်။\n• 09 ဖုန်းနံပါတ်နှင့် @ ဖြင့် စသော စာ မပို့ရ။ ဗီဒီယို မရပါ။',
@@ -383,6 +468,39 @@ test('UI language pack covers Saka rules, Help, errors, and does not translate t
   assert.notEqual(I18n.t('groupsTitle'), I18n.catalogs.en.groupsTitle);
   I18n.setLang('ja');
   assert.notEqual(I18n.t('upgradeTitle'), I18n.catalogs.en.upgradeTitle);
+});
+
+test('admin dashboard splits money/privilege and other-matters desks', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const adminJs = fs.readFileSync(path.join(__dirname, '../public/js/admin.js'), 'utf8');
+  const adminCss = fs.readFileSync(path.join(__dirname, '../public/css/admin.css'), 'utf8');
+  assert.match(adminJs, /const MONEY_TABS = \['upgrades', 'create', 'hosts', 'payouts'\]/);
+  assert.match(adminJs, /const OTHER_TABS = \['accounts', 'chats', 'pin-recovery', 'broadcast', 'ads', 'pricing', 'settings'\]/);
+  assert.match(adminJs, /data-desk="money"/);
+  assert.match(adminJs, /data-desk="other"/);
+  assert.match(adminJs, /id="desk-back"/);
+  assert.match(adminJs, /function enterDesk/);
+  assert.match(adminJs, /t\('adminDeskMoney'\)/);
+  assert.match(adminJs, /t\('adminDeskOther'\)/);
+  assert.match(adminCss, /\.desk-grid\s*\{/);
+  assert.match(adminCss, /\.desk-card\s*\{/);
+  assert.match(adminCss, /\.desk-badge\s*\{/);
+  const codes = I18n.LANGS.map((l) => l.code);
+  for (const code of codes) {
+    assert.ok(I18n.catalogs[code].adminDeskMoney, `${code} missing adminDeskMoney`);
+    assert.ok(I18n.catalogs[code].adminDeskOther, `${code} missing adminDeskOther`);
+    assert.ok(I18n.catalogs[code].adminDeskBack, `${code} missing adminDeskBack`);
+  }
+  I18n.setLang('my');
+  assert.equal(I18n.t('adminDeskChoose'), 'ဌာန ရွေးပါ');
+  assert.equal(I18n.t('adminDeskMoney'), 'ငွေ / အခွင့်အရေး');
+  assert.match(I18n.t('adminDeskMoneyHelp'), /ငွေထုတ်/);
+  assert.equal(I18n.t('adminDeskOther'), 'အခြားကိစ္စ');
+  assert.equal(I18n.t('adminDeskBack'), 'ဌာနအားလုံး');
+  I18n.setLang('en');
+  assert.equal(I18n.t('adminDeskMoney'), 'Money / privilege');
+  assert.equal(I18n.t('adminDeskOther'), 'Other matters');
 });
 
 test('welcome login language switcher is not clipped on short mobile viewports', () => {

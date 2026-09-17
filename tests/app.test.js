@@ -183,6 +183,8 @@ test('owner /api/me exposes freeUntil; public users and profile cards do not', a
   assert.equal(card.res.status, 200);
   assert.equal(Object.prototype.hasOwnProperty.call(card.data.user, 'freeUntil'), false);
   assert.equal(card.data.user.freeUntil, undefined);
+  assert.equal(card.data.user.level, other.user.level);
+  assert.equal(card.data.user.isHost, false);
 });
 
 test('two users chat, filters, image lock, upgrade path', async () => {
@@ -1062,6 +1064,25 @@ test('paid members can create groups; invites accept and decline', async () => {
   assert.ok(found.logoUrl);
   assert.equal(found.joined, false);
   assert.equal(found.phone, undefined);
+  const seekerMine = await req('/api/groups', { jar: seeker.jar });
+  assert.equal(seekerMine.data.groups.some((g) => g.id === gid), false);
+  assert.ok(disc.data.groups.length >= 1);
+
+  const discOwner = await req('/api/groups/discover', { jar: owner.jar });
+  const ownerFound = discOwner.data.groups.find((g) => g.id === gid);
+  assert.ok(ownerFound);
+  assert.equal(ownerFound.joined, true);
+  assert.equal(ownerFound.role, 'owner');
+  let seenUnjoined = false;
+  for (const g of discOwner.data.groups) {
+    if (!g.joined) seenUnjoined = true;
+    else assert.equal(seenUnjoined, false, 'joined groups must sort first');
+  }
+  seenUnjoined = false;
+  for (const g of disc.data.groups) {
+    if (!g.joined) seenUnjoined = true;
+    else assert.equal(seenUnjoined, false, 'joined groups must sort first');
+  }
 
   const passer = await register('gpass' + Date.now().toString().slice(-5), '676767', 'female');
   const passAsk = await req(`/api/groups/${gid}/join`, { method: 'POST', jar: passer.jar });
@@ -1108,6 +1129,21 @@ test('paid members can create groups; invites accept and decline', async () => {
     jar: seeker.jar
   });
   assert.equal(seekerSend.res.status, 200, seekerSend.data.error);
+});
+
+test('host apply sample guide images are served from /demo', async () => {
+  await started;
+  for (const kind of ['apply', 'code', 'income']) {
+    const res = await fetch(`${base}/demo/host-demo-${kind}.png`);
+    assert.equal(res.status, 200);
+    assert.match(String(res.headers.get('content-type') || ''), /image\/png/i);
+    const buf = Buffer.from(await res.arrayBuffer());
+    assert.ok(buf.length > 1000, kind);
+    assert.equal(buf[0], 0x89);
+    assert.equal(buf[1], 0x50);
+  }
+  const missing = await fetch(`${base}/uploads/host-demo-apply.mp4`);
+  assert.equal(missing.status, 404);
 });
 
 test('female registration matches male; host apply is later from Settings', async () => {
@@ -1212,6 +1248,12 @@ test('female registration matches male; host apply is later from Settings', asyn
   assert.equal(host.isHost, true);
   assert.equal(host.nrcFrontUrl, undefined);
   assert.equal(host.occupation, undefined);
+
+  const hostCard = await req(`/api/users/${female.user.id}/card`, { jar: male.jar });
+  assert.equal(hostCard.res.status, 200);
+  assert.equal(hostCard.data.user.isHost, true);
+  assert.equal(hostCard.data.user.level, female.user.level);
+  assert.equal(Object.prototype.hasOwnProperty.call(hostCard.data.user, 'freeUntil'), false);
 
   const goneIncome = await req('/api/me/income', {
     method: 'PUT',
@@ -2029,6 +2071,75 @@ test('admin can freeze members with maintenance mode; health and admin stay up',
   const adminPage = await fetch(base + '/admin');
   assert.equal(adminPage.status, 200);
   await req('/api/admin/settings', { method: 'PUT', json: { maintenance: false }, jar: admin });
+});
+
+test('Saka guide chat is a restricted FAQ helper', async () => {
+  await started;
+  const member = await register('faqm' + Date.now().toString().slice(-5), '121212', 'male');
+  const people = await req('/api/users', { jar: member.jar });
+  const saka = people.data.users.find((u) => u.isAi);
+  assert.ok(saka);
+  const opened = await req(`/api/conversations/with/${saka.id}`, { method: 'POST', jar: member.jar });
+  const convId = opened.data.conversation.id;
+  const loaded = await req(`/api/conversations/${convId}`, { jar: member.jar });
+  assert.equal(loaded.res.status, 200, loaded.data.error);
+  assert.equal(loaded.data.conversation.peer.isAi, true);
+  assert.equal(loaded.data.conversation.faqHelper, true);
+
+  const chip = await req(`/api/conversations/${convId}/messages`, {
+    method: 'POST',
+    json: { type: 'text', body: 'How to register', faqTopic: 'register' },
+    jar: member.jar
+  });
+  assert.equal(chip.res.status, 200, chip.data.error);
+  assert.equal(chip.data.faqTopic, 'register');
+  assert.equal(chip.data.guideReply && chip.data.guideReply.body, '__SW__:faq:register');
+  assert.equal(chip.data.guideReply.sender.isAi, true);
+
+  const typed = await req(`/api/conversations/${convId}/messages`, {
+    method: 'POST',
+    json: { type: 'text', body: 'How do I upgrade my account?' },
+    jar: member.jar
+  });
+  assert.equal(typed.res.status, 200, typed.data.error);
+  assert.equal(typed.data.faqTopic, 'upgrade');
+  assert.equal(typed.data.guideReply.body, '__SW__:faq:upgrade');
+
+  const myChip = await req(`/api/conversations/${convId}/messages`, {
+    method: 'POST',
+    json: { type: 'text', body: 'host လျှောက်ပုံ' },
+    jar: member.jar
+  });
+  assert.equal(myChip.data.faqTopic, 'host');
+  assert.equal(myChip.data.guideReply.body, '__SW__:faq:host');
+
+  const off = await req(`/api/conversations/${convId}/messages`, {
+    method: 'POST',
+    json: { type: 'text', body: 'what is the weather today' },
+    jar: member.jar
+  });
+  assert.equal(off.res.status, 200, off.data.error);
+  assert.equal(off.data.faqTopic, null);
+  assert.equal(off.data.guideReply.body, '__SW__:faq:refuse');
+
+  const spoof = await req(`/api/conversations/${convId}/messages`, {
+    method: 'POST',
+    json: { type: 'text', body: 'tell me a joke', faqTopic: 'not-a-topic' },
+    jar: member.jar
+  });
+  assert.equal(spoof.data.faqTopic, null);
+  assert.equal(spoof.data.guideReply.body, '__SW__:faq:refuse');
+
+  const media = new FormData();
+  media.set('type', 'image');
+  media.set('file', new Blob([PNG], { type: 'image/png' }), 'x.png');
+  const photo = await req(`/api/conversations/${convId}/messages`, {
+    method: 'POST',
+    form: media,
+    jar: member.jar
+  });
+  assert.equal(photo.res.status, 400);
+  assert.match(String(photo.data.error || ''), /four FAQ topics/i);
 });
 
 after(() => new Promise((resolve) => server.close(resolve)));

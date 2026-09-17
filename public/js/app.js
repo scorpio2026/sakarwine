@@ -40,6 +40,13 @@ const ICONS = {
   chevron: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 6l6 6-6 6"/></svg>`
 };
 
+const SAKA_FAQ = [
+  { topic: 'register', q: 'sakaFaqQRegister' },
+  { topic: 'pin', q: 'sakaFaqQPin' },
+  { topic: 'host', q: 'sakaFaqQHost' },
+  { topic: 'upgrade', q: 'sakaFaqQUpgrade' }
+];
+
 function toast(msg) {
   toastEl.hidden = false;
   toastEl.textContent = msg;
@@ -211,6 +218,7 @@ async function openProfilePhoto(userId) {
       <div class="profile-lite">
         ${photo}
         <h3 style="margin:12px 0 4px">${escapeHtml(u.username)}</h3>
+        <div class="profile-lite-roles">${roleMark(u)}</div>
         <p class="profile-id">${escapeHtml(u.accountId || '—')}</p>
         ${u.bio ? `<p class="profile-bio">${escapeHtml(u.bio)}</p>` : ''}
         <button class="btn secondary block" id="photo-close">${t('close')}</button>
@@ -222,6 +230,9 @@ async function openProfilePhoto(userId) {
 }
 
 function roleMark(user) {
+  if (user && user.isAi) {
+    return `<span class="badge-neon" data-badge="guide">${t('guide')}</span>`;
+  }
   let core = '';
   if (user && user.badge) {
     core = `<span class="badge-neon" data-badge="${escapeHtml(user.badge)}">${escapeHtml(user.badge)}</span>`;
@@ -236,11 +247,12 @@ function roleMark(user) {
 }
 
 function statusPill(user) {
+  if (user && user.isAi) return roleMark(user);
   if (user && user.isSpecial) return roleMark(user);
   if (user && remainingPaidParts(user.paidUntil).ms) {
-    return `<span class="pill paid-tick" id="paid-remain-pill">${t('paid')} · ${escapeHtml(paidCountdownLabel(user.paidUntil))} · ${t('lv', { n: user.level })}</span>`;
+    return `<span class="pill paid-tick" id="paid-remain-pill">${t('paid')} · ${escapeHtml(paidCountdownLabel(user.paidUntil))} · <span class="badge-lv">${t('lv', { n: user.level })}</span></span>`;
   }
-  return `<span class="pill">${t('lv', { n: user && user.level })}</span>`;
+  return `<span class="badge-lv">${t('lv', { n: user && user.level })}</span>`;
 }
 
 function bindPaidRemain() {
@@ -693,7 +705,7 @@ function paintHomeList() {
     <div class="user-row ${u.isAi ? '' : (u.gender === 'female' ? 'gender-female' : 'gender-male')}" data-id="${u.id}">
       ${avatarHtml(u)}
       <div class="meta">
-        <div class="name">${escapeHtml(u.username)} ${u.isAi ? '· ' + t('guide') : ''} ${roleMark(u)}</div>
+        <div class="name">${escapeHtml(u.username)} ${roleMark(u)}</div>
         <div class="sub">${u.online ? t('onlineNow') : t('offline')} · ${genderLabel(u.gender)}${u.blocked ? ' · ' + t('blocked') : ''}</div>
       </div>
       <span class="when">${u.online ? t('onlineNow') : ''}</span>
@@ -734,7 +746,7 @@ function paintInboxList(conversations) {
     <div class="user-row ${gClass}" data-kind="dm" data-peer="${peer.id}">
       ${avatarHtml(peer)}
       <div class="meta">
-        <div class="name">${escapeHtml(peer.username || '')} ${peer.isAi ? '· ' + t('guide') : ''} ${roleMark(peer)}</div>
+        <div class="name">${escapeHtml(peer.username || '')} ${roleMark(peer)}</div>
         <div class="sub">${escapeHtml(inboxPreview(last))}</div>
       </div>
       <span class="when">${last.createdAt ? formatMsgTime(last.createdAt) : ''}</span>
@@ -808,7 +820,6 @@ async function showGroups() {
       </div>
       <div id="group-invites"></div>
       <div id="group-list" class="user-list"><p class="muted">${t('loading')}</p></div>
-      <div id="group-discover"></div>
       </div>
       ${nav('groups')}
     </section>`;
@@ -816,9 +827,8 @@ async function showGroups() {
   bindMeButton();
   $('#group-create').onclick = showCreateGroup;
   try {
-    const [inv, list, disc] = await Promise.all([
+    const [inv, disc] = await Promise.all([
       api('/api/group-invites'),
-      api('/api/groups'),
       api('/api/groups/discover')
     ]);
     const invBox = $('#group-invites');
@@ -867,52 +877,26 @@ async function showGroups() {
     } else {
       invBox.innerHTML = '';
     }
-    const groups = list.groups || [];
+    const groups = [...(disc.groups || [])].sort(
+      (a, b) => Number(Boolean(b.joined)) - Number(Boolean(a.joined))
+    );
     const box = $('#group-list');
     box.innerHTML = groups.map((g) => `
-      <div class="user-row" data-id="${g.id}">
+      <div class="user-row" data-id="${g.id}" data-joined="${g.joined ? '1' : '0'}">
         ${groupLogoHtml(g)}
         <div class="meta">
           <div class="name">${escapeHtml(g.name)}</div>
           <div class="sub">${g.memberCount != null ? t('groupMemberCount', { n: g.memberCount }) : ''}</div>
         </div>
-        <span class="when">${g.role === 'owner' ? t('groupOwner') : ''}</span>
+        <span class="when">${g.joined ? (g.role === 'owner' ? t('groupOwner') : '') : (g.requested ? t('joinRequested') : '')}</span>
       </div>`).join('') || `<p class="settings-empty">${t('noGroups')}</p>`;
     box.querySelectorAll('.user-row').forEach((row) => {
-      row.onclick = () => showGroupDetail(Number(row.dataset.id));
+      const g = groups.find((x) => x.id === Number(row.dataset.id));
+      row.onclick = () => {
+        if (g && g.joined) showGroupDetail(g.id);
+        else if (g) showDiscoverPreview(g);
+      };
     });
-    const discBox = $('#group-discover');
-    const others = (disc.groups || []).filter((g) => !g.joined);
-    if (discBox) {
-      discBox.innerHTML = `<h3 class="group-section">${t('discoverGroups')}</h3>` + (
-        others.length
-          ? others.map((g) => `
-        <div class="user-row" data-id="${g.id}">
-          ${groupLogoHtml(g)}
-          <div class="meta">
-            <div class="name">${escapeHtml(g.name)}</div>
-            <div class="sub">${g.memberCount != null ? t('groupMemberCount', { n: g.memberCount }) : ''}</div>
-          </div>
-          ${g.requested
-            ? `<span class="when">${t('joinRequested')}</span>`
-            : `<button type="button" class="btn secondary" data-join="${g.id}">${t('requestJoin')}</button>`}
-        </div>`).join('')
-          : `<p class="settings-empty">${t('noDiscoverGroups')}</p>`
-      );
-      discBox.querySelectorAll('.user-row').forEach((row) => {
-        const g = others.find((x) => x.id === Number(row.dataset.id));
-        row.onclick = () => {
-          if (g) showDiscoverPreview(g);
-        };
-      });
-      discBox.querySelectorAll('[data-join]').forEach((btn) => {
-        btn.onclick = (e) => {
-          e.stopPropagation();
-          const g = others.find((x) => x.id === Number(btn.dataset.join));
-          if (g) showDiscoverPreview(g);
-        };
-      });
-    }
   } catch (e) {
     toastErr(e);
   }
@@ -1549,9 +1533,9 @@ function paidStatusHtml(u, now = Date.now()) {
 }
 
 function paidPillText(paidUntil, now = Date.now()) {
-  const lv = t('lv', { n: (state.user && state.user.level) || 0 });
+  const lv = `<span class="badge-lv">${escapeHtml(t('lv', { n: (state.user && state.user.level) || 0 }))}</span>`;
   const label = paidCountdownLabel(paidUntil, now);
-  return label ? `${t('paid')} · ${label} · ${lv}` : lv;
+  return label ? `${escapeHtml(t('paid'))} · ${escapeHtml(label)} · ${lv}` : lv;
 }
 
 function tickPaidRemain(paidUntil, freeUntil) {
@@ -1572,7 +1556,7 @@ function tickPaidRemain(paidUntil, freeUntil) {
     const paidParts = remainingPaidParts(paidUntil);
     const freeParts = remainingPaidParts(freeUntil);
     if (remainEl) remainEl.innerHTML = paidStatusHtml({ paidUntil, freeUntil, isSpecial: false });
-    if (pillEl) pillEl.textContent = paidPillText(paidUntil);
+    if (pillEl) pillEl.innerHTML = paidPillText(paidUntil);
     if (state.user && !paidParts.ms) {
       state.user.paid = false;
       state.user.paidRemainingHours = 0;
@@ -1660,17 +1644,26 @@ function renderChat(opts = {}) {
       <div id="messages" class="messages">${renderThread(c.messages)}</div>
       <div class="typing" id="typing"></div>
       </div>
-      <div class="composer">
-        <button class="composer-plus" id="plus-btn" aria-label="${t('photo')}" ${composerOff ? 'disabled' : ''}>+</button>
+      <div class="composer${c.peer.isAi ? ' composer-faq' : ''}">
+        ${c.peer.isAi ? `
+        <div class="saka-faq" id="saka-faq-chips">
+          <p class="saka-faq-hint">${escapeHtml(t('sakaFaqHint'))}</p>
+          <div class="saka-faq-chips">
+            ${SAKA_FAQ.map((item) => `<button type="button" class="saka-faq-chip" data-faq="${item.topic}">${escapeHtml(t(item.q))}</button>`).join('')}
+          </div>
+        </div>` : ''}
+        <div class="composer-main">
+        ${c.peer.isAi ? '' : `<button class="composer-plus" id="plus-btn" aria-label="${t('photo')}" ${composerOff ? 'disabled' : ''}>+</button>
         <div class="plus-menu" id="plus-menu" hidden>
           <button type="button" id="img-btn">${t('photo')}</button>
           <button type="button" id="mic-btn">${t('voice')}</button>
-        </div>
+        </div>`}
         <div class="composer-pill">
           <textarea id="text" rows="1" ${composerOff ? 'disabled' : ''} placeholder="${t('typeHere')}"></textarea>
         </div>
         <button class="chat-send" id="send" ${composerOff ? 'disabled' : ''} aria-label="${t('send')}">${ICONS.send}</button>
-        <input id="img-file" class="hidden-file" type="file" accept="image/*" />
+        ${c.peer.isAi ? '' : `<input id="img-file" class="hidden-file" type="file" accept="image/*" />`}
+        </div>
       </div>
     </section>`;
   $('#back').onclick = leaveChat;
@@ -1747,20 +1740,25 @@ function renderChat(opts = {}) {
     box.innerHTML = renderThread(c.messages);
     box.scrollTop = box.scrollHeight;
   };
-  const sendText = async () => {
-    const body = ta.value;
-    if (sending || !body.trim()) return;
+  const sendText = async (preset, faqTopic) => {
+    const body = preset != null ? preset : ta.value;
+    if (sending || !String(body || '').trim()) return;
     sending = true;
     try {
+      const json = { type: 'text', body };
+      if (faqTopic) json.faqTopic = faqTopic;
       const data = await api(`/api/conversations/${c.id}/messages`, {
         method: 'POST',
-        json: { type: 'text', body }
+        json
       });
-      ta.value = '';
-      syncComposer();
+      if (preset == null) {
+        ta.value = '';
+        syncComposer();
+      }
       c.window = data.window;
       if (data.adminGate) c.adminGate = data.adminGate;
       addChatMessage(data.message);
+      if (data.guideReply) addChatMessage(data.guideReply);
       paintThread();
     } catch (e) {
       if (e.data && e.data.adminGate) {
@@ -1773,7 +1771,14 @@ function renderChat(opts = {}) {
       sending = false;
     }
   };
-  $('#send').onclick = sendText;
+  $('#send').onclick = () => sendText();
+  document.querySelectorAll('#saka-faq-chips [data-faq]').forEach((btn) => {
+    btn.onclick = () => {
+      const topic = btn.dataset.faq;
+      const item = SAKA_FAQ.find((x) => x.topic === topic);
+      sendText(item ? t(item.q) : btn.textContent, topic);
+    };
+  });
   ta.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -1789,6 +1794,7 @@ function renderChat(opts = {}) {
   });
   syncComposer();
   const plusMenu = $('#plus-menu');
+  if ($('#plus-btn') && plusMenu) {
   $('#plus-btn').onclick = () => {
     plusMenu.hidden = !plusMenu.hidden;
   };
@@ -1844,14 +1850,22 @@ function renderChat(opts = {}) {
       toast(t('noMic'));
     }
   };
-  if (c.askViewLang) promptChatLang(c);
+  }
+  if (c.askViewLang && !c.peer.isAi) promptChatLang(c);
   if (opts.fromTour) {
     setTimeout(() => {
-      Tour.start([
-        { target: '#text', text: t('tourChat1'), arrow: 'up' },
-        { target: '#img-btn', text: t('tourChat2'), arrow: 'up' },
-        { target: '#mic-btn', text: t('tourChat3'), arrow: 'up' }
-      ]);
+      const steps = c.peer.isAi
+        ? [
+            { target: '#saka-faq-chips', text: t('tourChat1'), arrow: 'up' },
+            { target: '#saka-faq-chips [data-faq]', text: t('tourChat2'), arrow: 'up' },
+            { target: '#text', text: t('tourChat3'), arrow: 'up' }
+          ]
+        : [
+            { target: '#text', text: t('tourChat1'), arrow: 'up' },
+            { target: '#img-btn', text: t('tourChat2'), arrow: 'up' },
+            { target: '#mic-btn', text: t('tourChat3'), arrow: 'up' }
+          ];
+      Tour.start(steps);
     }, 400);
   }
 }
@@ -1952,9 +1966,9 @@ function hostStatusLine(u) {
 
 function incomeDemoBlock() {
   const slots = [
-    { key: 'apply', src: '/uploads/host-demo-apply.mp4', title: t('hostDemoApply') },
-    { key: 'code', src: '/uploads/host-demo-code.mp4', title: t('hostDemoCode') },
-    { key: 'income', src: '/uploads/host-demo-income.mp4', title: t('hostDemoIncome') }
+    { key: 'apply', img: '/demo/host-demo-apply.png', src: '/uploads/host-demo-apply.mp4', title: t('hostDemoApply') },
+    { key: 'code', img: '/demo/host-demo-code.png', src: '/uploads/host-demo-code.mp4', title: t('hostDemoCode') },
+    { key: 'income', img: '/demo/host-demo-income.png', src: '/uploads/host-demo-income.mp4', title: t('hostDemoIncome') }
   ];
   return `
     <div class="income-demo">
@@ -1964,11 +1978,12 @@ function incomeDemoBlock() {
       <div class="host-guide-videos">
         <div class="host-guide-kicker">${t('hostDemoTitle')}</div>
         <div class="host-guide-tabs" role="tablist" aria-label="${t('hostDemoTitle')}">
-          ${slots.map((s, i) => `<button type="button" class="host-guide-tab" role="tab" data-guide-src="${escapeHtml(s.src)}" data-guide-title="${escapeHtml(s.title)}" aria-selected="${i === 0 ? 'true' : 'false'}">${escapeHtml(s.title)}</button>`).join('')}
+          ${slots.map((s, i) => `<button type="button" class="host-guide-tab" role="tab" data-guide-img="${escapeHtml(s.img)}" data-guide-src="${escapeHtml(s.src)}" data-guide-title="${escapeHtml(s.title)}" aria-selected="${i === 0 ? 'true' : 'false'}">${escapeHtml(s.title)}</button>`).join('')}
         </div>
         <div class="host-guide-stage">
+          <img class="host-guide-img" id="host-guide-img" src="${escapeHtml(slots[0].img)}" alt="${escapeHtml(slots[0].title)}" />
           <video class="host-guide-video" id="host-guide-video" controls playsinline preload="metadata" hidden></video>
-          <div class="host-guide-ph" id="host-guide-ph">
+          <div class="host-guide-ph" id="host-guide-ph" hidden>
             <strong id="host-guide-ph-title">${escapeHtml(slots[0].title)}</strong>
             <span>${t('hostDemoPlaceholder')}</span>
           </div>
@@ -1980,25 +1995,65 @@ function incomeDemoBlock() {
 function bindHostGuideVideos() {
   const tabs = document.querySelectorAll('.host-guide-tab');
   const video = $('#host-guide-video');
+  const img = $('#host-guide-img');
   const ph = $('#host-guide-ph');
   const phTitle = $('#host-guide-ph-title');
-  if (!tabs.length || !video || !ph) return;
+  if (!tabs.length || !ph) return;
+  let gen = 0;
+  const showImageOrPlaceholder = (imgSrc) => {
+    if (video) video.hidden = true;
+    if (imgSrc && img) {
+      img.hidden = false;
+      ph.hidden = true;
+    } else {
+      if (img) img.hidden = true;
+      ph.hidden = false;
+    }
+  };
   const show = (tab) => {
+    const my = ++gen;
     tabs.forEach((btn) => btn.setAttribute('aria-selected', btn === tab ? 'true' : 'false'));
     const title = tab.dataset.guideTitle || '';
     const src = tab.dataset.guideSrc || '';
+    const imgSrc = tab.dataset.guideImg || '';
     if (phTitle) phTitle.textContent = title;
-    ph.hidden = false;
+    if (img) {
+      img.alt = title;
+      img.onerror = () => {
+        if (my !== gen) return;
+        img.hidden = true;
+        if (!video || video.hidden) ph.hidden = false;
+      };
+      img.onload = () => {
+        if (my !== gen) return;
+        if (video && !video.hidden) return;
+        img.hidden = false;
+        ph.hidden = true;
+      };
+      if (img.getAttribute('src') !== imgSrc) img.src = imgSrc;
+      else if (img.complete && img.naturalWidth) {
+        img.hidden = false;
+        ph.hidden = true;
+      }
+    }
+    showImageOrPlaceholder(imgSrc);
+    if (!video) return;
+    video.onloadeddata = null;
+    video.onerror = null;
     video.hidden = true;
     video.removeAttribute('src');
     video.load();
+    if (!src) return;
     video.onloadeddata = () => {
+      if (my !== gen) return;
+      if (img) img.hidden = true;
       ph.hidden = true;
       video.hidden = false;
     };
     video.onerror = () => {
+      if (my !== gen) return;
       video.hidden = true;
-      ph.hidden = false;
+      showImageOrPlaceholder(imgSrc);
     };
     video.src = src;
   };
@@ -2047,8 +2102,8 @@ async function showProfile() {
         <button type="button" class="icon-btn" id="open-settings" aria-label="${t('settings')}">${ICONS.gear}</button>
       </div>
       <div class="glass-card stack center me-card">
-        ${avatarHtml(u, 'round me-ava')}
-        <div>
+        <div class="me-identity">
+          ${avatarHtml(u, 'round me-ava')}
           <div class="me-name">${escapeHtml(u.username)}</div>
           <div class="muted">${escapeHtml(u.accountId || t('idHidden'))}</div>
         </div>

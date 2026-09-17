@@ -2,6 +2,9 @@
 
 const root = document.getElementById('admin-app');
 let tab = 'accounts';
+let desk = null;
+const MONEY_TABS = ['upgrades', 'create', 'hosts', 'payouts'];
+const OTHER_TABS = ['accounts', 'chats', 'pin-recovery', 'broadcast', 'ads', 'pricing', 'settings'];
 let socket;
 let lookupQ = '';
 let focusAccountId = null;
@@ -146,6 +149,134 @@ function hostMark(a) {
   return a.isHost ? ` <span class="badge-neon badge-host" data-badge="host">${t('host')}</span>` : '';
 }
 
+function moneyPending(stats) {
+  return (Number(stats.pendingUpgrades) || 0) + (Number(stats.pendingHosts) || 0) + (Number(stats.pendingPayouts) || 0);
+}
+
+function otherPending(stats) {
+  return Number(stats.pendingPinRecovery) || 0;
+}
+
+function tabLabel(id, stats) {
+  const labels = {
+    accounts: t('tabAccounts'),
+    create: t('tabCreate'),
+    chats: t('tabChats'),
+    upgrades: t('tabUpgrades'),
+    hosts: t('tabHosts'),
+    payouts: t('tabPayouts'),
+    'pin-recovery': t('tabPinRecovery'),
+    broadcast: t('tabBroadcast'),
+    ads: t('tabAds'),
+    pricing: t('tabPricing'),
+    settings: t('tabSettings')
+  };
+  const counts = {
+    upgrades: stats.pendingUpgrades,
+    hosts: stats.pendingHosts,
+    payouts: stats.pendingPayouts,
+    'pin-recovery': stats.pendingPinRecovery
+  };
+  const n = counts[id];
+  return `${labels[id] || id}${n ? ` (${n})` : ''}`;
+}
+
+function pickMoneyTab(stats) {
+  if (stats.pendingUpgrades) return 'upgrades';
+  if (stats.pendingHosts) return 'hosts';
+  if (stats.pendingPayouts) return 'payouts';
+  return 'upgrades';
+}
+
+function pickOtherTab(stats) {
+  if (stats.pendingPinRecovery) return 'pin-recovery';
+  return 'accounts';
+}
+
+function enterDesk(next, stats) {
+  desk = next;
+  focusAccountId = null;
+  if (next === 'money' && !MONEY_TABS.includes(tab)) tab = pickMoneyTab(stats);
+  if (next === 'other' && !OTHER_TABS.includes(tab)) tab = pickOtherTab(stats);
+}
+
+function deskBadge(n) {
+  const count = Number(n) || 0;
+  return count ? `<span class="desk-badge">${count}</span>` : '';
+}
+
+function deskHomeHtml(stats) {
+  const moneyN = moneyPending(stats);
+  const otherN = otherPending(stats);
+  return `
+    <p class="muted desk-lead">${t('adminDeskChoose')}</p>
+    <div class="desk-grid">
+      <button type="button" class="desk-card" data-desk="money">
+        <span class="desk-card-title">${esc(t('adminDeskMoney'))}${deskBadge(moneyN)}</span>
+        <span class="desk-card-help">${esc(t('adminDeskMoneyHelp'))}</span>
+        <span class="desk-card-meta">
+          <span>${esc(t('pendingUpgrades'))}: <b>${stats.pendingUpgrades || 0}</b></span>
+          <span>${esc(t('pendingHosts'))}: <b>${stats.pendingHosts || 0}</b></span>
+          <span>${esc(t('payouts'))}: <b>${stats.pendingPayouts || 0}</b></span>
+        </span>
+      </button>
+      <button type="button" class="desk-card" data-desk="other">
+        <span class="desk-card-title">${esc(t('adminDeskOther'))}${deskBadge(otherN)}</span>
+        <span class="desk-card-help">${esc(t('adminDeskOtherHelp'))}</span>
+        <span class="desk-card-meta">
+          <span>${esc(t('pendingPinRecovery'))}: <b>${stats.pendingPinRecovery || 0}</b></span>
+          <span>${esc(t('accounts'))}: <b>${stats.users}</b></span>
+          <span>${esc(t('chats'))}: <b>${stats.conversations}</b></span>
+        </span>
+      </button>
+    </div>`;
+}
+
+function deskWorkHtml(stats) {
+  const isMoney = desk === 'money';
+  const deskTabs = isMoney ? MONEY_TABS : OTHER_TABS;
+  const pending = isMoney ? moneyPending(stats) : otherPending(stats);
+  const statsHtml = isMoney
+    ? `<div class="stats">
+        <div class="stat"><span>${t('pendingUpgrades')}</span><b>${stats.pendingUpgrades}</b></div>
+        <div class="stat"><span>${t('pendingHosts')}</span><b>${stats.pendingHosts || 0}</b></div>
+        <div class="stat"><span>${t('payouts')}</span><b>${stats.pendingPayouts || 0}</b></div>
+      </div>
+      ${stats.pendingUpgrades ? `<div class="notice">${t('adminNoticeUpgrades')}</div>` : ''}
+      ${stats.pendingHosts ? `<div class="notice">${t('adminNoticeHosts')}</div>` : ''}
+      ${stats.pendingPayouts ? `<div class="notice">${t('adminNoticePayouts', { n: stats.pendingPayouts })}</div>` : ''}`
+    : `<div class="stats">
+        <div class="stat"><span>${t('accounts')}</span><b>${stats.users}</b></div>
+        <div class="stat"><span>${t('active')}</span><b>${stats.active}</b></div>
+        <div class="stat"><span>${t('online')}</span><b>${stats.online}</b></div>
+        <div class="stat"><span>${t('pendingPinRecovery')}</span><b>${stats.pendingPinRecovery || 0}</b></div>
+        <div class="stat"><span>${t('chats')}</span><b>${stats.conversations}</b></div>
+      </div>
+      ${stats.pendingPinRecovery ? `<div class="notice">${t('adminNoticePin', { n: stats.pendingPinRecovery })}</div>` : ''}`;
+  const lookupHtml = isMoney
+    ? ''
+    : `<div class="lookup">
+        <label class="field" style="margin:0;flex:1">
+          <span>${t('findById')}</span>
+          <input id="lookup" value="${esc(lookupQ)}" placeholder="${esc(t('lookupPlaceholder'))}" autocomplete="off" />
+        </label>
+        <button id="lookup-go">${t('openDossier')}</button>
+        <div id="lookup-hits" class="lookup-hits" hidden></div>
+      </div>`;
+  const tabsHtml = deskTabs
+    .map((id) => `<button data-t="${id}" class="${!focusAccountId && tab === id ? 'on' : ''}">${esc(tabLabel(id, stats))}</button>`)
+    .join('');
+  return `
+    <div class="desk-bar">
+      <button type="button" class="ghost" id="desk-back">${t('adminDeskBack')}</button>
+      <h2 class="desk-bar-title">${esc(isMoney ? t('adminDeskMoney') : t('adminDeskOther'))}${deskBadge(pending)}</h2>
+    </div>
+    ${statsHtml}
+    ${lookupHtml}
+    <div class="tabs">${tabsHtml}</div>
+    <div class="card" id="panel">${t('loading')}</div>`;
+}
+
 function nrcBlock(a) {
   if (a.gender !== 'female') return '';
   const passport = a.idDocType === 'passport';
@@ -204,6 +335,7 @@ async function bootDash() {
 
   function bindLookup() {
     const input = $('#lookup');
+    if (!input) return;
     const hits = $('#lookup-hits');
     let t;
     const paintHits = (matches) => {
@@ -294,7 +426,7 @@ async function bootDash() {
           </p>
           ${a.photoUrl ? `<img class="thumb user-ava" src="${a.photoUrl}" alt="" />` : ''}
           <p class="muted">${t('phone')} ${esc(a.phone)} · ${esc(gLabel(a.gender))} · ${t('born', { year: a.birthYear })}<br>
-            ${t('levelLabel', { n: a.level })} · ${t('paidUntilLabel')} <span id="admin-paid-remain" class="paid-tick">${esc(paidLine)}</span><br>
+            <span class="badge-lv">${t('lv', { n: a.level })}</span> · ${t('paidUntilLabel')} <span id="admin-paid-remain" class="paid-tick">${esc(paidLine)}</span><br>
             ${t('accountId')} ${a.accountIdHidden ? t('idHiddenLounge') : t('idVisibleLounge')}
             ${a.hostCode ? `<br>${t('hostCode')} ${esc(a.hostCode)}` : ''}
             ${a.bio ? `<br>${t('bio')}: ${esc(a.bio)}` : ''}</p>
@@ -426,47 +558,29 @@ async function bootDash() {
         ${I18n.switcherHtml('admin-lang')}
         <button class="ghost" id="out">${t('signOut')}</button>
       </div>
-      <div class="stats">
-        <div class="stat"><span>${t('accounts')}</span><b>${stats.users}</b></div>
-        <div class="stat"><span>${t('active')}</span><b>${stats.active}</b></div>
-        <div class="stat"><span>${t('online')}</span><b>${stats.online}</b></div>
-        <div class="stat"><span>${t('pendingUpgrades')}</span><b>${stats.pendingUpgrades}</b></div>
-        <div class="stat"><span>${t('pendingHosts')}</span><b>${stats.pendingHosts || 0}</b></div>
-        <div class="stat"><span>${t('payouts')}</span><b>${stats.pendingPayouts || 0}</b></div>
-        <div class="stat"><span>${t('pendingPinRecovery')}</span><b>${stats.pendingPinRecovery || 0}</b></div>
-        <div class="stat"><span>${t('chats')}</span><b>${stats.conversations}</b></div>
-      </div>
-      ${stats.pendingUpgrades ? `<div class="notice">${t('adminNoticeUpgrades')}</div>` : ''}
-      ${stats.pendingHosts ? `<div class="notice">${t('adminNoticeHosts')}</div>` : ''}
-      ${stats.pendingPayouts ? `<div class="notice">${t('adminNoticePayouts', { n: stats.pendingPayouts })}</div>` : ''}
-      ${stats.pendingPinRecovery ? `<div class="notice">${t('adminNoticePin', { n: stats.pendingPinRecovery })}</div>` : ''}
-      <div class="lookup">
-        <label class="field" style="margin:0;flex:1">
-          <span>${t('findById')}</span>
-          <input id="lookup" value="${esc(lookupQ)}" placeholder="${esc(t('lookupPlaceholder'))}" autocomplete="off" />
-        </label>
-        <button id="lookup-go">${t('openDossier')}</button>
-        <div id="lookup-hits" class="lookup-hits" hidden></div>
-      </div>
-      <div class="tabs">
-        <button data-t="accounts" class="${!focusAccountId && tab === 'accounts' ? 'on' : ''}">${t('tabAccounts')}</button>
-        <button data-t="create" class="${!focusAccountId && tab === 'create' ? 'on' : ''}">${t('tabCreate')}</button>
-        <button data-t="chats" class="${!focusAccountId && tab === 'chats' ? 'on' : ''}">${t('tabChats')}</button>
-        <button data-t="upgrades" class="${!focusAccountId && tab === 'upgrades' ? 'on' : ''}">${t('tabUpgrades')} ${stats.pendingUpgrades ? `(${stats.pendingUpgrades})` : ''}</button>
-        <button data-t="hosts" class="${!focusAccountId && tab === 'hosts' ? 'on' : ''}">${t('tabHosts')} ${stats.pendingHosts ? `(${stats.pendingHosts})` : ''}</button>
-        <button data-t="payouts" class="${!focusAccountId && tab === 'payouts' ? 'on' : ''}">${t('tabPayouts')} ${stats.pendingPayouts ? `(${stats.pendingPayouts})` : ''}</button>
-        <button data-t="pin-recovery" class="${!focusAccountId && tab === 'pin-recovery' ? 'on' : ''}">${t('tabPinRecovery')} ${stats.pendingPinRecovery ? `(${stats.pendingPinRecovery})` : ''}</button>
-        <button data-t="broadcast" class="${!focusAccountId && tab === 'broadcast' ? 'on' : ''}">${t('tabBroadcast')}</button>
-        <button data-t="ads" class="${!focusAccountId && tab === 'ads' ? 'on' : ''}">${t('tabAds')}</button>
-        <button data-t="pricing" class="${!focusAccountId && tab === 'pricing' ? 'on' : ''}">${t('tabPricing')}</button>
-        <button data-t="settings" class="${!focusAccountId && tab === 'settings' ? 'on' : ''}">${t('tabSettings')}</button>
-      </div>
-      <div class="card" id="panel">${t('loading')}</div>`;
+      ${desk ? deskWorkHtml(stats) : deskHomeHtml(stats)}`;
     I18n.bindSwitcher('admin-lang');
     $('#out').onclick = async () => {
       await api('/api/admin/logout', { method: 'POST' });
+      desk = null;
+      tab = 'accounts';
       showLogin();
     };
+    document.querySelectorAll('[data-desk]').forEach((b) => {
+      b.onclick = () => {
+        enterDesk(b.dataset.desk, stats);
+        render();
+      };
+    });
+    const deskBack = $('#desk-back');
+    if (deskBack) {
+      deskBack.onclick = () => {
+        desk = null;
+        focusAccountId = null;
+        render();
+      };
+    }
+    if (!desk) return;
     document.querySelectorAll('.tabs [data-t]').forEach((b) => {
       b.onclick = () => {
         tab = b.dataset.t;
@@ -488,7 +602,7 @@ async function bootDash() {
             <button class="ghost" data-open-id="${esc(a.accountId)}">${esc(a.accountId)}</button>
             ${a.isSpecial ? `<br><span class="badge-neon">${esc(a.badge || 'special')}</span>` : ''}${a.isHost ? `<br><span class="badge-neon badge-host" data-badge="host">${t('host')}</span>` : ''}${a.hostStatus === 'pending' ? `<br><span class="muted">${t('nrcPending')}</span>` : ''}</td>
           <td>${esc(a.phone)}<br><span class="muted">${esc(gLabel(a.gender))} · ${a.birthYear}</span></td>
-          <td>${a.isSpecial ? `${t('unlimitedChat')} · ${esc(a.badge || 'special')}` : `${t('lv', { n: a.level })}<br>${remainingPaidParts(a.paidUntil).ms ? `${new Date(a.paidUntil).toLocaleDateString(I18n.locale())} · ${esc(paidHoursLabel(a.paidUntil))}` : '—'}`}</td>
+          <td>${a.isSpecial ? `${t('unlimitedChat')} · ${esc(a.badge || 'special')}` : `<span class="badge-lv">${t('lv', { n: a.level })}</span><br>${remainingPaidParts(a.paidUntil).ms ? `${new Date(a.paidUntil).toLocaleDateString(I18n.locale())} · ${esc(paidHoursLabel(a.paidUntil))}` : '—'}`}</td>
           <td>${a.accountIdHidden ? t('hiddenFromLounge') : t('visible')}</td>
           <td><span class="badge ${a.status}">${st(a.status)}</span> ${a.online ? `· ${t('onlineShort')}` : ''}${a.createdByAdmin ? `<br><span class="muted">${t('adminCreated')}</span>` : ''}</td>
           <td class="actions">${moderationButtons(a)}</td>
