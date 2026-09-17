@@ -566,6 +566,7 @@ async function showHome(opts = {}) {
         <div class="upgrade-promo-card" role="dialog" aria-modal="true" aria-labelledby="upgrade-promo-title">
           <button type="button" class="upgrade-promo-x" id="upgrade-promo-x" aria-label="${t('close')}">${ICONS.close}</button>
           <p class="upgrade-promo-kicker">sakarwine</p>
+          <p class="upgrade-promo-badge">50%</p>
           <h3 id="upgrade-promo-title">${t('upgradePromoTitle')}</h3>
           <p>${t('upgradePromoBody')}</p>
           <button type="button" class="btn block" id="upgrade-promo-go">${t('upgradePromoCta')}</button>
@@ -609,6 +610,14 @@ async function showHome(opts = {}) {
   const showPromo = promo && !u.isSpecial && (opts.afterRegister || !promoHidden);
   if (showPromo) {
     promo.hidden = false;
+    promo.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    const card = promo.querySelector('.upgrade-promo-card');
+    if (card) {
+      card.onclick = (e) => e.stopPropagation();
+    }
     $('#upgrade-promo-x').onclick = (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -616,9 +625,9 @@ async function showHome(opts = {}) {
       promo.hidden = true;
       startHomeTour();
     };
-    $('#upgrade-promo-go').onclick = () => {
-      try { localStorage.setItem('sw_upgrade_promo', '1'); } catch {}
-      promo.hidden = true;
+    $('#upgrade-promo-go').onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       showUpgrade();
     };
   } else {

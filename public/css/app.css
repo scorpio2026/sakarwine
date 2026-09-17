@@ -623,6 +623,19 @@ body {
   color: var(--green-deep);
   font-weight: 800;
 }
+.upgrade-promo-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 0 10px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: linear-gradient(145deg, #ff8a3d, #ff4ecd);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
 .upgrade-promo-card h3 {
   margin: 0 0 10px;
   font-family: var(--display);

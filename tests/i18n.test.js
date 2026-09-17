@@ -66,6 +66,9 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   assert.equal(registerSlice.includes('nrcFront'), false);
   assert.match(js, /settingsRow\('go-host'/);
   assert.match(js, /upgrade-promo/);
+  assert.match(js, /upgrade-promo-x/);
+  assert.match(js, /afterRegister/);
+  assert.match(js, /sw_upgrade_promo/);
   assert.equal(js.includes('hostCreditBanner'), false);
   assert.equal(js.includes('formatChatMs'), false);
   assert.match(js, /id="host-code"/);
