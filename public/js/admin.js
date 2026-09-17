@@ -228,7 +228,7 @@ async function bootDash() {
             ${a.createdByAdmin ? '· admin-created' : ''}
             ${a.isSpecial ? '· unlimited chat' : ''}
           </p>
-          ${a.photoUrl ? `<img class="thumb" src="${a.photoUrl}" alt="" />` : ''}
+          ${a.photoUrl ? `<img class="thumb user-ava" src="${a.photoUrl}" alt="" />` : ''}
           <p class="muted">Phone ${esc(a.phone)} · ${esc(a.gender)} · born ${a.birthYear}<br>
             Level ${a.level} · Paid until ${paidLine}<br>
             Account ID ${a.accountIdHidden ? 'hidden from lounge' : 'visible to lounge'}

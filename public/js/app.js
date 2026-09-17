@@ -878,6 +878,7 @@ function renderChat(opts = {}) {
       <div class="screen-body">
       <div class="topbar chat-head">
         <button class="chat-tool" id="back" aria-label="${t('back')}">${ICONS.back}</button>
+        ${avatarHtml(c.peer)}
         <div class="meta">
           <div class="name">${t('chatTitle')} · ${escapeHtml(c.peer.username)} ${roleMark(c.peer)}</div>
           <div class="sub">${c.peer.online ? t('activeNow') : t('offline')} · ${formatRemain(c.window.remainingMs, c.window)}</div>
@@ -1401,9 +1402,7 @@ function showSettings() {
 function showEditProfile() {
   state.view = 'edit-profile';
   const u = state.user;
-  const photo = u.photoUrl
-    ? `<img class="avatar round me-ava" id="edit-preview" alt="" src="${escapeHtml(u.photoUrl)}" />`
-    : `<div class="avatar ai round me-ava" id="edit-preview">🍷</div>`;
+  const photo = avatarHtml(u, 'round me-ava').replace('<img ', '<img id="edit-preview" ');
   app.innerHTML = `
     <section class="screen settings-screen">
       <div class="screen-body">

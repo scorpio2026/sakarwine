@@ -116,6 +116,13 @@ th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--stro
 .chat-log { max-height: 420px; overflow: auto; display: grid; gap: 8px; }
 .msg { padding: 8px 10px; border-radius: 12px; background: #ecfdf5; }
 img.thumb { max-width: min(220px, 100%); height: auto; border-radius: 12px; }
+img.thumb.user-ava {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 50%;
+  background: #ffc2d4;
+}
 audio { width: 100%; max-width: 100%; }
 .field { margin: 10px 0; }
 .field label { display: block; font-size: 0.78rem; color: var(--rose); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 4px; }
