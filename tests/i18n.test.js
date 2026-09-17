@@ -165,6 +165,8 @@ test('bottom nav has Home, Chat, Group, Profile, and Help — no Upgrade tab', (
   assert.equal(navSlice.includes('navUpgrade'), false);
   assert.match(js, /function showInbox/);
   assert.match(js, /function showGroups/);
+  assert.match(js, /function showDiscoverPreview/);
+  assert.match(js, /\/api\/groups\/discover/);
   assert.match(js, /\/api\/conversations/);
   assert.match(js, /\/api\/groups/);
   assert.match(js, /function meBtnHtml/);

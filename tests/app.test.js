@@ -1034,8 +1034,25 @@ test('paid members can create groups; invites accept and decline', async () => {
   const found = disc.data.groups.find((g) => g.id === gid);
   assert.ok(found);
   assert.equal(found.name, 'Sunset');
+  assert.ok(found.logoUrl);
   assert.equal(found.joined, false);
   assert.equal(found.phone, undefined);
+
+  const passer = await register('gpass' + Date.now().toString().slice(-5), '676767', 'female');
+  const passAsk = await req(`/api/groups/${gid}/join`, { method: 'POST', jar: passer.jar });
+  assert.equal(passAsk.res.status, 200, passAsk.data.error);
+  const ownerForPass = await req(`/api/groups/${gid}`, { jar: owner.jar });
+  const passRow = (ownerForPass.data.joinRequests || []).find((r) => r.user && r.user.id === passer.user.id);
+  assert.ok(passRow);
+  const passDec = await req(`/api/groups/${gid}/join-requests/${passRow.id}/decline`, {
+    method: 'POST',
+    jar: owner.jar
+  });
+  assert.equal(passDec.res.status, 200, passDec.data.error);
+  const passerGroups = await req('/api/groups', { jar: passer.jar });
+  assert.equal(passerGroups.data.groups.some((g) => g.id === gid), false);
+  const passerInbox = await req('/api/conversations', { jar: passer.jar });
+  assert.equal(passerInbox.data.conversations.some((c) => c.kind === 'group' && c.groupId === gid), false);
 
   const ask = await req(`/api/groups/${gid}/join`, { method: 'POST', jar: seeker.jar });
   assert.equal(ask.res.status, 200, ask.data.error);

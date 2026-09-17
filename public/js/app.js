@@ -75,6 +75,7 @@ function rerender() {
   else if (v === 'chats') showInbox();
   else if (v === 'groups') showGroups();
   else if (v === 'group-create') showCreateGroup();
+  else if (v === 'group-preview' && state.discoverGroup) showDiscoverPreview(state.discoverGroup);
   else if (v === 'group-detail' && state.group) showGroupDetail(state.group.id);
   else if (v === 'group-chat' && state.groupChat) renderGroupChat();
   else if (v === 'chat' && state.chat) renderChat();
@@ -805,21 +806,58 @@ async function showGroups() {
         </div>`).join('')
           : `<p class="settings-empty">${t('noDiscoverGroups')}</p>`
       );
+      discBox.querySelectorAll('.user-row').forEach((row) => {
+        const g = others.find((x) => x.id === Number(row.dataset.id));
+        row.onclick = () => {
+          if (g) showDiscoverPreview(g);
+        };
+      });
       discBox.querySelectorAll('[data-join]').forEach((btn) => {
-        btn.onclick = async (e) => {
+        btn.onclick = (e) => {
           e.stopPropagation();
-          try {
-            await api(`/api/groups/${btn.dataset.join}/join`, { method: 'POST' });
-            toast(t('joinRequested'));
-            showGroups();
-          } catch (err) {
-            toastErr(err);
-          }
+          const g = others.find((x) => x.id === Number(btn.dataset.join));
+          if (g) showDiscoverPreview(g);
         };
       });
     }
   } catch (e) {
     toastErr(e);
+  }
+}
+
+function showDiscoverPreview(g) {
+  state.view = 'group-preview';
+  state.discoverGroup = g;
+  app.innerHTML = `
+    <section class="screen">
+      <div class="screen-body">
+      <div class="topbar">
+        <button type="button" class="icon-btn" id="back" aria-label="${t('back')}">${ICONS.back}</button>
+        <h2>${escapeHtml(g.name || t('discoverGroups'))}</h2>
+      </div>
+      <div class="glass-card stack center me-card">
+        ${groupLogoHtml(g)}
+        <div class="me-name">${escapeHtml(g.name || '')}</div>
+        ${g.memberCount != null ? `<div class="small muted">${t('groupMemberCount', { n: g.memberCount })}</div>` : ''}
+        ${g.requested
+          ? `<p class="small muted">${t('joinRequested')}</p>`
+          : `<button type="button" class="btn block" id="req-join">${t('requestJoin')}</button>`}
+      </div>
+      </div>
+      ${nav('groups')}
+    </section>`;
+  bindNav();
+  $('#back').onclick = showGroups;
+  if ($('#req-join')) {
+    $('#req-join').onclick = async () => {
+      try {
+        await api(`/api/groups/${g.id}/join`, { method: 'POST' });
+        toast(t('joinRequested'));
+        showGroups();
+      } catch (e) {
+        toastErr(e);
+      }
+    };
   }
 }
 
