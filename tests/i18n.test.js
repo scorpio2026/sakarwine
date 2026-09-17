@@ -203,11 +203,11 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   assert.equal(I18n.t('errBioRestricted'), 'ကန့်သတ်စာလုံးများ မရပါ။');
 });
 
-test('admin dashboard paints paid accounts green and badges extra upgrades', () => {
+test('admin dashboard highlights paid accounts and badges extra upgrades', () => {
   const fs = require('fs');
   const path = require('path');
   const css = fs.readFileSync(path.join(__dirname, '../public/css/admin.css'), 'utf8');
-  assert.match(css, /tr\.paid-active td\s*\{[^}]*#bbf7d0/);
+  assert.match(css, /tr\.paid-active td\s*\{[^}]*--paid-glow/);
   assert.match(css, /\.extra-upgrade-badge/);
   const js = fs.readFileSync(path.join(__dirname, '../public/js/admin.js'), 'utf8');
   assert.match(js, /a\.paidActive \? 'paid-active'/);
@@ -559,4 +559,46 @@ test('auth login screens use glass neon chrome and keep existing login wiring', 
   assert.match(adminCss, /body\.is-admin-login/);
   assert.match(adminCss, /backdrop-filter:\s*blur/);
   assert.match(adminCss, /underline-field/);
+});
+
+test('logged-in app and admin shells share glass neon tokens; create-account forms use auth glass', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const themeCss = fs.readFileSync(path.join(__dirname, '../public/css/theme.css'), 'utf8');
+  const appCss = fs.readFileSync(path.join(__dirname, '../public/css/app.css'), 'utf8');
+  const adminCss = fs.readFileSync(path.join(__dirname, '../public/css/admin.css'), 'utf8');
+  const appJs = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
+  const indexHtml = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
+  const adminHtml = fs.readFileSync(path.join(__dirname, '../public/admin.html'), 'utf8');
+  assert.match(themeCss, /--neon-cyan:\s*#22d3ee/);
+  assert.match(themeCss, /--neon-magenta:\s*#e879f9/);
+  assert.match(themeCss, /--glass-fill:/);
+  assert.match(themeCss, /--sw-canvas:/);
+  assert.match(themeCss, /--sw-cta:/);
+  assert.match(indexHtml, /href="\/css\/theme\.css"/);
+  assert.match(adminHtml, /href="\/css\/theme\.css"/);
+  assert.match(appCss, /\.glass-card\s*\{[^}]*backdrop-filter:/);
+  assert.match(appCss, /\.auth-card\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(appCss, /\.register-screen/);
+  assert.match(appCss, /\.scan-screen/);
+  assert.match(appCss, /body:has\(\.auth-screen\)/);
+  assert.match(adminCss, /background:\s*var\(--sw-canvas\)/);
+  assert.match(adminCss, /\.card\s*\{[^}]*backdrop-filter:/);
+  const registerSlice = appJs.slice(appJs.indexOf('function showRegister'), appJs.indexOf('function showScan'));
+  const scanSlice = appJs.slice(appJs.indexOf('function showScan'), appJs.indexOf('function nav('));
+  assert.match(registerSlice, /register-screen auth-screen/);
+  assert.match(registerSlice, /welcome-orbs/);
+  assert.match(registerSlice, /auth-card/);
+  assert.match(registerSlice, /name="username"/);
+  assert.match(registerSlice, /name="password"/);
+  assert.match(registerSlice, /name="gender"/);
+  assert.match(registerSlice, /name="birthYear"/);
+  assert.match(registerSlice, /name="phone"/);
+  assert.match(registerSlice, /name="photo"/);
+  assert.equal(registerSlice.includes("switcherHtml('lang-switch')"), false);
+  assert.match(scanSlice, /scan-screen auth-screen/);
+  assert.match(scanSlice, /auth-card/);
+  assert.match(scanSlice, /id="cam"/);
+  assert.match(scanSlice, /id="start-scan"/);
+  assert.match(scanSlice, /\/api\/me\/liveness/);
 });

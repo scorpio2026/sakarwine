@@ -99,7 +99,7 @@ let paintUi = null;
 function setAdminLoginChrome(on) {
   document.body.classList.toggle('is-admin-login', on);
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = on ? '#0b0714' : '#047857';
+  if (meta) meta.content = '#0b0714';
 }
 
 function showLogin() {

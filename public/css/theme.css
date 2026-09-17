@@ -1,0 +1,61 @@
+/* Shared sakarwine neon / frosted-glass theme (admin + app + auth). */
+:root {
+  --sw-void: #05040c;
+  --sw-deep: #0b0714;
+  --sw-mid: #15102a;
+  --sw-ink: #f4f1ff;
+  --sw-muted: rgba(237, 233, 254, 0.72);
+  --sw-faint: rgba(237, 233, 254, 0.48);
+  --neon-cyan: #22d3ee;
+  --neon-magenta: #e879f9;
+  --neon-violet: #8b5cf6;
+  --neon-pink: #ec4899;
+  --cta-a: #7c3aed;
+  --cta-b: #ec4899;
+  --cta-c: #22d3ee;
+  --glass-fill: rgba(14, 10, 24, 0.46);
+  --glass-strong: rgba(18, 12, 34, 0.88);
+  --glass-stroke: rgba(255, 255, 255, 0.18);
+  --surface: rgba(255, 255, 255, 0.08);
+  --surface-hover: rgba(232, 121, 249, 0.14);
+  --paid-glow: rgba(34, 211, 238, 0.22);
+  --sw-blur: blur(22px) saturate(1.35);
+  --sw-canvas:
+    radial-gradient(900px 520px at 12% 8%, rgba(236, 72, 153, 0.42), transparent 55%),
+    radial-gradient(820px 480px at 92% 4%, rgba(99, 102, 241, 0.5), transparent 52%),
+    radial-gradient(720px 520px at 70% 100%, rgba(34, 211, 238, 0.2), transparent 50%),
+    linear-gradient(180deg, #1c1230, #0b0714 58%, #15102a);
+  --sw-cta: linear-gradient(90deg, var(--cta-a), var(--cta-b) 52%, var(--cta-c));
+  --sw-cta-shadow: 0 12px 28px rgba(124, 58, 237, 0.38);
+
+  /* Aliases so existing app/admin rules pick up the glass system */
+  --auth-bg: var(--sw-void);
+  --auth-ink: var(--sw-ink);
+  --bg: var(--sw-deep);
+  --bg0: var(--sw-deep);
+  --bg1: var(--sw-mid);
+  --ink: var(--sw-ink);
+  --muted: var(--sw-muted);
+  --cream: var(--sw-ink);
+  --panel: var(--glass-strong);
+  --card: var(--glass-strong);
+  --glass: var(--glass-fill);
+  --stroke: var(--glass-stroke);
+  --green: var(--neon-cyan);
+  --green-deep: var(--neon-magenta);
+  --green-soft: #c4b5fd;
+  --hero-a: var(--cta-a);
+  --hero-b: var(--cta-b);
+  --hero-c: var(--cta-c);
+  --wine: var(--neon-magenta);
+  --wine-deep: #a21caf;
+  --rose: var(--neon-magenta);
+  --gold: var(--neon-cyan);
+  --ok: #34d399;
+  --danger: #fb7185;
+  --shadow: 0 24px 50px rgba(0, 0, 0, 0.45);
+}
+
+html {
+  color-scheme: dark;
+}

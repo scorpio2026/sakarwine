@@ -522,12 +522,18 @@ function yearOptions() {
 function showRegister() {
   state.view = 'register';
   app.innerHTML = `
-    <section class="screen">
-      <div class="topbar">
+    <section class="screen register-screen auth-screen">
+      <div class="welcome-orbs" aria-hidden="true">
+        <span class="orb orb-a"></span>
+        <span class="orb orb-b"></span>
+        <span class="orb orb-c"></span>
+        <span class="orb orb-d"></span>
+      </div>
+      <div class="topbar auth-topbar">
         <button class="icon-btn" id="back">${ICONS.back}</button>
         <h2>${t('joinTitle')}</h2>
       </div>
-      <form id="reg" class="glass-card" style="overflow:auto">
+      <form id="reg" class="glass-card auth-card" style="overflow:auto">
         <label class="photo-pick">
           <input class="hidden-file" type="file" name="photo" accept="image/*" required />
           <div id="photo-preview" class="avatar ai">📷</div>
@@ -583,8 +589,15 @@ function showRegister() {
 function showScan() {
   state.view = 'scan';
   app.innerHTML = `
-    <section class="screen">
-      <div class="topbar"><h2>${t('faceScan')}</h2></div>
+    <section class="screen scan-screen auth-screen">
+      <div class="welcome-orbs" aria-hidden="true">
+        <span class="orb orb-a"></span>
+        <span class="orb orb-b"></span>
+        <span class="orb orb-c"></span>
+        <span class="orb orb-d"></span>
+      </div>
+      <div class="topbar auth-topbar"><h2>${t('faceScan')}</h2></div>
+      <div class="glass-card auth-card">
       <p class="muted small">${t('scanHelp')}</p>
       <div class="scan-stage">
         <video id="cam" playsinline muted></video>
@@ -592,6 +605,7 @@ function showScan() {
       </div>
       <div class="scan-hint" id="hint">${t('allowCamera')}</div>
       <button class="btn block" id="start-scan" style="margin-top:10px">${t('startScan')}</button>
+      </div>
     </section>`;
   $('#start-scan').onclick = async () => {
     $('#start-scan').disabled = true;
