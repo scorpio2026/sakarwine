@@ -180,13 +180,14 @@ function statusPill(user) {
   if (user && remainingPaidParts(user.paidUntil).ms) {
     return `<span class="pill paid-tick" id="paid-remain-pill">${t('paid')} · ${escapeHtml(paidCountdownLabel(user.paidUntil))} · ${t('lv', { n: user.level })}</span>`;
   }
-  return `<span class="pill">${user && user.paid ? t('paid') : t('free24h')} · ${t('lv', { n: user.level })}</span>`;
+  return `<span class="pill">${t('lv', { n: user && user.level })}</span>`;
 }
 
 function bindPaidRemain() {
   const u = state.user;
   if (!u || u.isSpecial) return;
-  tickPaidRemain(u.paidUntil);
+  const freeUntil = state.view === 'profile' ? u.freeUntil : null;
+  tickPaidRemain(u.paidUntil, freeUntil);
 }
 
 function petals() {}
@@ -1094,6 +1095,7 @@ function renderGroupChat() {
   state.view = 'group-chat';
   const c = state.groupChat;
   const expired = c.window && c.window.expired;
+  const groupRemain = expired ? t('upgradeEnded') : formatRemain(c.window && c.window.remainingMs, c.window);
   app.innerHTML = `
     <section class="screen chat-screen">
       <div class="screen-body">
@@ -1102,7 +1104,7 @@ function renderGroupChat() {
         ${groupLogoHtml(c)}
         <div class="meta">
           <div class="name">${escapeHtml(c.name)}</div>
-          <div class="sub">${expired ? t('upgradeEnded') : formatRemain(c.window && c.window.remainingMs, c.window)}</div>
+          <div class="sub">${escapeHtml(groupRemain || '')}</div>
         </div>
         <div class="chat-actions">
           <button class="chat-tool" id="leave-group" title="${t('leaveGroup')}" aria-label="${t('leaveGroup')}">${t('leaveGroup')}</button>
@@ -1177,7 +1179,7 @@ async function showHome(opts = {}) {
       <div class="screen-body">
       <div class="topbar">
         ${meBtnHtml()}
-        <h2 id="home-title">${t('contactsTitle')}</h2>
+        <h2 id="home-title">${escapeHtml((u && u.username) || '')}</h2>
         <span class="pill-slot">${statusPill(u)}</span>
       </div>
       <div class="gender-filter" role="tablist" aria-label="${t('gender')}">
@@ -1421,9 +1423,7 @@ function formatRemain(ms, window) {
   if (window && window.hostVisitorChat) return t('unlimitedVisitor');
   if (window && window.special) return t('unlimited');
   if (ms == null) return t('unlimitedPaid');
-  const h = Math.floor(ms / 3600000);
-  const m = Math.floor((ms % 3600000) / 60000);
-  return t('freeLeft', { h, m });
+  return '';
 }
 
 function remainingPaidParts(paidUntil, now = Date.now()) {
@@ -1447,29 +1447,41 @@ function paidCountdownLabel(paidUntil, now = Date.now()) {
   return t('paidCountdown', { h: parts.hours, m: pad2(parts.minutes), s: pad2(parts.seconds) });
 }
 
+function freeCountdownLabel(freeUntil, now = Date.now()) {
+  const parts = remainingPaidParts(freeUntil, now);
+  if (!parts.ms) return '';
+  return t('freeCountdown', { h: parts.hours, m: pad2(parts.minutes), s: pad2(parts.seconds) });
+}
+
 function paidStatusText(u, now = Date.now()) {
   if (u && u.isSpecial) return t('specialChat');
   const until = u && u.paidUntil;
   const label = paidCountdownLabel(until, now);
-  if (!label) return t('notPaidYet');
-  return `${label} · ${t('paidUntil', { when: I18n.formatWhen(until) })}`;
+  if (label) return `${label} · ${t('paidUntil', { when: I18n.formatWhen(until) })}`;
+  const freeLabel = freeCountdownLabel(u && u.freeUntil, now);
+  if (freeLabel) return freeLabel;
+  return t('notPaidYet');
 }
 
 function paidStatusHtml(u, now = Date.now()) {
   if (u && u.isSpecial) return escapeHtml(t('specialChat'));
   const until = u && u.paidUntil;
   const label = paidCountdownLabel(until, now);
-  if (!label) return escapeHtml(t('notPaidYet'));
-  return `<span class="paid-tick">${escapeHtml(label)}</span><span class="muted"> · ${escapeHtml(t('paidUntil', { when: I18n.formatWhen(until) }))}</span>`;
+  if (label) {
+    return `<span class="paid-tick">${escapeHtml(label)}</span><span class="muted"> · ${escapeHtml(t('paidUntil', { when: I18n.formatWhen(until) }))}</span>`;
+  }
+  const freeLabel = freeCountdownLabel(u && u.freeUntil, now);
+  if (freeLabel) return `<span class="paid-tick">${escapeHtml(freeLabel)}</span>`;
+  return escapeHtml(t('notPaidYet'));
 }
 
 function paidPillText(paidUntil, now = Date.now()) {
   const lv = t('lv', { n: (state.user && state.user.level) || 0 });
   const label = paidCountdownLabel(paidUntil, now);
-  return label ? `${t('paid')} · ${label} · ${lv}` : `${t('free24h')} · ${lv}`;
+  return label ? `${t('paid')} · ${label} · ${lv}` : lv;
 }
 
-function tickPaidRemain(paidUntil) {
+function tickPaidRemain(paidUntil, freeUntil) {
   if (state.paidTick) {
     clearInterval(state.paidTick);
     state.paidTick = null;
@@ -1484,20 +1496,23 @@ function tickPaidRemain(paidUntil) {
       }
       return;
     }
-    const parts = remainingPaidParts(paidUntil);
-    if (remainEl) remainEl.innerHTML = paidStatusHtml({ paidUntil, isSpecial: false });
+    const paidParts = remainingPaidParts(paidUntil);
+    const freeParts = remainingPaidParts(freeUntil);
+    if (remainEl) remainEl.innerHTML = paidStatusHtml({ paidUntil, freeUntil, isSpecial: false });
     if (pillEl) pillEl.textContent = paidPillText(paidUntil);
-    if (state.user && !parts.ms) {
+    if (state.user && !paidParts.ms) {
       state.user.paid = false;
       state.user.paidRemainingHours = 0;
     }
-    if (!parts.ms && state.paidTick) {
+    if (!paidParts.ms && !freeParts.ms && state.paidTick) {
       clearInterval(state.paidTick);
       state.paidTick = null;
     }
   };
   paint();
-  if (remainingPaidParts(paidUntil).ms) state.paidTick = setInterval(paint, 1000);
+  if (remainingPaidParts(paidUntil).ms || remainingPaidParts(freeUntil).ms) {
+    state.paidTick = setInterval(paint, 1000);
+  }
 }
 
 function promptChatLang(c, opts = {}) {
@@ -1547,6 +1562,9 @@ function renderChat(opts = {}) {
     : gate.closed && !state.user.isAdmin
       ? t('chatClosedByAdmin')
       : '';
+  const presence = c.peer.online ? t('activeNow') : t('offline');
+  const remain = formatRemain(c.window.remainingMs, c.window);
+  const chatSub = remain ? `${presence} · ${remain}` : presence;
   app.innerHTML = `
     <section class="screen chat-screen">
       <div class="screen-body">
@@ -1555,7 +1573,7 @@ function renderChat(opts = {}) {
         ${avatarHtml(c.peer)}
         <div class="meta">
           <div class="name">${t('chatTitle')} · ${escapeHtml(c.peer.username)} ${roleMark(c.peer)}</div>
-          <div class="sub">${c.peer.online ? t('activeNow') : t('offline')} · ${formatRemain(c.window.remainingMs, c.window)}</div>
+          <div class="sub">${escapeHtml(chatSub)}</div>
         </div>
         <div class="chat-actions">
           <button class="chat-tool" id="chat-lang" title="${t('changeChatLang')}" aria-label="${t('changeChatLang')}">${ICONS.lang}</button>

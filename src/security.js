@@ -18,6 +18,7 @@ const PRIVILEGE_KEYS = [
   'paidUntil',
   'paid_until',
   'paidRemainingHours',
+  'freeUntil',
   'accountId',
   'account_id',
   'status',

@@ -1259,8 +1259,13 @@ body {
   font-size: 0.7rem;
   padding: 2px 7px;
   border-radius: 999px;
-  background: rgba(16, 185, 129, .14);
-  color: var(--green-deep);
+  background-image: linear-gradient(90deg, #5dffb0, #7dfff6, #c8ff4e, #5dffb0);
+  background-size: 280% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: neon-run 2.2s linear infinite;
+  filter: drop-shadow(0 0 4px #5dffb0) drop-shadow(0 0 8px #7dfff6);
 }
 .badge-neon {
   display: inline-block;

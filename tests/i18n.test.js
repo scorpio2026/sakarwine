@@ -236,6 +236,29 @@ test('bottom nav has Home, Chat, Group, Profile, and Help — no Upgrade tab', (
   assert.match(js, /async function showHome[\s\S]*?bindPaidRemain\(\);/);
   assert.match(js, /async function showInbox[\s\S]*?bindPaidRemain\(\);/);
   assert.match(js, /async function showProfile[\s\S]*?bindPaidRemain\(\);/);
+  assert.match(js, /id="home-title">\$\{escapeHtml\(\(u && u\.username\) \|\| ''\)\}/);
+  assert.equal(js.includes("id=\"home-title\">${t('contactsTitle')}"), false);
+  const pillFn = js.slice(js.indexOf('function statusPill'), js.indexOf('function bindPaidRemain'));
+  assert.equal(pillFn.includes('free24h'), false);
+  assert.match(pillFn, /paid-remain-pill/);
+  const paidPill = js.slice(js.indexOf('function paidPillText'), js.indexOf('function tickPaidRemain'));
+  assert.equal(paidPill.includes('free24h'), false);
+  assert.match(js, /function freeCountdownLabel/);
+  assert.match(js, /freeUntil/);
+  assert.match(js, /t\('freeCountdown'/);
+  const remainFn = js.slice(js.indexOf('function formatRemain'), js.indexOf('function remainingPaidParts'));
+  assert.equal(remainFn.includes('freeLeft'), false);
+  assert.match(js, /state\.view === 'profile' \? u\.freeUntil/);
+  I18n.setLang('en');
+  assert.equal(I18n.t('freeCountdown', { h: 23, m: '01', s: '09' }), '23h 01m 09s free remaining');
+  I18n.setLang('my');
+  assert.match(I18n.t('freeCountdown', { h: 23, m: '01', s: '09' }), /အခမဲ့/);
+  assert.match(css, /\.badge-lv\s*\{[^}]*font-size:\s*0\.7rem/);
+  assert.match(css, /\.badge-lv\s*\{[^}]*padding:\s*2px 7px/);
+  assert.match(css, /\.badge-lv\s*\{[^}]*border-radius:\s*999px/);
+  assert.match(css, /\.badge-lv\s*\{[^}]*neon-run/);
+  assert.match(css, /\.badge-lv\s*\{[^}]*background-clip:\s*text/);
+  assert.match(css, /\.badge-neon\s*\{[^}]*neon-run/);
 });
 
 test('settings PIN change is translated and separate from Help recovery', () => {

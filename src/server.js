@@ -733,6 +733,7 @@ function serializeMe(user) {
   const out = publicUser(user, { includePrivate: true, online: true, viewer: user });
   Object.assign(out, hostIncomeSummary(db, user.id, publicUser));
   out.incomeDemoVideoUrl = getSetting(db, 'income_demo_video_url', '/demo/income-host.mp4');
+  out.freeUntil = Number(user.created_at || out.createdAt || 0) + FREE_CHAT_MS;
   return out;
 }
 

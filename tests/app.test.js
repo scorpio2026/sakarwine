@@ -14,7 +14,7 @@ process.env.NODE_ENV = 'test';
 
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { server, db } = require('../src/server');
+const { server, db, FREE_CHAT_MS } = require('../src/server');
 const { remainingPaidHours } = require('../src/pricing');
 const { purgeStaleAccounts } = require('../src/platform');
 
@@ -159,6 +159,32 @@ test('home people list filters by gender query', async () => {
 
   const ignored = await req('/api/users?gender=nope', { jar: viewer.jar });
   assert.equal(ignored.data.users.length, all.data.users.length);
+});
+
+test('owner /api/me exposes freeUntil; public users and profile cards do not', async () => {
+  await started;
+  const owner = await register('frown' + Date.now().toString().slice(-5), '121212', 'male');
+  const other = await register('frope' + Date.now().toString().slice(-5), '232323', 'female');
+  const me = await req('/api/me', { jar: owner.jar });
+  assert.ok(me.data.user.freeUntil);
+  assert.equal(me.data.user.freeUntil, Number(me.data.user.createdAt) + FREE_CHAT_MS);
+  assert.ok(me.data.user.freeUntil > Date.now());
+  assert.ok(owner.user.freeUntil);
+  assert.equal(owner.user.freeUntil, Number(owner.user.createdAt) + FREE_CHAT_MS);
+
+  const listed = await req('/api/users', { jar: owner.jar });
+  const peer = listed.data.users.find((u) => u.username === other.user.username);
+  assert.ok(peer);
+  assert.equal(Object.prototype.hasOwnProperty.call(peer, 'freeUntil'), false);
+  assert.equal(peer.freeUntil, undefined);
+
+  const selfRow = listed.data.users.find((u) => u.username === owner.user.username);
+  if (selfRow) assert.equal(Object.prototype.hasOwnProperty.call(selfRow, 'freeUntil'), false);
+
+  const card = await req(`/api/users/${peer.id}/card`, { jar: owner.jar });
+  assert.equal(card.res.status, 200);
+  assert.equal(Object.prototype.hasOwnProperty.call(card.data.user, 'freeUntil'), false);
+  assert.equal(card.data.user.freeUntil, undefined);
 });
 
 test('two users chat, filters, image lock, upgrade path', async () => {
