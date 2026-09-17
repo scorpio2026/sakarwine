@@ -350,6 +350,94 @@ test('members never receive phone numbers; admin still does', async () => {
   assert.equal(row.phone, '091111111');
 });
 
+test('settings: members can edit display profile and manage blocked list, not PIN', async () => {
+  await started;
+  const member = await register('seta' + Date.now().toString().slice(-6), '121212', 'male');
+  const other = await register('setb' + Date.now().toString().slice(-6), '343434', 'female');
+  const taken = other.user.username;
+  const before = await req('/api/me', { jar: member.jar });
+  const oldPhoto = before.data.user.photoUrl;
+  const oldLevel = before.data.user.level;
+  const oldGender = before.data.user.gender;
+  const oldYear = before.data.user.birthYear;
+
+  const hijack = await req('/api/me/profile', {
+    method: 'PUT',
+    json: {
+      username: 'seta_new' + Date.now().toString().slice(-4),
+      password: '000000',
+      pin: '000000',
+      phone: '0999999999',
+      gender: 'female',
+      birthYear: 2001,
+      level: 99,
+      badge: 'VVIP'
+    },
+    jar: member.jar
+  });
+  assert.equal(hijack.res.status, 200, hijack.data.error);
+  assert.match(hijack.data.user.username, /^seta_new/);
+  assert.equal(hijack.data.user.level, oldLevel);
+  assert.equal(hijack.data.user.gender, oldGender);
+  assert.equal(hijack.data.user.birthYear, oldYear);
+  assert.equal(hijack.data.user.badge, null);
+  assert.equal(Object.prototype.hasOwnProperty.call(hijack.data.user, 'phone'), false);
+  assert.equal(JSON.stringify(hijack.data).includes('0999999999'), false);
+  assert.equal(JSON.stringify(hijack.data).includes('091111111'), false);
+
+  const pinStill = await req('/api/login', {
+    method: 'POST',
+    json: { username: hijack.data.user.username, password: '121212' },
+    jar: cookieJar()
+  });
+  assert.equal(pinStill.res.status, 200, pinStill.data.error);
+  const pinChanged = await req('/api/login', {
+    method: 'POST',
+    json: { username: hijack.data.user.username, password: '000000' },
+    jar: cookieJar()
+  });
+  assert.equal(pinChanged.res.status, 401);
+
+  const clash = await req('/api/me/profile', {
+    method: 'PUT',
+    json: { username: taken },
+    jar: member.jar
+  });
+  assert.equal(clash.res.status, 409);
+
+  const reserved = await req('/api/me/profile', {
+    method: 'PUT',
+    json: { username: 'Saka' },
+    jar: member.jar
+  });
+  assert.equal(reserved.res.status, 400);
+
+  const photoForm = new FormData();
+  photoForm.set('username', hijack.data.user.username);
+  photoForm.set('photo', new Blob([PNG], { type: 'image/png' }), 'next.png');
+  const photoed = await req('/api/me/profile', { method: 'PUT', form: photoForm, jar: member.jar });
+  assert.equal(photoed.res.status, 200, photoed.data.error);
+  assert.ok(photoed.data.user.photoUrl);
+  assert.notEqual(photoed.data.user.photoUrl, oldPhoto);
+
+  const empty = await req('/api/me/blocked', { jar: member.jar });
+  assert.equal(empty.res.status, 200);
+  assert.deepEqual(empty.data.users, []);
+
+  const blocked = await req(`/api/users/${other.user.id}/block`, { method: 'POST', jar: member.jar });
+  assert.equal(blocked.res.status, 200);
+  const listed = await req('/api/me/blocked', { jar: member.jar });
+  assert.equal(listed.data.users.length, 1);
+  assert.equal(listed.data.users[0].id, other.user.id);
+  assert.equal(listed.data.users[0].blocked, true);
+  assert.equal(Object.prototype.hasOwnProperty.call(listed.data.users[0], 'phone'), false);
+  assert.equal(JSON.stringify(listed.data).includes('091111111'), false);
+
+  await req(`/api/users/${other.user.id}/block`, { method: 'DELETE', jar: member.jar });
+  const cleared = await req('/api/me/blocked', { jar: member.jar });
+  assert.equal(cleared.data.users.length, 0);
+});
+
 test('admin account ID search opens a full dossier', async () => {
   await started;
   const member = await register('seek' + Date.now().toString().slice(-6), '343434', 'male');

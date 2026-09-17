@@ -49,7 +49,8 @@ Copy `.env.example` into your shell or Render dashboard. The app reads standard 
 - Photos are **locked** until **Level 3** (three approved upgrades). Lower levels see a locked card and a notice on tap. You can always see photos you sent.
 - **Chat history is per-user.** Deleting a conversation (trash in the chat header) clears it for you only. The other person — and admin — still keep the full thread. The Saka guide chat cannot be deleted.
 - **Messages cannot be edited** after they are sent (no edit API or UI).
-- Forgot PIN? There is **no self-serve reset**. Contact admin with the phone used at registration.
+- **Settings** (Me → gear / Settings): edit photo and username, manage the blocked list, and log out. Gender, birth year, phone, and PIN are not member-editable.
+- Forgot PIN? There is **no self-serve reset**. Contact admin with the phone used at registration. The Settings PIN note points members there.
 
 ## Upgrades
 
@@ -99,5 +100,6 @@ Balances, levels, host credits, payouts, and admin rights are **server-authorita
 - `/admin` uses a separate cookie. Member requests cannot set admin, host, VVIP, or level.
 - Rate limits on register, login, admin login, withdraw, broadcast, and presence.
 - Foreign `Origin` rejected on mutating requests. CSP + `nosniff` + `DENY` framing.
-- Uploads use MIME-derived extensions (client filenames ignored). NRC, receipts, and **phone numbers** are admin-only. Member APIs never include `phone` (home, chat, lightbox, `/api/me`).
+- Uploads use MIME-derived extensions (client filenames ignored). NRC, receipts, and **phone numbers** are admin-only. Member APIs never include `phone` (home, chat, lightbox, `/api/me`, `/api/me/blocked`).
+- `PUT /api/me/profile` accepts photo and username only. PIN, phone, gender, and privilege fields are ignored.
 - Parameterized SQL. UI strings are escaped. Production 500s do not leak internals.

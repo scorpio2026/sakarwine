@@ -749,6 +749,69 @@ app.get('/api/me', requireUser, (req, res) => {
   });
 });
 
+app.get('/api/me/blocked', requireUser, requireActive, (req, res) => {
+  const rows = db
+    .prepare(
+      `SELECT u.* FROM blocks b
+       JOIN users u ON u.id = b.blocked_id
+       WHERE b.blocker_id = ?
+       ORDER BY b.created_at DESC`
+    )
+    .all(req.user.id);
+  const users = rows.map((row) => {
+    const u = publicUser(row, { online: isOnline(row.id), viewer: req.user });
+    u.blocked = true;
+    return u;
+  });
+  res.json({ users });
+});
+
+app.put(
+  '/api/me/profile',
+  requireUser,
+  requireActive,
+  rateLimit({ windowMs: 60 * 1000, max: 20, name: 'profile' }),
+  multerSingle(uploadProfile, 'photo'),
+  (req, res) => {
+    const photo = req.file;
+    const drop = () => unlinkQuiet(photo);
+    const requestedName = req.body && req.body.username != null ? String(req.body.username).trim() : null;
+    let username = req.user.username;
+    if (requestedName != null) {
+      if (!/^[A-Za-z0-9_]{3,20}$/.test(requestedName)) {
+        drop();
+        return res.status(400).json({ error: 'Username must be 3–20 letters, numbers, or underscores.' });
+      }
+      if (requestedName.toLowerCase() === 'saka') {
+        drop();
+        return res.status(400).json({ error: 'That username is reserved.' });
+      }
+      const taken = db
+        .prepare('SELECT id FROM users WHERE username = ? COLLATE NOCASE AND id != ?')
+        .get(requestedName, req.user.id);
+      if (taken) {
+        drop();
+        return res.status(409).json({ error: 'That username is already taken.' });
+      }
+      username = requestedName;
+    }
+    if (!photo && requestedName == null) {
+      return res.json({ user: serializeMe(req.user) });
+    }
+    const photoName = photo ? photo.filename : req.user.photo_path;
+    db.prepare('UPDATE users SET username = ?, photo_path = ? WHERE id = ?').run(
+      username,
+      photoName,
+      req.user.id
+    );
+    if (photo && req.user.photo_path && req.user.photo_path !== photo.filename) {
+      unlinkQuiet({ path: path.join(UPLOADS, 'profiles', path.basename(req.user.photo_path)) });
+    }
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+    res.json({ user: serializeMe(user) });
+  }
+);
+
 app.post('/api/me/liveness', requireUser, (req, res) => {
   const left = Boolean(req.body.left);
   const right = Boolean(req.body.right);

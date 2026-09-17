@@ -26,7 +26,9 @@ const ICONS = {
   image: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M7 17l4-4 3 3 3-3 3 4"/></svg>`,
   mic: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v3"/></svg>`,
   block: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M7 7l10 10"/></svg>`,
-  trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 7h14M10 7V5h4v2M8 7l1 12h6l1-12"/></svg>`
+  trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 7h14M10 7V5h4v2M8 7l1 12h6l1-12"/></svg>`,
+  gear: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 4.5v1.6M12 17.9v1.6M4.5 12h1.6M17.9 12h1.6M6.4 6.4l1.1 1.1M16.5 16.5l1.1 1.1M17.6 6.4l-1.1 1.1M7.5 16.5l-1.1 1.1"/><circle cx="12" cy="12" r="7.2"/></svg>`,
+  chevron: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 6l6 6-6 6"/></svg>`
 };
 
 function toast(msg) {
@@ -1059,27 +1061,30 @@ function showProfile() {
   app.innerHTML = `
     <section class="screen">
       <div class="screen-body">
-      <div class="topbar"><h2>You</h2></div>
-      <div class="glass-card stack center">
-        ${avatarHtml(u)}
+      <div class="topbar">
+        <h2>You</h2>
+        <button type="button" class="icon-btn" id="open-settings" aria-label="Settings">${ICONS.gear}</button>
+      </div>
+      <div class="glass-card stack center me-card">
+        ${avatarHtml(u, 'round me-ava')}
         <div>
-          <div style="font-family:var(--display);font-size:1.6rem">${u.username}</div>
-          <div class="muted">${u.accountId || 'Account ID hidden from the lounge'}</div>
+          <div class="me-name">${escapeHtml(u.username)}</div>
+          <div class="muted">${escapeHtml(u.accountId || 'Account ID hidden from the lounge')}</div>
         </div>
         <div class="small">${roleMark(u)} · ${u.gender} · born ${u.birthYear}<br>${u.isSpecial ? 'Unlimited chat · special account' : paidLine}${u.gender === 'female' && u.occupation ? `<br>${escapeHtml(u.occupation)} · ${Number(u.monthlyIncome || 0).toLocaleString()} MMK` : ''}</div>
-        <button class="btn secondary block" id="logout">Sign out</button>
+        <div class="me-actions">
+          <button type="button" class="btn secondary" id="edit-profile">Edit profile</button>
+          <button type="button" class="btn secondary" id="open-settings-row">Settings</button>
+        </div>
       </div>
       ${femaleForm}
       </div>
       ${nav('profile')}
     </section>`;
   bindNav();
-  $('#logout').onclick = async () => {
-    await api('/api/logout', { method: 'POST' });
-    state.user = null;
-    if (state.socket) state.socket.disconnect();
-    showWelcome();
-  };
+  $('#open-settings').onclick = showSettings;
+  $('#open-settings-row').onclick = showSettings;
+  $('#edit-profile').onclick = showEditProfile;
   if ($('#save-income')) {
     $('#save-income').onclick = async () => {
       try {
@@ -1143,6 +1148,176 @@ function showProfile() {
         toast(e.message);
       }
     };
+  }
+}
+
+async function doLogout() {
+  try {
+    await api('/api/logout', { method: 'POST' });
+  } catch {
+    /* still leave the lounge */
+  }
+  state.user = null;
+  if (state.socket) state.socket.disconnect();
+  showWelcome();
+}
+
+function settingsRow(id, icon, label, extra = '') {
+  return `
+    <button type="button" class="settings-row" id="${id}">
+      <span class="settings-ico">${icon}</span>
+      <span class="settings-label">${label}</span>
+      ${extra || `<span class="settings-chev" aria-hidden="true">${ICONS.chevron}</span>`}
+    </button>`;
+}
+
+function showSettings() {
+  state.view = 'settings';
+  const contact = state.settings && state.settings.adminContact
+    ? escapeHtml(state.settings.adminContact)
+    : 'Message the sakarwine admin with the phone number you used at registration.';
+  app.innerHTML = `
+    <section class="screen settings-screen">
+      <div class="screen-body">
+        <div class="topbar">
+          <button type="button" class="icon-btn" id="back" aria-label="Back">${ICONS.back}</button>
+          <h2>Settings</h2>
+        </div>
+        <div class="settings-list">
+          ${settingsRow('go-edit', ICONS.me, 'Edit profile')}
+          ${settingsRow('go-blocked', ICONS.block, 'Blocked')}
+        </div>
+        <div class="settings-list settings-note-card">
+          <div class="settings-note">
+            <div class="settings-note-title">Forgot or change PIN</div>
+            <p>There is no self-serve reset. Contact the sakarwine admin with the <strong>phone number you used at registration</strong>. They will verify it and set a new 6-digit PIN.</p>
+            <p class="small muted">${contact}</p>
+          </div>
+        </div>
+        <div class="settings-list">
+          <button type="button" class="settings-row danger" id="logout">
+            <span class="settings-label">Log out</span>
+          </button>
+        </div>
+      </div>
+    </section>`;
+  $('#back').onclick = showProfile;
+  $('#go-edit').onclick = showEditProfile;
+  $('#go-blocked').onclick = showBlocked;
+  $('#logout').onclick = doLogout;
+}
+
+function showEditProfile() {
+  state.view = 'edit-profile';
+  const u = state.user;
+  const photo = u.photoUrl
+    ? `<img class="avatar round me-ava" id="edit-preview" alt="" src="${escapeHtml(u.photoUrl)}" />`
+    : `<div class="avatar ai round me-ava" id="edit-preview">🍷</div>`;
+  app.innerHTML = `
+    <section class="screen settings-screen">
+      <div class="screen-body">
+        <div class="topbar">
+          <button type="button" class="icon-btn" id="back" aria-label="Back">${ICONS.back}</button>
+          <h2>Edit profile</h2>
+          <button type="button" class="btn ghost" id="save-profile">Done</button>
+        </div>
+        <div class="glass-card stack center">
+          <label class="edit-photo">
+            <input class="hidden-file" id="edit-photo" type="file" accept="image/*" />
+            ${photo}
+            <span class="edit-photo-change">Change photo</span>
+          </label>
+          <div class="field" style="width:100%;text-align:left">
+            <label for="edit-username">Username</label>
+            <input id="edit-username" value="${escapeHtml(u.username)}" maxlength="20" autocomplete="username" />
+          </div>
+          <p class="small muted" style="text-align:left;margin:0">Letters, numbers, and underscores · 3–20 characters. Gender, birth year, and PIN stay as they are.</p>
+        </div>
+      </div>
+    </section>`;
+  $('#back').onclick = showSettings;
+  $('#edit-photo').onchange = () => {
+    const file = $('#edit-photo').files[0];
+    const preview = $('#edit-preview');
+    if (!file || !preview) return;
+    const url = URL.createObjectURL(file);
+    if (preview.tagName === 'IMG') {
+      preview.src = url;
+    } else {
+      const img = document.createElement('img');
+      img.className = 'avatar round me-ava';
+      img.id = 'edit-preview';
+      img.alt = '';
+      img.src = url;
+      preview.replaceWith(img);
+    }
+  };
+  const save = async () => {
+    const btn = $('#save-profile');
+    btn.disabled = true;
+    const fd = new FormData();
+    fd.append('username', $('#edit-username').value.trim());
+    const file = $('#edit-photo').files[0];
+    if (file) fd.append('photo', file);
+    try {
+      const data = await api('/api/me/profile', { method: 'PUT', body: fd });
+      state.user = data.user;
+      toast('Profile updated');
+      showSettings();
+    } catch (e) {
+      btn.disabled = false;
+      toast(e.message);
+    }
+  };
+  $('#save-profile').onclick = save;
+}
+
+async function showBlocked() {
+  state.view = 'blocked';
+  app.innerHTML = `
+    <section class="screen settings-screen">
+      <div class="screen-body">
+        <div class="topbar">
+          <button type="button" class="icon-btn" id="back" aria-label="Back">${ICONS.back}</button>
+          <h2>Blocked</h2>
+        </div>
+        <p class="muted small" style="margin-top:0">People you block cannot message you. Unblock anytime.</p>
+        <div id="blocked-list" class="blocked-list"><p class="muted">Loading…</p></div>
+      </div>
+    </section>`;
+  $('#back').onclick = showSettings;
+  try {
+    const data = await api('/api/me/blocked');
+    const box = $('#blocked-list');
+    if (!data.users.length) {
+      box.innerHTML = '<div class="settings-empty">You’re not blocking anyone.</div>';
+      return;
+    }
+    box.innerHTML = data.users.map((u) => `
+      <div class="user-row blocked-row" data-id="${u.id}">
+        ${avatarHtml(u, 'round')}
+        <div class="meta">
+          <div class="name">${escapeHtml(u.username)}</div>
+          <div class="sub">${u.online ? 'Online' : 'Offline'} · ${escapeHtml(u.gender || '')}</div>
+        </div>
+        <button type="button" class="btn secondary unblock" data-unblock="${u.id}">Unblock</button>
+      </div>`).join('');
+    box.querySelectorAll('[data-unblock]').forEach((btn) => {
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        try {
+          await api(`/api/users/${btn.dataset.unblock}/block`, { method: 'DELETE' });
+          toast('Unblocked');
+          showBlocked();
+        } catch (err) {
+          toast(err.message);
+        }
+      };
+    });
+  } catch (e) {
+    toast(e.message);
+    const box = $('#blocked-list');
+    if (box) box.innerHTML = `<p class="muted">${escapeHtml(e.message)}</p>`;
   }
 }
 
