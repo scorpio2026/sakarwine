@@ -1000,7 +1000,20 @@
       if (s === '__SW__:welcome' || (/Welcome to sakarwine/.test(s) && /Saka/.test(s))) {
         return I18n.t('sakaWelcome', vars);
       }
-      if (s === '__SW__:rules' || (s.includes('Without upgrade') && s.includes('အဆင့်မမြှင့်ရသေးပါက'))) {
+      const oldRules =
+        /No 09 phone numbers/.test(s) ||
+        /Myanmar numbers starting with 09/.test(s) ||
+        /start a message with @/.test(s) ||
+        /09 ဖုန်းနံပါတ်နှင့် @/.test(s) ||
+        /ห้ามเบอร์ 09 และข้อความที่ขึ้นต้นด้วย @/.test(s) ||
+        /不可发送 09 开头电话/.test(s) ||
+        /09 전화번호와 @로 시작하는 메시지 금지/.test(s) ||
+        /09の電話番号と @ で始まるメッセージは不可/.test(s);
+      if (
+        s === '__SW__:rules' ||
+        (s.includes('Without upgrade') && s.includes('အဆင့်မမြှင့်ရသေးပါက')) ||
+        oldRules
+      ) {
         return I18n.t('sakaRules');
       }
       if (s === '__SW__:host' || (s.includes('Female host') && s.includes('Host (မိန်းကလေးသာ)'))) {

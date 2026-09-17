@@ -330,14 +330,41 @@ test('UI language pack covers Saka rules, Help, errors, and does not translate t
     assert.ok(I18n.catalogs[code].sakaWelcome, `${code} missing sakaWelcome`);
     assert.equal(/09/.test(I18n.catalogs[code].sakaRules), false, `${code} sakaRules mentions 09`);
     assert.equal(/@/.test(I18n.catalogs[code].sakaRules), false, `${code} sakaRules mentions @`);
+    assert.equal(/09/.test(I18n.catalogs[code].sakaWelcome), false, `${code} sakaWelcome mentions 09`);
+    assert.equal(/@/.test(I18n.catalogs[code].sakaWelcome), false, `${code} sakaWelcome mentions @`);
     assert.equal(/09/.test(I18n.catalogs[code].tourChat1), false, `${code} tourChat1 mentions 09`);
     assert.equal(/@/.test(I18n.catalogs[code].tourChat1), false, `${code} tourChat1 mentions @`);
     assert.equal(/09/.test(I18n.catalogs[code].bioHelp), false, `${code} bioHelp mentions 09`);
+    assert.equal(/@/.test(I18n.catalogs[code].bioHelp), false, `${code} bioHelp mentions @`);
   }
   I18n.setLang('en');
   assert.match(I18n.t('sakaWelcome', { name: 'Aung' }), /Aung/);
   assert.match(I18n.localizeChatBody('__SW__:rules'), /24 hours free/i);
   assert.match(I18n.localizeChatBody('__SW__:host'), /500/);
+  const oldStored = [
+    'Rules\n\nWithout upgrade\n• Each new chat has 24 hours free.\n• Photos stay locked until Level 3.\n• No 09 phone numbers; do not start a message with @. No video.\n\nIf you upgrade\n• Unlimited chatting for the paid period.',
+    'စည်းကမ်း\n\nအဆင့်မမြှင့်ရသေးပါက\n• စကားပြောအသစ်တိုင်း အခမဲ့ ၂၄ နာရီသာ ရသည်။\n• 09 ဖုန်းနံပါတ်နှင့် @ ဖြင့် စသော စာ မပို့ရ။ ဗီဒီယို မရပါ။',
+    'กฎ\n\nยังไม่อัปเกรด\n• ห้ามเบอร์ 09 และข้อความที่ขึ้นต้นด้วย @ ห้ามวิดีโอ',
+    '规则\n\n未升级\n• 不可发送 09 开头电话；消息不能以 @ 开头。禁止视频。',
+    '규칙\n\n업그레이드 전\n• 09 전화번호와 @로 시작하는 메시지 금지. 동영상 불가.',
+    'ルール\n\nアップグレード前\n• 09の電話番号と @ で始まるメッセージは不可。動画不可。',
+    [
+      'စည်းကမ်း / Rules',
+      '',
+      'အဆင့်မမြှင့်ရသေးပါက',
+      '• 09 ဖုန်းနံပါတ်နှင့် @ ဖြင့် စသော စာ မပို့ရ။ ဗီဒီယို မရပါ။',
+      '',
+      'Without upgrade',
+      '• No 09 phone numbers; do not start a message with @. No video.'
+    ].join('\n'),
+    'Please don’t send Myanmar numbers starting with 09, and don’t start a message with @.'
+  ];
+  for (const body of oldStored) {
+    const localized = I18n.localizeChatBody(body);
+    assert.equal(localized, I18n.t('sakaRules'), `old rules body not remapped: ${body.slice(0, 40)}`);
+    assert.equal(/09/.test(localized), false);
+    assert.equal(/@/.test(localized), false);
+  }
   assert.equal(I18n.error('Upload failed.'), I18n.t('errUpload'));
   assert.equal(I18n.error('Please choose male or female.'), I18n.t('errChooseGender'));
   assert.equal(I18n.statusLabel('pending'), I18n.t('statusPending'));
