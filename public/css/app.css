@@ -302,6 +302,17 @@ body {
   font-weight: 700;
 }
 
+.help-form {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(16, 64, 48, 0.1);
+}
+.help-ok {
+  color: var(--green-deep);
+  font-weight: 700;
+  margin: 4px 0 0;
+}
+
 .icon-btn {
   width: var(--tap);
   height: var(--tap);

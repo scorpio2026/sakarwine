@@ -132,6 +132,7 @@ async function bootDash() {
   const me = await api('/api/admin/me');
   socket = io({ transports: ['websocket', 'polling'] });
   socket.on('upgrade:new', () => render());
+  socket.on('pin-recovery:new', () => render());
 
   async function openDossier(q) {
     lookupQ = String(q || '').trim();
@@ -353,11 +354,13 @@ async function bootDash() {
         <div class="stat"><span>${t('pendingUpgrades')}</span><b>${stats.pendingUpgrades}</b></div>
         <div class="stat"><span>${t('pendingHosts')}</span><b>${stats.pendingHosts || 0}</b></div>
         <div class="stat"><span>${t('payouts')}</span><b>${stats.pendingPayouts || 0}</b></div>
+        <div class="stat"><span>${t('pendingPinRecovery')}</span><b>${stats.pendingPinRecovery || 0}</b></div>
         <div class="stat"><span>${t('chats')}</span><b>${stats.conversations}</b></div>
       </div>
       ${stats.pendingUpgrades ? `<div class="notice">New payment submissions need review — duration, receipt, account ID, and registered phone are in Upgrades.</div>` : ''}
       ${stats.pendingHosts ? `<div class="notice">Female NRC verifications need review in Hosts — income form plus NRC front/back (admin-only).</div>` : ''}
       ${stats.pendingPayouts ? `<div class="notice">${stats.pendingPayouts} host payout(s) waiting — transfer then press Done to send ငွေဝင်ပါပြီ.</div>` : ''}
+      ${stats.pendingPinRecovery ? `<div class="notice">${stats.pendingPinRecovery} PIN recovery request(s) in PIN recovery — verify the phone, then Reset PIN from the dossier. There is no self-serve reset.</div>` : ''}
       <div class="lookup">
         <label class="field" style="margin:0;flex:1">
           <span>${t('findById')}</span>
@@ -373,6 +376,7 @@ async function bootDash() {
         <button data-t="upgrades" class="${!focusAccountId && tab === 'upgrades' ? 'on' : ''}">${t('tabUpgrades')} ${stats.pendingUpgrades ? `(${stats.pendingUpgrades})` : ''}</button>
         <button data-t="hosts" class="${!focusAccountId && tab === 'hosts' ? 'on' : ''}">${t('tabHosts')} ${stats.pendingHosts ? `(${stats.pendingHosts})` : ''}</button>
         <button data-t="payouts" class="${!focusAccountId && tab === 'payouts' ? 'on' : ''}">${t('tabPayouts')} ${stats.pendingPayouts ? `(${stats.pendingPayouts})` : ''}</button>
+        <button data-t="pin-recovery" class="${!focusAccountId && tab === 'pin-recovery' ? 'on' : ''}">${t('tabPinRecovery')} ${stats.pendingPinRecovery ? `(${stats.pendingPinRecovery})` : ''}</button>
         <button data-t="broadcast" class="${!focusAccountId && tab === 'broadcast' ? 'on' : ''}">${t('tabBroadcast')}</button>
         <button data-t="ads" class="${!focusAccountId && tab === 'ads' ? 'on' : ''}">${t('tabAds')}</button>
         <button data-t="pricing" class="${!focusAccountId && tab === 'pricing' ? 'on' : ''}">${t('tabPricing')}</button>
@@ -589,6 +593,53 @@ async function bootDash() {
           if (open) return openDossier(open.dataset.openId);
           if (done) {
             await api(`/api/admin/payouts/${done.dataset.payDone}/done`, { method: 'POST' });
+            render();
+          }
+        } catch (err) {
+          alert(err.message);
+        }
+      };
+    } else if (tab === 'pin-recovery') {
+      const { requests } = await api('/api/admin/pin-recovery');
+      panel.innerHTML = requests.length
+        ? requests
+            .map(
+              (r) => `
+        <div class="notice">
+          <span class="badge ${esc(r.status)}">${esc(r.status)}</span>
+          <strong>${esc(r.accountId)}</strong>
+          ${r.username ? ` · ${esc(r.username)}` : ''}
+          ${r.accountFound ? `<button class="ghost" data-open-id="${esc(r.accountId)}">${esc(r.accountId)}</button>` : ''}<br>
+          Submitted phone ${esc(r.phone)}
+          <div class="muted">${
+            r.matched
+              ? 'Account ID and phone match a member — verify, then Reset PIN.'
+              : r.accountFound
+                ? 'Account found, but the submitted phone does not match. Do not reset until verified.'
+                : 'No matching account. Review manually. Do not reset until verified.'
+          }</div>
+          <div class="muted">${new Date(r.createdAt).toLocaleString()}</div>
+          ${r.status === 'pending' ? `<div class="actions" style="margin-top:8px">
+            ${r.userId ? `<button data-act="reset" data-id="${r.userId}" data-phone="${esc(r.phone)}">${t('resetPin')}</button>` : ''}
+            <button data-pin-done="${r.id}">Mark reviewed</button>
+          </div>` : ''}
+        </div>`
+            )
+            .join('')
+        : '<p class="muted">No PIN recovery requests yet. Members send account ID + registration phone from Help.</p>';
+      panel.onclick = async (e) => {
+        const open = e.target.closest('[data-open-id]');
+        const done = e.target.closest('[data-pin-done]');
+        const reset = e.target.closest('button[data-act="reset"]');
+        try {
+          if (open) return openDossier(open.dataset.openId);
+          if (reset) {
+            await runAccountAction(reset);
+            render();
+            return;
+          }
+          if (done) {
+            await api(`/api/admin/pin-recovery/${done.dataset.pinDone}/done`, { method: 'POST' });
             render();
           }
         } catch (err) {

@@ -1516,28 +1516,64 @@ async function showBlocked() {
   }
 }
 
+function goHelpHome() {
+  if (state.user) showHome();
+  else showWelcome();
+}
+
 function showHelp(inApp = false) {
   state.view = 'help';
+  const prefillId = (state.user && state.user.accountId) || '';
   app.innerHTML = `
     <section class="screen">
       ${inApp ? '<div class="screen-body">' : ''}
       <div class="topbar">
-        ${inApp ? '' : `<button class="icon-btn" id="back">${ICONS.back}</button>`}
+        <button type="button" class="icon-btn" id="back" aria-label="${t('backHome')}">${ICONS.back}</button>
         <h2>${t('helpTitle')}</h2>
+        <button type="button" class="btn ghost" id="back-home">${t('backHome')}</button>
       </div>
       <div class="glass-card">
         <h3 style="margin-top:0">${t('pinRecovery')}</h3>
-        <p>${t('pinRecoveryBody')}</p>
-        <p class="small muted">${escapeHtml(state.settings.adminContact || '')}</p>
-        <h3>${t('chatHistory')}</h3>
-        <p>${t('chatHistoryBody')}</p>
-        <h3>${t('femaleHost')}</h3>
-        <p>${t('femaleHostBody')}</p>
-        <p>${t('femaleHostIncome')}</p>
+        <p>${t('pinRecoveryBodyMy')}</p>
+        <p class="small muted">${t('pinRecoveryBodyEn')}</p>
+        <form id="pin-recovery-form" class="help-form stack">
+          <div class="field">
+            <label for="pin-aid">${t('pinRecoveryAccountId')}</label>
+            <input id="pin-aid" name="accountId" required autocomplete="username" value="${escapeHtml(prefillId)}" />
+          </div>
+          <div class="field">
+            <label for="pin-phone">${t('pinRecoveryPhone')}</label>
+            <input id="pin-phone" name="phone" required inputmode="tel" autocomplete="tel" />
+          </div>
+          <button type="submit" class="btn block" id="pin-send">${t('pinRecoverySend')}</button>
+          <p id="pin-ok" class="help-ok" hidden>${t('pinRecoverySent')}</p>
+        </form>
       </div>
       ${inApp ? `</div>${nav('help')}` : ''}
     </section>`;
-  if ($('#back')) $('#back').onclick = showWelcome;
+  $('#back').onclick = goHelpHome;
+  $('#back-home').onclick = goHelpHome;
+  const form = $('#pin-recovery-form');
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const accountId = $('#pin-aid').value.trim();
+    const phone = $('#pin-phone').value.trim();
+    if (!accountId) return toast(t('errAccountId'));
+    if (!/^[0-9+\s\-()]{7,20}$/.test(phone)) return toast(t('errPhone'));
+    const btn = $('#pin-send');
+    btn.disabled = true;
+    try {
+      await api('/api/pin-recovery', { method: 'POST', json: { accountId, phone } });
+      form.reset();
+      if (prefillId) $('#pin-aid').value = prefillId;
+      $('#pin-ok').hidden = false;
+      toast(t('pinRecoverySent'));
+    } catch (err) {
+      toastErr(err);
+    } finally {
+      btn.disabled = false;
+    }
+  };
   if (inApp) bindNav();
 }
 

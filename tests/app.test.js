@@ -1084,4 +1084,85 @@ test('usernames reject symbols; chat asks once for view language then translates
   assert.equal(cleared.data.user.chatViewLang, null);
 });
 
+test('PIN recovery Help form queues an admin request without resetting the PIN', async () => {
+  await started;
+  const member = await register('pinrec' + Date.now().toString().slice(-5), '135791', 'male');
+  const before = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(member.user.id).password_hash;
+
+  const empty = await req('/api/pin-recovery', { method: 'POST', json: { accountId: '  ', phone: '091111111' } });
+  assert.equal(empty.res.status, 400);
+  assert.match(empty.data.error, /account ID/i);
+
+  const badPhone = await req('/api/pin-recovery', {
+    method: 'POST',
+    json: { accountId: member.user.accountId, phone: 'abc' }
+  });
+  assert.equal(badPhone.res.status, 400);
+  assert.match(badPhone.data.error, /phone/i);
+
+  const sent = await req('/api/pin-recovery', {
+    method: 'POST',
+    json: { accountId: member.user.accountId, phone: '091111111' }
+  });
+  assert.equal(sent.res.status, 200, sent.data.error);
+  assert.equal(sent.data.ok, true);
+
+  const again = await req('/api/pin-recovery', {
+    method: 'POST',
+    json: { accountId: member.user.accountId, phone: '091111111' }
+  });
+  assert.equal(again.res.status, 200, again.data.error);
+
+  const after = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(member.user.id).password_hash;
+  assert.equal(after, before);
+
+  const denied = await req('/api/admin/pin-recovery');
+  assert.equal(denied.res.status, 401);
+
+  const admin = await loginAdmin();
+  const stats = await req('/api/admin/stats', { jar: admin });
+  assert.ok(stats.data.pendingPinRecovery >= 1);
+
+  const queue = await req('/api/admin/pin-recovery', { jar: admin });
+  const pending = queue.data.requests.filter(
+    (r) => r.status === 'pending' && r.accountId === member.user.accountId
+  );
+  assert.equal(pending.length, 1);
+  assert.equal(pending[0].phone, '091111111');
+  assert.equal(pending[0].matched, true);
+  assert.equal(pending[0].userId, member.user.id);
+
+  const unmatched = await req('/api/pin-recovery', {
+    method: 'POST',
+    json: { accountId: 'SW00009999', phone: '099888777' }
+  });
+  assert.equal(unmatched.res.status, 200, unmatched.data.error);
+  const afterUnmatched = await req('/api/admin/pin-recovery', { jar: admin });
+  const ghost = afterUnmatched.data.requests.find(
+    (r) => r.accountId === 'SW00009999' && r.status === 'pending'
+  );
+  assert.ok(ghost);
+  assert.equal(ghost.matched, false);
+  assert.equal(ghost.accountFound, false);
+
+  const mismatch = await req('/api/pin-recovery', {
+    method: 'POST',
+    json: { accountId: member.user.accountId, phone: '099000111' }
+  });
+  assert.equal(mismatch.res.status, 200, mismatch.data.error);
+  const afterMismatch = await req('/api/admin/pin-recovery', { jar: admin });
+  const wrongPhone = afterMismatch.data.requests.find(
+    (r) => r.accountId === member.user.accountId && r.phone === '099000111' && r.status === 'pending'
+  );
+  assert.ok(wrongPhone);
+  assert.equal(wrongPhone.matched, false);
+  assert.equal(wrongPhone.accountFound, true);
+  assert.equal(wrongPhone.username, member.user.username);
+
+  const done = await req(`/api/admin/pin-recovery/${pending[0].id}/done`, { method: 'POST', jar: admin });
+  assert.equal(done.res.status, 200, done.data.error);
+  const still = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(member.user.id).password_hash;
+  assert.equal(still, before);
+});
+
 after(() => new Promise((resolve) => server.close(resolve)));

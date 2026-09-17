@@ -19,5 +19,16 @@ test('i18n catalogs share the same keys and default to Myanmar', () => {
   I18n.setLang('my');
   assert.equal(I18n.lang, 'my');
   assert.notEqual(I18n.t('enterLounge'), 'Enter lounge');
+  assert.equal(I18n.t('helpTitle'), 'အကူအညီ');
+  assert.equal(I18n.t('pinRecovery'), 'PIN ပြန်ရယူခြင်း');
+  assert.equal(
+    I18n.t('pinRecoveryBodyMy'),
+    'ကိုယ်တိုင် ပြန်သတ်မှတ်၍ မရပါ။ မှတ်ပုံတင်စဉ် သုံးသော ဖုန်းနံပါတ်ကို sakarwine အက်ဒမင်ထံ ပေးပါ။ စစ်ဆေးပြီး PIN ၆ လုံး အသစ် သတ်မှတ်ပေးမည်။'
+  );
+  assert.equal(
+    I18n.t('pinRecoveryBodyEn'),
+    'Message the sakarwine admin with the phone number you used at registration. There is no self-serve password reset.'
+  );
+  assert.equal(I18n.t('backHome'), 'မူလစာမျက်နှာ');
   assert.equal(I18n.error('Wrong username or password.'), I18n.t('errWrongLogin'));
 });

@@ -667,6 +667,75 @@ app.get('/api/public-settings', (_req, res) => {
   });
 });
 
+const PHONE_RE = /^[0-9+\s\-()]{7,20}$/;
+
+function phoneDigits(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function serializePinRecovery(row) {
+  const listed = db
+    .prepare('SELECT * FROM users WHERE account_id = ? COLLATE NOCASE AND is_ai = 0')
+    .get(row.account_id);
+  const matched = Boolean(listed && row.user_id && Number(listed.id) === Number(row.user_id));
+  return {
+    id: row.id,
+    accountId: row.account_id,
+    phone: row.phone,
+    userId: matched ? listed.id : null,
+    username: listed ? listed.username : null,
+    matched,
+    accountFound: Boolean(listed),
+    status: row.status,
+    createdAt: row.created_at,
+    reviewedAt: row.reviewed_at || null
+  };
+}
+
+function countPendingPinRecovery() {
+  return db.prepare("SELECT COUNT(*) AS n FROM pin_recovery_requests WHERE status = 'pending'").get().n;
+}
+
+app.post(
+  '/api/pin-recovery',
+  rateLimit({ windowMs: 10 * 60 * 1000, max: 8, name: 'pin-recovery' }),
+  (req, res) => {
+    const accountId = String(req.body.accountId || '').trim().slice(0, 24);
+    const phone = String(req.body.phone || '').trim().slice(0, 20);
+    if (!accountId) return res.status(400).json({ error: 'Enter your account ID.' });
+    if (!PHONE_RE.test(phone)) return res.status(400).json({ error: 'Enter a valid phone number.' });
+
+    const existing = db
+      .prepare(
+        `SELECT id FROM pin_recovery_requests
+         WHERE account_id = ? COLLATE NOCASE AND phone = ? AND status = 'pending'`
+      )
+      .get(accountId, phone);
+    if (existing) return res.json({ ok: true });
+
+    const user = db
+      .prepare('SELECT * FROM users WHERE account_id = ? COLLATE NOCASE AND is_ai = 0')
+      .get(accountId);
+    let userId = null;
+    if (user) {
+      const submittedDigits = phoneDigits(phone);
+      const registeredDigits = phoneDigits(user.phone);
+      if (user.phone === phone || (submittedDigits && submittedDigits === registeredDigits)) {
+        userId = user.id;
+      }
+    }
+
+    const info = db
+      .prepare(
+        `INSERT INTO pin_recovery_requests (account_id, phone, user_id, status, created_at)
+         VALUES (?, ?, ?, 'pending', ?)`
+      )
+      .run(accountId, phone, userId, Date.now());
+    io.to('admins').emit('pin-recovery:new', { id: info.lastInsertRowid, accountId });
+    res.json({ ok: true });
+  }
+);
+
 app.post(
   '/api/register',
   rateLimit({ windowMs: 10 * 60 * 1000, max: 15, name: 'register' }),
@@ -709,7 +778,7 @@ app.post(
       dropUploads();
       return res.status(400).json({ error: 'You must be at least 18. Check your birth year.' });
     }
-    if (!/^[0-9+\s\-()]{7,20}$/.test(phone)) {
+    if (!PHONE_RE.test(phone)) {
       dropUploads();
       return res.status(400).json({ error: 'Enter a valid phone number.' });
     }
@@ -1468,6 +1537,7 @@ app.get('/api/admin/me', (req, res) => {
     pendingUpgrades: pending,
     pendingHosts,
     pendingPayouts,
+    pendingPinRecovery: countPendingPinRecovery(),
     siteName: getSetting(db, 'site_name', 'sakarwine')
   });
 });
@@ -1485,6 +1555,7 @@ app.get('/api/admin/stats', requireAdmin, (_req, res) => {
     pendingUpgrades: pending,
     pendingHosts,
     pendingPayouts,
+    pendingPinRecovery: countPendingPinRecovery(),
     conversations: chats,
     online: online.size
   });
@@ -1636,7 +1707,7 @@ app.post('/api/admin/accounts', requireAdmin, multerSingle(uploadProfile, 'photo
     if (!Number.isInteger(birthYear) || birthYear < 1940 || birthYear > yearNow - 16) {
       return res.status(400).json({ error: 'Check the birth year.' });
     }
-    if (!/^[0-9+\s\-()]{7,20}$/.test(phone)) {
+    if (!PHONE_RE.test(phone)) {
       return res.status(400).json({ error: 'Enter a valid phone number.' });
     }
     if (!badge) return res.status(400).json({ error: 'Choose a role badge.' });
@@ -1890,6 +1961,25 @@ app.post('/api/admin/payouts/:id/done', requireAdmin, (req, res) => {
   insertSystemMessage(row.host_id, 'ငွေဝင်ပါပြီ');
   emitToUser(row.host_id, 'payout:done', { id: row.id, amount: row.amount });
   res.json({ ok: true });
+});
+
+app.get('/api/admin/pin-recovery', requireAdmin, (_req, res) => {
+  const rows = db
+    .prepare(
+      `SELECT * FROM pin_recovery_requests
+       ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END, id DESC`
+    )
+    .all();
+  res.json({ requests: rows.map(serializePinRecovery) });
+});
+
+app.post('/api/admin/pin-recovery/:id/done', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const row = db.prepare('SELECT * FROM pin_recovery_requests WHERE id = ?').get(id);
+  if (!row) return res.status(404).json({ error: 'PIN recovery request not found.' });
+  if (row.status === 'done') return res.status(400).json({ error: 'Already marked done.' });
+  db.prepare("UPDATE pin_recovery_requests SET status = 'done', reviewed_at = ? WHERE id = ?").run(Date.now(), id);
+  res.json({ ok: true, request: serializePinRecovery({ ...row, status: 'done', reviewed_at: Date.now() }) });
 });
 
 app.post(

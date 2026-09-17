@@ -150,6 +150,18 @@ function migrate(db) {
       FOREIGN KEY (user_id) REFERENCES users(id),
       FOREIGN KEY (conversation_id) REFERENCES conversations(id)
     );
+
+    CREATE TABLE IF NOT EXISTS pin_recovery_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      account_id TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      user_id INTEGER,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at INTEGER NOT NULL,
+      reviewed_at INTEGER,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_pin_recovery_status ON pin_recovery_requests(status, created_at);
   `);
   ensureColumn(db, 'users', 'is_special', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'users', 'badge', 'TEXT');
