@@ -218,6 +218,14 @@ test('admin dashboard paints paid accounts green and badges extra upgrades', () 
   assert.match(js, /setInterval\(paint, 1000\)/);
   assert.equal(js.includes('paidHoursLeft'), false);
   assert.equal(js.includes('function incomeLine'), false);
+  assert.match(js, /id="free-trial-days"/);
+  assert.match(js, /freeTrialDays/);
+  I18n.setLang('en');
+  assert.equal(I18n.t('freeTrialDays'), 'Free trial for new accounts (days)');
+  assert.match(I18n.t('freeTrialDaysHelp'), /after you save/i);
+  assert.equal(I18n.error('Invalid free trial days.'), I18n.t('errFreeTrialDays'));
+  I18n.setLang('my');
+  assert.notEqual(I18n.t('freeTrialDays'), I18n.catalogs.en.freeTrialDays);
 });
 
 test('admin-badge chats block first contact and expose a live gate', () => {
@@ -323,6 +331,7 @@ test('bottom nav has Home, Chat, Group, Profile, and Help — no Upgrade tab', (
   assert.equal(remainFn.includes('freeLeft'), false);
   assert.match(js, /state\.view === 'profile' \? u\.freeUntil/);
   I18n.setLang('en');
+  assert.equal(I18n.t('upgradeEnded'), 'Your free trial has ended for this chat. Upgrade to keep talking.');
   assert.equal(I18n.t('freeCountdown', { h: 23, m: '01', s: '09' }), '23h 01m 09s free remaining');
   I18n.setLang('my');
   assert.match(I18n.t('freeCountdown', { h: 23, m: '01', s: '09' }), /အခမဲ့/);
@@ -416,7 +425,7 @@ test('UI language pack covers Saka rules, Help, errors, and does not translate t
   I18n.setLang('en');
   assert.equal(I18n.t('maintenanceMsg'), 'update server');
   assert.match(I18n.t('sakaWelcome', { name: 'Aung' }), /Aung/);
-  assert.match(I18n.localizeChatBody('__SW__:rules'), /24 hours free/i);
+  assert.match(I18n.localizeChatBody('__SW__:rules'), /7 days free/i);
   assert.match(I18n.localizeChatBody('__SW__:host'), /500/);
   assert.equal(I18n.localizeChatBody('__SW__:faq:register'), I18n.t('sakaFaqARegister'));
   assert.equal(I18n.localizeChatBody('__SW__:faq:pin'), I18n.t('sakaFaqAPin'));
@@ -457,7 +466,7 @@ test('UI language pack covers Saka rules, Help, errors, and does not translate t
   assert.equal(I18n.error('Please choose male or female.'), I18n.t('errChooseGender'));
   assert.equal(I18n.statusLabel('pending'), I18n.t('statusPending'));
   I18n.setLang('my');
-  assert.match(I18n.localizeChatBody('__SW__:rules'), /အခမဲ့ ၂၄ နာရီ/);
+  assert.match(I18n.localizeChatBody('__SW__:rules'), /အခမဲ့ ၇ ရက်/);
   assert.notEqual(I18n.t('sakaRules'), I18n.catalogs.en.sakaRules);
   assert.notEqual(I18n.t('createSpecialTitle'), I18n.catalogs.en.createSpecialTitle);
   I18n.setLang('th');

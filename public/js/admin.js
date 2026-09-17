@@ -952,6 +952,8 @@ async function bootDash() {
       const s = await api('/api/admin/settings');
       panel.innerHTML = `
         <div class="field"><label>${t('siteNameLabel')}</label><input id="sn" value="${esc(s.siteName)}" /></div>
+        <div class="field"><label>${t('freeTrialDays')}</label><input id="free-trial-days" type="number" min="1" max="365" step="1" value="${Number(s.freeTrialDays) || 7}" /></div>
+        <p class="muted">${t('freeTrialDaysHelp')}</p>
         <div class="field"><label>${t('paymentInstructions')}</label><textarea id="pi" rows="5">${esc(s.paymentInstructions)}</textarea></div>
         <div class="field"><label>${t('adminContactLabel')}</label><textarea id="ac" rows="3">${esc(s.adminContact)}</textarea></div>
         <p class="muted">${t('hostDemoAdminHelp')}</p>
@@ -965,6 +967,7 @@ async function bootDash() {
           method: 'PUT',
           json: {
             siteName: $('#sn').value,
+            freeTrialDays: Number($('#free-trial-days').value),
             paymentInstructions: $('#pi').value,
             adminContact: $('#ac').value,
             maintenance: $('#maint').checked

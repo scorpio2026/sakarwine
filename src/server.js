@@ -8,7 +8,23 @@ const express = require('express');
 const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const { Server } = require('socket.io');
-const { openDb, ensureDir, getSetting, setSetting, getBadges, addBadge, publicUser, adminUser, isAdminAccount, defaultAvatarUrl } = require('./db');
+const {
+  openDb,
+  ensureDir,
+  getSetting,
+  setSetting,
+  getBadges,
+  addBadge,
+  publicUser,
+  adminUser,
+  isAdminAccount,
+  defaultAvatarUrl,
+  DEFAULT_FREE_TRIAL_DAYS,
+  clampFreeTrialDays,
+  getFreeTrialDays,
+  getFreeChatMs,
+  userFreeChatMs
+} = require('./db');
 const { messageFilterError, bioFilterError, groupNameError, isAllowedImageMime, isAllowedVoiceMime, isForbiddenVideo } = require('./filters');
 const { usernameError } = require('./username');
 const { translateText, normalizeLang } = require('./translate');
@@ -46,7 +62,6 @@ const HOST = process.env.HOST || '0.0.0.0';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'sakarwine-dev-secret-change-me';
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
-const FREE_CHAT_MS = Number(process.env.FREE_CHAT_MS || 24 * 60 * 60 * 1000);
 const SESSION_MS = 30 * 24 * 60 * 60 * 1000;
 
 ensureDir(path.join(UPLOADS, 'profiles'));
@@ -513,12 +528,13 @@ function hostRepliesToVisitor(conv, user) {
 function freeWindow(conv, user, now = Date.now()) {
   const hostFree = hostRepliesToVisitor(conv, user);
   const unlimited = canChatUnlimited(user, now) || hostFree;
+  const freeMs = userFreeChatMs(user);
   const elapsed = now - conv.started_at;
-  const remaining = Math.max(0, FREE_CHAT_MS - elapsed);
+  const remaining = Math.max(0, freeMs - elapsed);
   const expired = remaining === 0 && !unlimited;
   return {
     startedAt: conv.started_at,
-    freeMs: FREE_CHAT_MS,
+    freeMs,
     remainingMs: unlimited ? null : remaining,
     expired,
     paid: isPaid(user, now),
@@ -734,8 +750,24 @@ function rejectMessageEdit(_req, res) {
 function serializeMe(user) {
   const out = publicUser(user, { includePrivate: true, online: true, viewer: user });
   Object.assign(out, hostIncomeSummary(db, user.id, publicUser));
-  out.freeUntil = Number(user.created_at || out.createdAt || 0) + FREE_CHAT_MS;
+  out.freeUntil = Number(user.created_at || out.createdAt || 0) + userFreeChatMs(user);
   return out;
+}
+
+function settingsPayload() {
+  const monthly = Number(getSetting(db, 'monthly_price', '15000'));
+  return {
+    siteName: getSetting(db, 'site_name', 'sakarwine'),
+    monthlyPrice: monthly,
+    currency: getSetting(db, 'currency', 'MMK'),
+    paymentInstructions: getSetting(db, 'payment_instructions', ''),
+    adminContact: getSetting(db, 'admin_contact', ''),
+    incomeDemoVideoUrl: getSetting(db, 'income_demo_video_url', '/demo/income-host.mp4'),
+    quotes: allQuotes(monthly),
+    badges: getBadges(db),
+    maintenance: maintenanceOn(),
+    freeTrialDays: getFreeTrialDays(db)
+  };
 }
 
 function touchPresence(conv, userId, action = 'ping') {
@@ -784,7 +816,8 @@ app.get('/api/public-settings', (_req, res) => {
     quotes: allQuotes(Number(getSetting(db, 'monthly_price', '15000'))),
     incomeDemoVideoUrl: getSetting(db, 'income_demo_video_url', '/demo/income-host.mp4'),
     adRotateMs: AD_ROTATE_MS,
-    maintenance: maintenanceOn()
+    maintenance: maintenanceOn(),
+    freeTrialDays: getFreeTrialDays(db)
   });
 });
 
@@ -929,8 +962,8 @@ app.post(
       .prepare(
         `INSERT INTO users (
           account_id, username, password_hash, gender, birth_year, phone,
-          photo_path, level, status, host_status, ui_lang, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'pending_liveness', 'none', ?, ?)`
+          photo_path, level, status, host_status, ui_lang, created_at, free_chat_ms
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'pending_liveness', 'none', ?, ?, ?)`
       )
       .run(
         accountId,
@@ -941,7 +974,8 @@ app.post(
         phone,
         photo.filename,
         uiLang,
-        Date.now()
+        Date.now(),
+        getFreeChatMs(db)
       );
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
     const token = signToken();
@@ -1837,15 +1871,16 @@ function groupChatWindow(member, user, now = Date.now()) {
       special: isSpecial(user)
     };
   }
+  const freeMs = userFreeChatMs(user);
   const start = Number(member && member.joined_at) || now;
-  const remaining = FREE_CHAT_MS - (now - start);
+  const remaining = freeMs - (now - start);
   return {
     expired: remaining <= 0,
     remainingMs: Math.max(0, remaining),
     canSend: remaining > 0,
     paid: false,
     fromJoin: true,
-    freeMs: FREE_CHAT_MS
+    freeMs
   };
 }
 
@@ -2595,10 +2630,10 @@ app.post('/api/admin/accounts', requireAdmin, multerSingle(uploadProfile, 'photo
         `INSERT INTO users (
           account_id, username, password_hash, gender, birth_year, phone,
           photo_path, level, status, is_special, badge, hide_account_id, created_by_admin,
-          tour_completed, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'active', 1, ?, 1, 1, 1, ?)`
+          tour_completed, created_at, free_chat_ms
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'active', 1, ?, 1, 1, 1, ?, ?)`
       )
-      .run(accountId, username, hash, gender, birthYear, phone, photo, badge, Date.now());
+      .run(accountId, username, hash, gender, birthYear, phone, photo, badge, Date.now(), getFreeChatMs(db));
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
     res.json({
       user: adminUser(user, { online: false }),
@@ -2795,7 +2830,10 @@ app.post('/api/admin/conversations/:id/messaging', requireAdmin, (req, res) => {
 app.post('/api/admin/conversations/:id/expire-free', requireAdmin, (req, res) => {
   const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(Number(req.params.id));
   if (!conv) return res.status(404).json({ error: 'Conversation not found.' });
-  db.prepare('UPDATE conversations SET started_at = ? WHERE id = ?').run(Date.now() - FREE_CHAT_MS - 1000, conv.id);
+  const a = db.prepare('SELECT * FROM users WHERE id = ?').get(conv.user_lo);
+  const b = db.prepare('SELECT * FROM users WHERE id = ?').get(conv.user_hi);
+  const ms = Math.max(userFreeChatMs(a), userFreeChatMs(b), getFreeChatMs(db));
+  db.prepare('UPDATE conversations SET started_at = ? WHERE id = ?').run(Date.now() - ms - 1000, conv.id);
   res.json({ ok: true });
 });
 
@@ -2933,18 +2971,7 @@ app.delete('/api/admin/ads/:id', requireAdmin, (req, res) => {
 });
 
 app.get('/api/admin/settings', requireAdmin, (_req, res) => {
-  const monthly = Number(getSetting(db, 'monthly_price', '15000'));
-  res.json({
-    siteName: getSetting(db, 'site_name', 'sakarwine'),
-    monthlyPrice: monthly,
-    currency: getSetting(db, 'currency', 'MMK'),
-    paymentInstructions: getSetting(db, 'payment_instructions', ''),
-    adminContact: getSetting(db, 'admin_contact', ''),
-    incomeDemoVideoUrl: getSetting(db, 'income_demo_video_url', '/demo/income-host.mp4'),
-    quotes: allQuotes(monthly),
-    badges: getBadges(db),
-    maintenance: maintenanceOn()
-  });
+  res.json(settingsPayload());
 });
 
 app.put('/api/admin/settings', requireAdmin, (req, res) => {
@@ -2971,6 +2998,11 @@ app.put('/api/admin/settings', requireAdmin, (req, res) => {
     setSetting(db, 'maintenance_mode', on ? '1' : '0');
     notifyMaintenance(on);
   }
+  if (req.body.freeTrialDays != null) {
+    const days = clampFreeTrialDays(req.body.freeTrialDays);
+    if (!days) return res.status(400).json({ error: 'Invalid free trial days.' });
+    setSetting(db, 'free_trial_days', String(days));
+  }
   if (Array.isArray(req.body.badges)) {
     const cleaned = req.body.badges.map((b) => String(b || '').trim()).filter((b) => b && b.length <= 24);
     const merged = [];
@@ -2979,19 +3011,7 @@ app.put('/api/admin/settings', requireAdmin, (req, res) => {
     }
     setSetting(db, 'badges', JSON.stringify(merged));
   }
-  const monthly = Number(getSetting(db, 'monthly_price', '15000'));
-  res.json({
-    ok: true,
-    siteName: getSetting(db, 'site_name', 'sakarwine'),
-    monthlyPrice: monthly,
-    currency: getSetting(db, 'currency', 'MMK'),
-    paymentInstructions: getSetting(db, 'payment_instructions', ''),
-    adminContact: getSetting(db, 'admin_contact', ''),
-    incomeDemoVideoUrl: getSetting(db, 'income_demo_video_url', '/demo/income-host.mp4'),
-    quotes: allQuotes(monthly),
-    badges: getBadges(db),
-    maintenance: maintenanceOn()
-  });
+  res.json({ ok: true, ...settingsPayload() });
 });
 
 app.get('/admin', (_req, res) => {
@@ -3132,7 +3152,10 @@ module.exports = {
   db,
   start,
   DATA_DIR,
-  FREE_CHAT_MS,
+  get FREE_CHAT_MS() {
+    return getFreeChatMs(db);
+  },
+  DEFAULT_FREE_TRIAL_DAYS,
   HOST_CREDIT_AMOUNT,
   HOST_WITHDRAW_MIN,
   OFFLINE_PURGE_MS

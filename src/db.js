@@ -5,6 +5,10 @@ const path = require('path');
 const Database = require('better-sqlite3');
 const { remainingPaidHours } = require('./pricing');
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_FREE_TRIAL_DAYS = 7;
+const LEGACY_FREE_CHAT_MS = 24 * 60 * 60 * 1000;
+
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
@@ -246,6 +250,7 @@ function migrate(db) {
   ensureColumn(db, 'users', 'chat_view_lang', 'TEXT');
   ensureColumn(db, 'users', 'host_code', 'TEXT');
   ensureColumn(db, 'users', 'bio', 'TEXT');
+  ensureColumn(db, 'users', 'free_chat_ms', 'INTEGER');
   ensureColumn(db, 'upgrades', 'host_code', 'TEXT');
   ensureColumn(db, 'upgrades', 'host_id', 'INTEGER');
   ensureColumn(db, 'upgrades', 'target_user_id', 'INTEGER');
@@ -258,6 +263,7 @@ function migrate(db) {
   ensureColumn(db, 'conversation_mutual', 'voided', 'INTEGER NOT NULL DEFAULT 0');
   const { ensurePlatformTables } = require('./platform');
   ensurePlatformTables(db);
+  db.prepare('UPDATE users SET free_chat_ms = ? WHERE free_chat_ms IS NULL').run(LEGACY_FREE_CHAT_MS);
 }
 
 function ensureColumn(db, table, name, spec) {
@@ -276,7 +282,8 @@ function seed(db) {
     admin_contact: 'Message the sakarwine admin with the phone number you used at registration. There is no self-serve password reset.',
     badges: JSON.stringify(['Admin', 'officer', 'sponsor', 'VVIP']),
     income_demo_video_url: '/demo/income-host.mp4',
-    maintenance_mode: '0'
+    maintenance_mode: '0',
+    free_trial_days: String(DEFAULT_FREE_TRIAL_DAYS)
   };
   const insert = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
   for (const [key, value] of Object.entries(defaults)) insert.run(key, value);
@@ -301,6 +308,7 @@ function seed(db) {
       Date.now()
     );
   }
+  db.prepare('UPDATE users SET free_chat_ms = ? WHERE free_chat_ms IS NULL').run(LEGACY_FREE_CHAT_MS);
 }
 
 function getSetting(db, key, fallback = '') {
@@ -312,6 +320,41 @@ function setSetting(db, key, value) {
   db.prepare(
     'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
   ).run(key, String(value));
+}
+
+function clampFreeTrialDays(value) {
+  const days = Math.round(Number(value));
+  if (!Number.isFinite(days) || days < 1 || days > 365) return null;
+  return days;
+}
+
+function envFreeChatMs() {
+  const n = Number(process.env.FREE_CHAT_MS);
+  if (Number.isFinite(n) && n > 0) return Math.round(n);
+  return DEFAULT_FREE_TRIAL_DAYS * DAY_MS;
+}
+
+function getFreeTrialDays(db) {
+  const fromSettings = clampFreeTrialDays(getSetting(db, 'free_trial_days', ''));
+  if (fromSettings) return fromSettings;
+  const envMs = Number(process.env.FREE_CHAT_MS);
+  if (Number.isFinite(envMs) && envMs > 0) {
+    const days = Math.round(envMs / DAY_MS);
+    return clampFreeTrialDays(days) || DEFAULT_FREE_TRIAL_DAYS;
+  }
+  return DEFAULT_FREE_TRIAL_DAYS;
+}
+
+function getFreeChatMs(db) {
+  const fromSettings = clampFreeTrialDays(getSetting(db, 'free_trial_days', ''));
+  if (fromSettings) return fromSettings * DAY_MS;
+  return envFreeChatMs();
+}
+
+function userFreeChatMs(user) {
+  const snap = Number(user && user.free_chat_ms);
+  if (Number.isFinite(snap) && snap > 0) return Math.round(snap);
+  return LEGACY_FREE_CHAT_MS;
 }
 
 function getBadges(db) {
@@ -424,5 +467,12 @@ module.exports = {
   publicUser,
   adminUser,
   isAdminAccount,
-  defaultAvatarUrl
+  defaultAvatarUrl,
+  DAY_MS,
+  DEFAULT_FREE_TRIAL_DAYS,
+  LEGACY_FREE_CHAT_MS,
+  clampFreeTrialDays,
+  getFreeTrialDays,
+  getFreeChatMs,
+  userFreeChatMs
 };

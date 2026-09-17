@@ -17,6 +17,7 @@ const assert = require('node:assert/strict');
 const { server, db, FREE_CHAT_MS } = require('../src/server');
 const { remainingPaidHours } = require('../src/pricing');
 const { purgeStaleAccounts } = require('../src/platform');
+const { DAY_MS, DEFAULT_FREE_TRIAL_DAYS, LEGACY_FREE_CHAT_MS, userFreeChatMs } = require('../src/db');
 
 const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
@@ -167,6 +168,7 @@ test('owner /api/me exposes freeUntil; public users and profile cards do not', a
   const other = await register('frope' + Date.now().toString().slice(-5), '232323', 'female');
   const me = await req('/api/me', { jar: owner.jar });
   assert.ok(me.data.user.freeUntil);
+  assert.equal(me.data.user.freeUntil, Number(me.data.user.createdAt) + DEFAULT_FREE_TRIAL_DAYS * DAY_MS);
   assert.equal(me.data.user.freeUntil, Number(me.data.user.createdAt) + FREE_CHAT_MS);
   assert.ok(me.data.user.freeUntil > Date.now());
 
@@ -992,7 +994,8 @@ test('paid members can create groups; invites accept and decline', async () => {
   const inviteeThread = await req(`/api/groups/${gid}/messages`, { jar: invitee.jar });
   assert.equal(inviteeThread.data.window.fromJoin, true);
   assert.equal(inviteeThread.data.window.canSend, true);
-  assert.equal(inviteeThread.data.window.freeMs, 60000);
+  const inviteeRow = db.prepare('SELECT * FROM users WHERE id = ?').get(invitee.user.id);
+  assert.equal(inviteeThread.data.window.freeMs, userFreeChatMs(inviteeRow));
 
   const sentG = await req(`/api/groups/${gid}/messages`, {
     method: 'POST',
@@ -1004,7 +1007,7 @@ test('paid members can create groups; invites accept and decline', async () => {
   assert.ok(thread.data.messages.some((m) => m.body === 'hello group'));
 
   db.prepare('UPDATE group_members SET joined_at = ? WHERE group_id = ? AND user_id = ?').run(
-    Date.now() - 120000,
+    Date.now() - userFreeChatMs(inviteeRow) - 1000,
     gid,
     invitee.user.id
   );
@@ -1338,13 +1341,13 @@ test('new accounts get language-keyed Saka rules; host income is female-only', a
   assert.equal(femaleRows[2].body, '__SW__:host');
   const I18n = require('../public/js/i18n-pack.js');
   I18n.setLang('en');
-  assert.match(I18n.t('sakaRules'), /24 hours free/i);
+  assert.match(I18n.t('sakaRules'), /7 days free/i);
   assert.match(I18n.t('sakaRules'), /50%/);
   assert.match(I18n.t('sakaHostNotice'), /optionally enter that code when upgrading/i);
   assert.match(I18n.t('sakaHostNotice'), /12 → \+6000/);
   assert.equal(/Chat time no longer pays/i.test(I18n.t('sakaHostNotice')), false);
   I18n.setLang('my');
-  assert.match(I18n.t('sakaRules'), /အခမဲ့ ၂၄ နာရီ/);
+  assert.match(I18n.t('sakaRules'), /အခမဲ့ ၇ ရက်/);
   assert.match(I18n.t('sakaHostNotice'), /ရည်ညွှန်းကုဒ် ၈ လုံး/);
   assert.match(I18n.t('sakaHostNotice'), /၁၂ လ → \+၆၀၀၀/);
   assert.equal(/စကားပြောချိန်ဖြင့် \+၅၀၀ မရတော့ပါ/.test(I18n.t('sakaHostNotice')), false);
@@ -2071,6 +2074,58 @@ test('admin can freeze members with maintenance mode; health and admin stay up',
   const adminPage = await fetch(base + '/admin');
   assert.equal(adminPage.status, 200);
   await req('/api/admin/settings', { method: 'PUT', json: { maintenance: false }, jar: admin });
+});
+
+test('new accounts get 7-day free trial; admin days apply only to later signups', async () => {
+  await started;
+  const admin = await loginAdmin();
+  const pub0 = await req('/api/public-settings');
+  assert.equal(pub0.data.freeTrialDays, DEFAULT_FREE_TRIAL_DAYS);
+
+  const first = await register('ft7' + Date.now().toString().slice(-5), '121212', 'male');
+  const firstMe = await req('/api/me', { jar: first.jar });
+  const firstMs = DEFAULT_FREE_TRIAL_DAYS * DAY_MS;
+  assert.equal(firstMe.data.user.freeUntil, Number(firstMe.data.user.createdAt) + firstMs);
+  const firstRow = db.prepare('SELECT free_chat_ms FROM users WHERE id = ?').get(first.user.id);
+  assert.equal(firstRow.free_chat_ms, firstMs);
+
+  const peer = await register('ft7p' + Date.now().toString().slice(-5), '232323', 'female');
+  const opened = await req(`/api/conversations/with/${peer.user.id}`, { method: 'POST', jar: first.jar });
+  assert.equal(opened.data.conversation.window.freeMs, firstMs);
+  assert.equal(opened.data.conversation.window.canSend, true);
+  assert.equal(opened.data.conversation.window.expired, false);
+
+  const saved = await req('/api/admin/settings', { method: 'PUT', json: { freeTrialDays: 3 }, jar: admin });
+  assert.equal(saved.res.status, 200, saved.data.error);
+  assert.equal(saved.data.freeTrialDays, 3);
+  const pub1 = await req('/api/public-settings');
+  assert.equal(pub1.data.freeTrialDays, 3);
+
+  const later = await register('ft3' + Date.now().toString().slice(-5), '343434', 'female');
+  const laterMe = await req('/api/me', { jar: later.jar });
+  assert.equal(laterMe.data.user.freeUntil, Number(laterMe.data.user.createdAt) + 3 * DAY_MS);
+  const laterRow = db.prepare('SELECT free_chat_ms FROM users WHERE id = ?').get(later.user.id);
+  assert.equal(laterRow.free_chat_ms, 3 * DAY_MS);
+
+  const firstAgain = await req('/api/me', { jar: first.jar });
+  assert.equal(firstAgain.data.user.freeUntil, Number(firstAgain.data.user.createdAt) + firstMs);
+  const firstChat = await req(`/api/conversations/${opened.data.conversation.id}`, { jar: first.jar });
+  assert.equal(firstChat.data.conversation.window.freeMs, firstMs);
+
+  const bad = await req('/api/admin/settings', { method: 'PUT', json: { freeTrialDays: 0 }, jar: admin });
+  assert.equal(bad.res.status, 400);
+
+  const legacyName = 'leg' + Date.now().toString().slice(-6);
+  db.prepare(
+    `INSERT INTO users (
+      account_id, username, password_hash, gender, birth_year, phone,
+      photo_path, level, status, host_status, ui_lang, created_at, free_chat_ms
+    ) VALUES (?, ?, ?, 'male', 1990, '0900000000', null, 0, 'active', 'none', 'en', ?, ?)`
+  ).run('SWLG' + String(Date.now()).slice(-8), legacyName, 'x', Date.now(), LEGACY_FREE_CHAT_MS);
+  const legacy = db.prepare('SELECT * FROM users WHERE username = ?').get(legacyName);
+  assert.equal(userFreeChatMs(legacy), LEGACY_FREE_CHAT_MS);
+
+  await req('/api/admin/settings', { method: 'PUT', json: { freeTrialDays: DEFAULT_FREE_TRIAL_DAYS }, jar: admin });
 });
 
 test('Saka guide chat is a restricted FAQ helper', async () => {
