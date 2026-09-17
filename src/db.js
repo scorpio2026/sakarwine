@@ -182,6 +182,7 @@ function migrate(db) {
   ensureColumn(db, 'users', 'ui_lang', "TEXT NOT NULL DEFAULT 'my'");
   ensureColumn(db, 'users', 'chat_view_lang', 'TEXT');
   ensureColumn(db, 'users', 'host_code', 'TEXT');
+  ensureColumn(db, 'users', 'bio', 'TEXT');
   ensureColumn(db, 'upgrades', 'host_code', 'TEXT');
   ensureColumn(db, 'upgrades', 'host_id', 'INTEGER');
   ensureColumn(db, 'messages', 'source_lang', 'TEXT');
@@ -318,6 +319,7 @@ function publicUser(row, { online = false, includePrivate = false, includePhone 
     status: row.status,
     isAi: Boolean(row.is_ai),
     tourCompleted: Boolean(row.tour_completed),
+    bio: row.bio ? String(row.bio) : '',
     online,
     createdAt: row.created_at
   };

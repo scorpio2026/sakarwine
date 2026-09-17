@@ -136,6 +136,7 @@ async function openProfilePhoto(userId) {
         ${photo}
         <h3 style="margin:12px 0 4px">${escapeHtml(u.username)}</h3>
         <p class="profile-id">${escapeHtml(u.accountId || '—')}</p>
+        ${u.bio ? `<p class="profile-bio">${escapeHtml(u.bio)}</p>` : ''}
         <button class="btn secondary block" id="photo-close">${t('close')}</button>
       </div>`);
     $('#photo-close').onclick = closeModal;
@@ -1222,6 +1223,7 @@ function showProfile() {
           <div class="muted">${escapeHtml(u.accountId || t('idHidden'))}</div>
         </div>
         <div class="small">${roleMark(u)} · ${genderLabel(u.gender)} · ${t('born', { year: u.birthYear })}<br>${u.isSpecial ? t('specialChat') : paidLine}${u.gender === 'female' && u.occupation ? `<br>${escapeHtml(u.occupation)} · ${Number(u.monthlyIncome || 0).toLocaleString()} MMK` : ''}</div>
+        ${u.bio ? `<p class="profile-bio">${escapeHtml(u.bio)}</p>` : ''}
         <div class="me-actions">
           <button type="button" class="btn secondary" id="edit-profile">${t('editProfile')}</button>
           <button type="button" class="btn secondary" id="open-settings-row">${t('settings')}</button>
@@ -1535,6 +1537,11 @@ function showEditProfile() {
             <input id="edit-username" value="${escapeHtml(u.username)}" required minlength="1" maxlength="12" autocomplete="username" spellcheck="false" autocapitalize="none" pattern="${USERNAME_CHAR_CLASS}{1,12}" title="${t('errUsername')}" />
           </div>
           <p class="small muted" style="text-align:left;margin:0">${t('usernameHelp')}</p>
+          <div class="field" style="width:100%;text-align:left">
+            <label for="edit-bio">${t('bio')}</label>
+            <textarea id="edit-bio" maxlength="280" rows="4" placeholder="${escapeHtml(t('bioPlaceholder'))}">${escapeHtml(u.bio || '')}</textarea>
+          </div>
+          <p class="small muted" style="text-align:left;margin:0">${t('bioHelp')}</p>
         </div>
       </div>
     </section>`;
@@ -1560,6 +1567,7 @@ function showEditProfile() {
     btn.disabled = true;
     const fd = new FormData();
     fd.append('username', $('#edit-username').value.trim());
+    fd.append('bio', ($('#edit-bio') && $('#edit-bio').value) || '');
     if (!usernamePatternOk($('#edit-username').value.trim())) {
       toast(t('errUsername'));
       btn.disabled = false;

@@ -239,6 +239,7 @@ async function bootDash() {
             Level ${a.level} · Paid until ${paidLine}<br>
             Account ID ${a.accountIdHidden ? 'hidden from lounge' : 'visible to lounge'}
             ${a.hostCode ? `<br>Host code ${esc(a.hostCode)}` : ''}
+            ${a.bio ? `<br>Bio: ${esc(a.bio)}` : ''}
             ${a.gender === 'female' ? `<br>Income: ${incomeLine(a)}` : ''}</p>
           ${a.gender === 'female' ? `<h3>NRC verification</h3>${nrcBlock(a)}` : ''}
           ${data.hostIncome ? `<h3>Host earnings</h3>

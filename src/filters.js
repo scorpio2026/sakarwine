@@ -7,6 +7,14 @@ function normalizeForPhoneScan(text) {
   return String(text || '').replace(/[\s\-.]/g, '');
 }
 
+const BIO_MAX_LENGTH = 280;
+const RESTRICTED_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/;
+
+function hasForbiddenPhone(text) {
+  const trimmed = String(text || '').trim();
+  return PHONE_09.test(trimmed) || COMPACT_09.test(normalizeForPhoneScan(trimmed));
+}
+
 function messageFilterError(text) {
   const raw = String(text || '');
   const trimmed = raw.trim();
@@ -14,7 +22,26 @@ function messageFilterError(text) {
   if (trimmed.startsWith('@')) {
     return 'Messages cannot start with @.';
   }
-  if (PHONE_09.test(trimmed) || COMPACT_09.test(normalizeForPhoneScan(trimmed))) {
+  if (hasForbiddenPhone(trimmed)) {
+    return 'Myanmar phone numbers starting with 09 cannot be sent.';
+  }
+  return null;
+}
+
+function bioFilterError(text) {
+  const raw = String(text == null ? '' : text);
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if ([...trimmed].length > BIO_MAX_LENGTH) {
+    return 'Bio must be 280 characters or fewer.';
+  }
+  if (RESTRICTED_CHARS.test(raw)) {
+    return 'Restricted characters are not allowed.';
+  }
+  if (trimmed.startsWith('@')) {
+    return 'Bio cannot start with @.';
+  }
+  if (hasForbiddenPhone(trimmed)) {
     return 'Myanmar phone numbers starting with 09 cannot be sent.';
   }
   return null;
@@ -41,6 +68,8 @@ function isForbiddenVideo(mime, originalName = '') {
 
 module.exports = {
   messageFilterError,
+  bioFilterError,
+  BIO_MAX_LENGTH,
   isAllowedImageMime,
   isAllowedVoiceMime,
   isForbiddenVideo

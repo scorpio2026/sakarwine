@@ -74,10 +74,16 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   assert.match(js, /id="host-code"/);
   assert.match(js, /t\('optional'\)/);
   assert.match(js, /hostCode && !\/\^\\d\{8\}\$\/\.test\(hostCode\)/);
+  assert.match(js, /id="edit-bio"/);
+  assert.match(js, /profile-bio/);
   I18n.setLang('en');
   assert.equal(I18n.t('optional'), 'optional');
   assert.match(I18n.t('hostCodeHelp'), /Optional/i);
   assert.equal(I18n.t('errHostCode'), 'Enter a valid host code.');
+  assert.equal(I18n.t('bio'), 'Bio');
+  assert.match(I18n.t('bioHelp'), /280/);
+  I18n.setLang('my');
+  assert.equal(I18n.t('errBioRestricted'), 'ကန့်သတ်စာလုံးများ မရပါ။');
 });
 
 test('admin dashboard paints paid accounts green and badges extra upgrades', () => {

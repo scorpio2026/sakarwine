@@ -9,7 +9,7 @@ const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const { Server } = require('socket.io');
 const { openDb, ensureDir, getSetting, setSetting, getBadges, addBadge, publicUser, adminUser, isAdminAccount, defaultAvatarUrl } = require('./db');
-const { messageFilterError, isAllowedImageMime, isAllowedVoiceMime, isForbiddenVideo } = require('./filters');
+const { messageFilterError, bioFilterError, isAllowedImageMime, isAllowedVoiceMime, isForbiddenVideo } = require('./filters');
 const { usernameError } = require('./username');
 const { translateText, normalizeLang } = require('./translate');
 const { quotePlan, allQuotes, addMonths, isPaid, isSpecial, canChatUnlimited, clampMonths } = require('./pricing');
@@ -917,6 +917,7 @@ app.post(
       Date.now() + SESSION_MS
     );
     setCookie(res, 'sw_sid', token, SESSION_MS);
+    startAiWelcome(user);
     res.json({ user: publicUser(user, { includePrivate: true, online: true }) });
   } catch (err) {
     console.error(err);
@@ -1039,13 +1040,24 @@ app.put(
       }
       username = requestedName;
     }
-    if (!photo && requestedName == null) {
+    const bioSent = req.body && Object.prototype.hasOwnProperty.call(req.body, 'bio');
+    let bio = req.user.bio == null ? '' : String(req.user.bio);
+    if (bioSent) {
+      bio = String(req.body.bio || '').trim();
+      const bioErr = bioFilterError(bio);
+      if (bioErr) {
+        drop();
+        return res.status(400).json({ error: bioErr });
+      }
+    }
+    if (!photo && requestedName == null && !bioSent) {
       return res.json({ user: serializeMe(req.user) });
     }
     const photoName = photo ? photo.filename : req.user.photo_path;
-    db.prepare('UPDATE users SET username = ?, photo_path = ? WHERE id = ?').run(
+    db.prepare('UPDATE users SET username = ?, photo_path = ?, bio = ? WHERE id = ?').run(
       username,
       photoName,
+      bio || null,
       req.user.id
     );
     if (photo && req.user.photo_path && req.user.photo_path !== photo.filename) {
@@ -1294,7 +1306,8 @@ app.get('/api/users/:id/card', requireUser, requireActive, (req, res) => {
       accountId: target.account_id,
       isAi: Boolean(target.is_ai),
       isAdmin: isAdminAccount(target),
-      badge: target.badge || null
+      badge: target.badge || null,
+      bio: target.bio ? String(target.bio) : ''
     }
   });
 });

@@ -539,6 +539,26 @@ body {
   color: var(--green-deep);
   margin: 0 0 14px;
 }
+.profile-bio {
+  margin: 8px 0 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+.me-card .profile-bio {
+  text-align: left;
+  max-width: 36ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+.field textarea {
+  min-height: 96px;
+  resize: vertical;
+  line-height: 1.4;
+}
 .avatar.ai {
   display: grid;
   place-items: center;

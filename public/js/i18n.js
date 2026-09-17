@@ -138,6 +138,9 @@
     logOut: 'Log out',
     changePhoto: 'Change photo',
     usernameHelp: 'Letters and numbers only (English or Myanmar) · max 12 characters. No spaces or symbols. Gender, birth year, and PIN stay as they are.',
+    bio: 'Bio',
+    bioHelp: 'Up to 280 characters. Do not start with @, do not include 09 phone numbers, and restricted characters are not allowed.',
+    bioPlaceholder: 'A short intro about you',
     usernameRule: 'Letters and numbers only (English or Myanmar) · max 12 characters. No spaces or symbols.',
     searchPeople: 'Search people',
     typeHere: 'Type here',
@@ -307,6 +310,10 @@
     reopenMessaging: 'Reopen messaging',
     errUpgrade: 'Free chatting has ended. Upgrade to keep talking.',
     errVideo: 'Video is not allowed.',
+    errBioRestricted: 'Restricted characters are not allowed.',
+    errBioAt: 'Bio cannot start with @.',
+    errBioLength: 'Bio must be 280 characters or fewer.',
+    errPhone09: 'Myanmar phone numbers starting with 09 cannot be sent.',
     errRate: 'Too many attempts. Wait a moment and try again.'
   };
 
@@ -432,6 +439,9 @@
     logOut: 'ထွက်မည်',
     changePhoto: 'ဓာတ်ပုံပြောင်းရန်',
     usernameHelp: 'အင်္ဂလိပ် သို့မဟုတ် မြန်မာ အက္ခရာနှင့် ဂဏန်းသာ · အများဆုံး ၁၂ လုံး။ နေရာလွတ်/သင်္ကေတ မရပါ။ ကျား/မ၊ မွေးနှစ်၊ PIN မပြောင်းပါ။',
+    bio: 'ကိုယ်ရေးအကျဉ်း',
+    bioHelp: 'အများဆုံး ၂၈၀ လုံး။ @ ဖြင့် မစရ။ 09 ဖုန်းနံပါတ် မထည့်ရ။ ကန့်သတ်စာလုံးများ မရပါ။',
+    bioPlaceholder: 'သင့်အကြောင်း အတိုချုံး ရေးပါ',
     usernameRule: 'အင်္ဂလိပ် သို့မဟုတ် မြန်မာ အက္ခရာနှင့် ဂဏန်းသာ · အများဆုံး ၁၂ လုံး။ နေရာလွတ်/သင်္ကေတ မရပါ။',
     searchPeople: 'လူများ ရှာရန်',
     typeHere: 'ဤနေရာတွင် ရိုက်ပါ',
@@ -601,6 +611,10 @@
     reopenMessaging: 'ပို့ခြင်း ပြန်ဖွင့်မည်',
     errUpgrade: 'အခမဲ့ စကားပြော ကုန်ပါပြီ။ ဆက်ပြောရန် အဆင့်မြှင့်ပါ။',
     errVideo: 'ဗီဒီယို မရပါ။',
+    errBioRestricted: 'ကန့်သတ်စာလုံးများ မရပါ။',
+    errBioAt: 'ကိုယ်ရေးအကျဉ်းကို @ ဖြင့် မစရပါ။',
+    errBioLength: 'ကိုယ်ရေးအကျဉ်းသည် ၂၈၀ လုံးထက် မပိုရပါ။',
+    errPhone09: '09 ဖြင့် စသော မြန်မာဖုန်းနံပါတ် မပို့ရပါ။',
     errRate: 'ကြိုးစားမှု များလွန်းသည်။ ခဏစောင့်ပါ။'
   };
 
@@ -726,6 +740,9 @@
     logOut: 'ออกจากระบบ',
     changePhoto: 'เปลี่ยนรูป',
     usernameHelp: 'ตัวอักษรและตัวเลขเท่านั้น (อังกฤษหรือพม่า) · สูงสุด 12 ตัว ไม่มีช่องว่างหรือสัญลักษณ์ เพศ ปีเกิด และ PIN ไม่เปลี่ยน',
+    bio: 'ประวัติย่อ',
+    bioHelp: 'ไม่เกิน 280 ตัวอักษร ห้ามขึ้นต้นด้วย @ ห้ามใส่เบอร์ 09 และห้ามอักขระที่ถูกจำกัด',
+    bioPlaceholder: 'แนะนำตัวสั้น ๆ',
     usernameRule: 'ตัวอักษรและตัวเลขเท่านั้น (อังกฤษหรือพม่า) · สูงสุด 12 ตัว ไม่มีช่องว่างหรือสัญลักษณ์',
     searchPeople: 'ค้นหาผู้คน',
     typeHere: 'พิมพ์ที่นี่',
@@ -895,6 +912,10 @@
     reopenMessaging: 'เปิดการส่งอีกครั้ง',
     errUpgrade: 'แชทฟรีหมดแล้ว อัปเกรดเพื่อคุยต่อ',
     errVideo: 'ไม่อนุญาตวิดีโอ',
+    errBioRestricted: 'ใช้อักขระที่ถูกจำกัดไม่ได้',
+    errBioAt: 'ประวัติย่อขึ้นต้นด้วย @ ไม่ได้',
+    errBioLength: 'ประวัติย่อต้องไม่เกิน 280 ตัวอักษร',
+    errPhone09: 'ห้ามส่งเบอร์โทรพม่าที่ขึ้นต้นด้วย 09',
     errRate: 'พยายามมากเกินไป รอสักครู่'
   };
 
@@ -1020,6 +1041,9 @@
     logOut: '退出登录',
     changePhoto: '更换照片',
     usernameHelp: '仅限字母和数字（英文或缅文）· 最多 12 个字符。不能有空格或符号。性别、出生年和 PIN 不可改。',
+    bio: '简介',
+    bioHelp: '最多 280 字。不能以 @ 开头，不能写 09 手机号，禁止受限字符。',
+    bioPlaceholder: '写一句简短介绍',
     usernameRule: '仅限字母和数字（英文或缅文）· 最多 12 个字符。不能有空格或符号。',
     searchPeople: '搜索联系人',
     typeHere: '输入内容',
@@ -1189,6 +1213,10 @@
     reopenMessaging: '重新开启发送',
     errUpgrade: '免费聊天已结束。升级后可继续。',
     errVideo: '不允许视频。',
+    errBioRestricted: '不允许使用受限字符。',
+    errBioAt: '简介不能以 @ 开头。',
+    errBioLength: '简介不能超过 280 个字符。',
+    errPhone09: '不能发送以 09 开头的缅甸手机号。',
     errRate: '尝试次数过多，请稍后再试。'
   });
 
@@ -1314,6 +1342,9 @@
     logOut: '로그아웃',
     changePhoto: '사진 변경',
     usernameHelp: '영문 또는 미얀마 문자와 숫자만 · 최대 12자. 공백/기호 불가. 성별, 출생 연도, PIN은 그대로입니다.',
+    bio: '소개',
+    bioHelp: '최대 280자. @로 시작하지 마세요. 09 전화번호와 제한된 문자는 사용할 수 없습니다.',
+    bioPlaceholder: '짧은 소개를 적어 주세요',
     usernameRule: '영문 또는 미얀마 문자와 숫자만 · 최대 12자. 공백/기호 불가.',
     searchPeople: '사람 검색',
     typeHere: '여기에 입력',
@@ -1483,6 +1514,10 @@
     reopenMessaging: '메시지 다시 열기',
     errUpgrade: '무료 채팅이 끝났습니다. 계속하려면 업그레이드하세요.',
     errVideo: '동영상은 허용되지 않습니다.',
+    errBioRestricted: '제한된 문자는 사용할 수 없습니다.',
+    errBioAt: '소개는 @로 시작할 수 없습니다.',
+    errBioLength: '소개는 280자 이하여야 합니다.',
+    errPhone09: '09로 시작하는 미얀마 전화번호는 보낼 수 없습니다.',
     errRate: '시도가 너무 많습니다. 잠시 후 다시 시도하세요.'
   });
 
@@ -1608,6 +1643,9 @@
     logOut: 'ログアウト',
     changePhoto: '写真を変更',
     usernameHelp: '英字またはミャンマー文字と数字のみ · 最大12文字。空白・記号は不可。性別、生まれ年、PIN はそのままです。',
+    bio: '自己紹介',
+    bioHelp: '280文字まで。@で始めない、09の電話番号を書かない、制限文字は使えません。',
+    bioPlaceholder: '短い自己紹介',
     usernameRule: '英字またはミャンマー文字と数字のみ · 最大12文字。空白・記号は不可。',
     searchPeople: '人を検索',
     typeHere: 'ここに入力',
@@ -1777,6 +1815,10 @@
     reopenMessaging: '送信を再開',
     errUpgrade: '無料チャットが終了しました。続けるにはアップグレードしてください。',
     errVideo: '動画は許可されていません。',
+    errBioRestricted: '制限された文字は使えません。',
+    errBioAt: '自己紹介を @ で始められません。',
+    errBioLength: '自己紹介は280文字以内です。',
+    errPhone09: '09で始まるミャンマーの電話番号は送れません。',
     errRate: '試行が多すぎます。しばらく待ってください。'
   });
 
@@ -1810,6 +1852,10 @@
     'This chat is closed by admin.': 'chatClosedByAdmin',
     'Free chatting has ended. Upgrade to keep talking.': 'errUpgrade',
     'Video is not allowed.': 'errVideo',
+    'Restricted characters are not allowed.': 'errBioRestricted',
+    'Bio cannot start with @.': 'errBioAt',
+    'Bio must be 280 characters or fewer.': 'errBioLength',
+    'Myanmar phone numbers starting with 09 cannot be sent.': 'errPhone09',
     'Enter a valid host code.': 'errHostCode',
     'Too many attempts. Wait a moment and try again.': 'errRate'
   };

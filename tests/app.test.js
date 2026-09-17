@@ -588,6 +588,68 @@ test('settings: members can edit display profile and manage blocked list, not PI
   assert.equal(cleared.data.users.length, 0);
 });
 
+test('profile bio is owner-editable, filtered, and visible without phones', async () => {
+  await started;
+  const owner = await register('bioa' + Date.now().toString().slice(-6), '121212', 'male');
+  const visitor = await register('biob' + Date.now().toString().slice(-6), '343434', 'female');
+  const note = 'Hello from the wine lounge';
+  const saved = await req('/api/me/profile', { method: 'PUT', json: { bio: note }, jar: owner.jar });
+  assert.equal(saved.res.status, 200, saved.data.error);
+  assert.equal(saved.data.user.bio, note);
+  assert.equal(Object.prototype.hasOwnProperty.call(saved.data.user, 'phone'), false);
+
+  const me = await req('/api/me', { jar: owner.jar });
+  assert.equal(me.data.user.bio, note);
+
+  const listed = await req('/api/users', { jar: visitor.jar });
+  const peer = listed.data.users.find((u) => u.id === owner.user.id);
+  assert.ok(peer);
+  assert.equal(peer.bio, note);
+  assert.equal(Object.prototype.hasOwnProperty.call(peer, 'phone'), false);
+
+  const card = await req(`/api/users/${owner.user.id}/card`, { jar: visitor.jar });
+  assert.equal(card.data.user.bio, note);
+  assert.equal(Object.prototype.hasOwnProperty.call(card.data.user, 'phone'), false);
+  assert.equal(JSON.stringify(card.data).includes('091111111'), false);
+
+  const atStart = await req('/api/me/profile', { method: 'PUT', json: { bio: '@admin' }, jar: owner.jar });
+  assert.equal(atStart.res.status, 400);
+  assert.equal(atStart.data.error, 'Bio cannot start with @.');
+  const phone = await req('/api/me/profile', { method: 'PUT', json: { bio: 'call me 0912345678' }, jar: owner.jar });
+  assert.equal(phone.res.status, 400);
+  assert.match(phone.data.error, /09/);
+  const restricted = await req('/api/me/profile', {
+    method: 'PUT',
+    json: { bio: 'hi\u200bthere' },
+    jar: owner.jar
+  });
+  assert.equal(restricted.res.status, 400);
+  assert.equal(restricted.data.error, 'Restricted characters are not allowed.');
+  const tooLong = await req('/api/me/profile', {
+    method: 'PUT',
+    json: { bio: 'x'.repeat(281) },
+    jar: owner.jar
+  });
+  assert.equal(tooLong.res.status, 400);
+  assert.match(tooLong.data.error, /280/);
+  const keep = await req('/api/me', { jar: owner.jar });
+  assert.equal(keep.data.user.bio, note);
+
+  const hijack = await req('/api/me/profile', {
+    method: 'PUT',
+    json: { bio: 'updated lounge note', phone: '0999999999', level: 99 },
+    jar: owner.jar
+  });
+  assert.equal(hijack.res.status, 200, hijack.data.error);
+  assert.equal(hijack.data.user.bio, 'updated lounge note');
+  assert.equal(hijack.data.user.level, 0);
+  assert.equal(JSON.stringify(hijack.data).includes('0999999999'), false);
+
+  const clearedBio = await req('/api/me/profile', { method: 'PUT', json: { bio: '   ' }, jar: owner.jar });
+  assert.equal(clearedBio.res.status, 200, clearedBio.data.error);
+  assert.equal(clearedBio.data.user.bio, '');
+});
+
 test('admin account ID search opens a full dossier', async () => {
   await started;
   const member = await register('seek' + Date.now().toString().slice(-6), '343434', 'male');
@@ -834,21 +896,37 @@ test('female registration matches male; host apply is later from Settings', asyn
 
 test('new accounts get dual-language rules in Saka chat; host income is female-only', async () => {
   await started;
-  const male = await register('rulem' + Date.now().toString().slice(-5), '121212', 'male');
-  const female = await register('rulef' + Date.now().toString().slice(-5), '212121', 'female');
+  async function registerOnly(name, pin, gender) {
+    const jar = cookieJar();
+    const form = new FormData();
+    form.set('username', name);
+    form.set('password', pin);
+    form.set('gender', gender);
+    form.set('birthYear', '1998');
+    form.set('phone', '091111111');
+    form.set('photo', new Blob([PNG], { type: 'image/png' }), 'p.png');
+    const { data } = await req('/api/register', { method: 'POST', form, jar });
+    assert.ok(data.user, data.error);
+    return { jar, user: data.user };
+  }
+  const male = await registerOnly('rulem' + Date.now().toString().slice(-5), '121212', 'male');
+  const female = await registerOnly('rulef' + Date.now().toString().slice(-5), '212121', 'female');
   const saka = db.prepare('SELECT id FROM users WHERE is_ai = 1').get();
   assert.ok(saka && saka.id, 'Saka guide account');
-  function welcomeText(userId) {
+  function welcomeRows(userId) {
     const lo = Math.min(userId, saka.id);
     const hi = Math.max(userId, saka.id);
     const conv = db.prepare('SELECT id FROM conversations WHERE user_lo = ? AND user_hi = ?').get(lo, hi);
     assert.ok(conv, 'expected Saka conversation for user ' + userId);
-    return db
-      .prepare('SELECT body FROM messages WHERE conversation_id = ? ORDER BY id')
-      .all(conv.id)
+    return db.prepare('SELECT type, body FROM messages WHERE conversation_id = ? ORDER BY id').all(conv.id);
+  }
+  function welcomeText(userId) {
+    return welcomeRows(userId)
       .map((r) => r.body || '')
       .join('\n');
   }
+  assert.equal(welcomeRows(male.user.id).length, 2);
+  assert.equal(welcomeRows(female.user.id).length, 3);
   const maleText = welcomeText(male.user.id);
   const femaleText = welcomeText(female.user.id);
   assert.match(maleText, /အခမဲ့ ၂၄ နာရီ/);
@@ -862,6 +940,18 @@ test('new accounts get dual-language rules in Saka chat; host income is female-o
   assert.match(femaleText, /8-digit/);
   assert.match(femaleText, /Profile Settings/);
   assert.match(femaleText, /100,000/);
+  await req('/api/me/liveness', {
+    method: 'POST',
+    json: { left: true, right: true, estimatedGender: 'male' },
+    jar: male.jar
+  });
+  await req('/api/me/liveness', {
+    method: 'POST',
+    json: { left: true, right: true, estimatedGender: 'female' },
+    jar: female.jar
+  });
+  assert.equal(welcomeRows(male.user.id).length, 2);
+  assert.equal(welcomeRows(female.user.id).length, 3);
 });
 
 test('hosts earn 500 per approved upgrade that used their code', async () => {
