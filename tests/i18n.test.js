@@ -41,6 +41,8 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   assert.match(css, /\.app-masthead\s*\{[^}]*background:\s*transparent/);
   assert.match(css, /\.masthead-logo\s*\{[^}]*background-color:\s*transparent/);
   assert.match(css, /\.logo-aura\s*\{/);
+  assert.match(css, /drop-shadow\(-1px -1\.5px 0 rgba\(255, 255, 255/);
+  assert.match(css, /drop-shadow\(1px 1\.5px 0 rgba\(78, 18, 120/);
   assert.match(css, /@keyframes logo-drift/);
   assert.match(css, /prefers-reduced-motion:\s*reduce/);
   assert.match(css, /#ff8a3d/);

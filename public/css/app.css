@@ -169,38 +169,39 @@ body {
     transform: translate(-50%, -50%);
   }
 }
-.brand-logo {
+.brand-logo,
+.masthead-logo {
   display: block;
-  width: min(88%, 300px);
   height: auto;
   margin: 0 auto;
   border-radius: 0;
   background: none;
   background-color: transparent;
+  /* ကြွကြွလေး: top-left glass highlight + bottom-right bevel + soft lift */
   filter:
-    drop-shadow(0 -1px 0 rgba(255, 255, 255, 0.55))
-    drop-shadow(0 1px 0 rgba(90, 20, 120, 0.28))
-    drop-shadow(0 6px 10px rgba(40, 10, 70, 0.22));
+    drop-shadow(-1px -1.5px 0 rgba(255, 255, 255, 0.82))
+    drop-shadow(0 -2px 1px rgba(255, 255, 255, 0.38))
+    drop-shadow(1px 1.5px 0 rgba(78, 18, 120, 0.34))
+    drop-shadow(0 3px 1px rgba(50, 12, 90, 0.2))
+    drop-shadow(0 8px 10px rgba(40, 10, 70, 0.2));
+}
+.brand-logo {
+  width: min(88%, 300px);
 }
 .welcome-hero .brand-logo {
   width: min(86%, 320px);
   filter:
-    drop-shadow(0 -1px 0 rgba(255, 255, 255, 0.5))
-    drop-shadow(0 1px 0 rgba(80, 20, 110, 0.3))
-    drop-shadow(0 8px 16px rgba(0, 20, 12, 0.2));
+    drop-shadow(-1px -1.5px 0 rgba(255, 255, 255, 0.88))
+    drop-shadow(0 -2px 1px rgba(255, 255, 255, 0.42))
+    drop-shadow(1px 1.5px 0 rgba(20, 50, 40, 0.28))
+    drop-shadow(0 3px 1px rgba(10, 40, 30, 0.18))
+    drop-shadow(0 10px 14px rgba(0, 30, 20, 0.22));
 }
 .masthead-logo {
-  display: block;
   width: min(200px, 68vw);
-  height: auto;
   margin: 0;
-  border-radius: 0;
   background: none;
   background-color: transparent;
-  filter:
-    drop-shadow(0 -1px 0 rgba(255, 255, 255, 0.55))
-    drop-shadow(0 1px 0 rgba(90, 20, 120, 0.28))
-    drop-shadow(0 5px 8px rgba(40, 10, 70, 0.2));
 }
 .welcome-screen {
   padding: 0;

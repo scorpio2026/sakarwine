@@ -161,9 +161,11 @@ audio { width: 100%; max-width: 100%; }
   background: none;
   background-color: transparent;
   filter:
-    drop-shadow(0 -1px 0 rgba(255, 255, 255, 0.55))
-    drop-shadow(0 1px 0 rgba(90, 20, 120, 0.28))
-    drop-shadow(0 6px 10px rgba(40, 10, 70, 0.22));
+    drop-shadow(-1px -1.5px 0 rgba(255, 255, 255, 0.82))
+    drop-shadow(0 -2px 1px rgba(255, 255, 255, 0.38))
+    drop-shadow(1px 1.5px 0 rgba(78, 18, 120, 0.34))
+    drop-shadow(0 3px 1px rgba(50, 12, 90, 0.2))
+    drop-shadow(0 8px 10px rgba(40, 10, 70, 0.2));
 }
 .muted { color: rgba(255,244,236,.65); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
