@@ -456,8 +456,8 @@ function showScan() {
 
 function nav(active) {
   return `
-    <nav class="nav nav-help-only">
-      <button data-go="help" class="${active === 'help' ? 'active' : ''}"><span class="icon-btn">${ICONS.chat}</span>${t('navHelp')}</button>
+    <nav class="nav nav-help-only" aria-label="${t('navHelp')}">
+      <button type="button" data-go="help" class="${active === 'help' ? 'active' : ''}"><span class="icon-btn">${ICONS.chat}</span>${t('navHelp')}</button>
     </nav>`;
 }
 
@@ -468,6 +468,16 @@ function bindNav() {
       if (go === 'help') showHelp(true);
     };
   });
+}
+
+function meBtnHtml() {
+  if (!state.user) return '';
+  return `<button type="button" class="home-me" id="goto-me" aria-label="${t('navMe')}">${avatarHtml(state.user, 'round home-me-ava')}</button>`;
+}
+
+function bindMeButton() {
+  const meBtn = $('#goto-me');
+  if (meBtn) meBtn.onclick = showProfile;
 }
 
 function startAdBanner() {
@@ -538,7 +548,7 @@ async function showHome(opts = {}) {
       ${mastheadHtml()}
       <div class="screen-body">
       <div class="topbar">
-        <button type="button" class="home-me" id="goto-me" aria-label="${t('navMe')}">${avatarHtml(u, 'round home-me-ava')}</button>
+        ${meBtnHtml()}
         <h2 id="home-title">${t('contactsTitle')}</h2>
         <span class="pill-slot">${statusPill(u)}</span>
       </div>
@@ -562,8 +572,7 @@ async function showHome(opts = {}) {
       </div>
     </section>`;
   bindNav();
-  const meBtn = $('#goto-me');
-  if (meBtn) meBtn.onclick = showProfile;
+  bindMeButton();
   const search = $('#people-search');
   if (search) search.addEventListener('input', paintHomeList);
   const fab = $('#home-fab');
@@ -1057,7 +1066,11 @@ async function showUpgrade() {
   app.innerHTML = `
     <section class="screen">
       <div class="screen-body">
-      <div class="topbar"><h2>${t('upgradeTitle')}</h2>${statusPill(state.user)}</div>
+      <div class="topbar">
+        <button type="button" class="icon-btn" id="up-back" aria-label="${t('backHome')}">${ICONS.back}</button>
+        <h2>${t('upgradeTitle')}</h2>
+        ${meBtnHtml()}
+      </div>
       <div class="glass-card stack">
         ${state.user.isSpecial ? `
           <p>${t('specialUnlimited')}</p>
@@ -1085,6 +1098,9 @@ async function showUpgrade() {
       ${nav('upgrade')}
     </section>`;
   bindNav();
+  const upBack = $('#up-back');
+  if (upBack) upBack.onclick = showHome;
+  bindMeButton();
   if (state.user.isSpecial) return;
   const paint = () => {
     const q = pub.quotes.find((x) => x.months === Number($('#months').value));
@@ -1185,6 +1201,7 @@ function showProfile() {
     <section class="screen">
       <div class="screen-body">
       <div class="topbar">
+        <button type="button" class="icon-btn" id="me-back" aria-label="${t('backHome')}">${ICONS.back}</button>
         <h2>${t('you')}</h2>
         <button type="button" class="icon-btn" id="open-settings" aria-label="${t('settings')}">${ICONS.gear}</button>
       </div>
@@ -1206,6 +1223,8 @@ function showProfile() {
       ${nav('profile')}
     </section>`;
   bindNav();
+  const meBack = $('#me-back');
+  if (meBack) meBack.onclick = showHome;
   $('#open-settings').onclick = showSettings;
   $('#open-settings-row').onclick = showSettings;
   $('#edit-profile').onclick = showEditProfile;
@@ -1609,6 +1628,7 @@ function showHelp(inApp = false) {
           <span>${t('backHome')}</span>
         </button>
         <h2>${t('helpTitle')}</h2>
+        ${inApp ? meBtnHtml() : ''}
       </div>
       <div class="glass-card">
         <h3 style="margin-top:0">${t('pinRecovery')}</h3>
@@ -1651,7 +1671,10 @@ function showHelp(inApp = false) {
       btn.disabled = false;
     }
   };
-  if (inApp) bindNav();
+  if (inApp) {
+    bindNav();
+    bindMeButton();
+  }
 }
 
 boot().catch((e) => toastErr(e));

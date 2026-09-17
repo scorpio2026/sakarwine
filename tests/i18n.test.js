@@ -91,3 +91,23 @@ test('admin-badge chats block first contact and expose a live gate', () => {
   assert.equal(I18n.error('Wait for the admin to send a message first.'), I18n.t('waitAdminFirst'));
   assert.equal(I18n.error('This chat is closed by admin.'), I18n.t('chatClosedByAdmin'));
 });
+
+test('bottom nav is Help-only; Me stays reachable from the header', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const js = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
+  const navSlice = js.slice(js.indexOf('function nav('), js.indexOf('function bindNav('));
+  assert.match(navSlice, /nav-help-only/);
+  assert.match(navSlice, /data-go="help"/);
+  assert.equal(navSlice.includes('data-go="people"'), false);
+  assert.equal(navSlice.includes('data-go="upgrade"'), false);
+  assert.equal(navSlice.includes('data-go="profile"'), false);
+  assert.equal(navSlice.includes('navPeople'), false);
+  assert.equal(navSlice.includes('navUpgrade'), false);
+  assert.match(js, /function meBtnHtml/);
+  assert.match(js, /id="goto-me"/);
+  assert.match(js, /id="up-back"/);
+  assert.match(js, /id="me-back"/);
+  const css = fs.readFileSync(path.join(__dirname, '../public/css/app.css'), 'utf8');
+  assert.match(css, /\.nav\.nav-help-only\s*\{[^}]*grid-template-columns:\s*1fr/);
+});
