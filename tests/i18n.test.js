@@ -182,6 +182,8 @@ test('bottom nav has Home, Chat, Group, Profile, and Help — no Upgrade tab', (
   assert.equal(I18n.t('navProfile'), 'Profile');
   assert.equal(I18n.t('navHelp'), 'Help');
   assert.equal(I18n.t('navGroup'), 'Group');
+  assert.equal(I18n.t('upgradeGift'), 'Gift');
+  assert.equal(I18n.t('upgradeSelf'), 'Self');
   assert.equal(I18n.t('noChats'), 'No conversations yet.');
   assert.equal(I18n.t('paidHoursLeft', { hours: 48 }), '48 hours remaining');
   assert.equal(I18n.t('paidCountdown', { h: 12, m: '04', s: '09' }), '12h 04m 09s remaining');
