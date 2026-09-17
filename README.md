@@ -93,4 +93,11 @@ SQLite file: `$DATA_DIR/sakarwine.sqlite`. Uploads (profiles, chat photos, voice
 
 ## Security
 
-Balances, levels, host credits, payouts, and admin rights are **server-authoritative**. The client cannot send a level, badge, host flag, or payout amount that the server will trust. Sessions are httpOnly cookies (`SameSite=Lax`). PINs are bcrypt-hashed. Admin routes require an admin session. Host income is credited only from server-side presence duration — never from a client-reported “10 minutes”. Sensitive routes are rate-limited; mutating requests with a foreign `Origin` are rejected. Parameterized SQL is used throughout.
+Balances, levels, host credits, payouts, and admin rights are **server-authoritative**. Privilege fields and money amounts on request bodies are stripped. Upgrade prices come from the server quote; withdraw amount is the current available balance; host 500s come only from server-side presence duration.
+
+- PINs are bcrypt-hashed. Sessions are random httpOnly cookies (`SameSite=Lax`; `Secure` in production).
+- `/admin` uses a separate cookie. Member requests cannot set admin, host, VVIP, or level.
+- Rate limits on register, login, admin login, withdraw, broadcast, and presence.
+- Foreign `Origin` rejected on mutating requests. CSP + `nosniff` + `DENY` framing.
+- Uploads use MIME-derived extensions (client filenames ignored). NRC and receipts are admin-only.
+- Parameterized SQL. UI strings are escaped. Production 500s do not leak internals.

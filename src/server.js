@@ -22,7 +22,7 @@ const {
   requestPayout,
   listPayouts
 } = require('./hostIncome');
-const { rateLimit, securityHeaders, csrfGuard, rejectClientPrivilege } = require('./security');
+const { rateLimit, securityHeaders, csrfGuard, rejectClientPrivilege, safeEqual } = require('./security');
 const {
   AD_ROTATE_MS,
   OFFLINE_PURGE_MS,
@@ -55,7 +55,7 @@ ensureDir(path.join(UPLOADS, 'broadcast'));
 const db = openDb(DATA_DIR);
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { maxHttpBufferSize: 2e6 });
+const io = new Server(server, { maxHttpBufferSize: 2e6, cors: { origin: false } });
 
 const online = new Map(); // userId -> Set(socketId)
 
@@ -103,7 +103,7 @@ function cookieOpts(maxAge = SESSION_MS) {
     sameSite: 'lax',
     path: '/',
     maxAge,
-    secure: process.env.COOKIE_SECURE === '1'
+    secure: process.env.COOKIE_SECURE === '1' || process.env.NODE_ENV === 'production'
   };
 }
 
@@ -128,7 +128,7 @@ function storageFor(subdir) {
   return multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, path.join(UPLOADS, subdir)),
     filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname || '').slice(0, 8) || mimeExt(file.mimetype);
+      const ext = mimeExt(file.mimetype) || '.bin';
       cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`);
     }
   });
@@ -166,7 +166,7 @@ const uploadChat = multer({
       cb(null, path.join(UPLOADS, kind));
     },
     filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname || '').slice(0, 8) || mimeExt(file.mimetype);
+      const ext = mimeExt(file.mimetype) || '.bin';
       cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`);
     }
   }),
@@ -201,7 +201,7 @@ const uploadRegister = multer({
       cb(null, path.join(UPLOADS, nrc ? 'nrc' : 'profiles'));
     },
     filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname || '').slice(0, 8) || mimeExt(file.mimetype);
+      const ext = mimeExt(file.mimetype) || '.bin';
       cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`);
     }
   }),
@@ -246,7 +246,10 @@ const uploadBroadcast = multer({
 function multerSingle(uploader, field) {
   return (req, res, next) => {
     uploader.single(field)(req, res, (err) => {
-      if (!err) return next();
+      if (!err) {
+        if (!currentAdmin(req)) rejectClientPrivilege(req.body);
+        return next();
+      }
       res.status(400).json({ error: err.message || 'Upload failed.' });
     });
   };
@@ -255,7 +258,10 @@ function multerSingle(uploader, field) {
 function multerFields(uploader, fields) {
   return (req, res, next) => {
     uploader.fields(fields)(req, res, (err) => {
-      if (!err) return next();
+      if (!err) {
+        if (!currentAdmin(req)) rejectClientPrivilege(req.body);
+        return next();
+      }
       res.status(400).json({ error: err.message || 'Upload failed.' });
     });
   };
@@ -954,7 +960,12 @@ app.get('/api/conversations/:id', requireUser, requireActive, (req, res) => {
   });
 });
 
-app.post('/api/conversations/:id/presence', requireUser, requireActive, (req, res) => {
+app.post(
+  '/api/conversations/:id/presence',
+  requireUser,
+  requireActive,
+  rateLimit({ windowMs: 60 * 1000, max: 90, name: 'presence' }),
+  (req, res) => {
   const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(Number(req.params.id));
   if (!conv || (conv.user_lo !== req.user.id && conv.user_hi !== req.user.id)) {
     return res.status(404).json({ error: 'Conversation not found.' });
@@ -1128,13 +1139,14 @@ app.get('/api/upgrade/mine', requireUser, requireActive, (req, res) => {
 });
 
 function sendUpload(res, subdir, filename, { noStore = false } = {}) {
-  const safe = path.basename(filename);
-  const full = path.join(UPLOADS, subdir, safe);
+  const safe = path.basename(String(filename || ''));
+  if (!safe || safe.includes('..')) return res.status(404).end();
+  const dir = path.resolve(UPLOADS, subdir);
+  const full = path.resolve(dir, safe);
+  if (full !== dir && !full.startsWith(dir + path.sep)) return res.status(404).end();
   if (!fs.existsSync(full)) return res.status(404).end();
-  if (noStore) {
-    res.setHeader('Cache-Control', 'private, no-store');
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-  }
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  if (noStore) res.setHeader('Cache-Control', 'private, no-store');
   res.sendFile(full);
 }
 
@@ -1183,11 +1195,9 @@ app.get('/api/admin/accounts/:id/nrc/:side', requireAdmin, (req, res) => {
 app.post('/api/admin/login', rateLimit({ windowMs: 60 * 1000, max: 12, name: 'admin-login' }), (req, res) => {
   const username = String(req.body.username || '');
   const password = String(req.body.password || '');
-  const userOk = username === ADMIN_USERNAME;
-  const passOk =
-    password.length === ADMIN_PASSWORD.length &&
-    crypto.timingSafeEqual(Buffer.from(password), Buffer.from(ADMIN_PASSWORD));
-  if (!userOk || !passOk) return res.status(401).json({ error: 'Wrong admin username or password.' });
+  if (!safeEqual(username, ADMIN_USERNAME) || !safeEqual(password, ADMIN_PASSWORD)) {
+    return res.status(401).json({ error: 'Wrong admin username or password.' });
+  }
   const token = signToken();
   db.prepare('INSERT INTO admin_sessions (token, created_at, expires_at) VALUES (?, ?, ?)').run(
     token,
@@ -1747,7 +1757,8 @@ app.use((req, res, next) => {
 
 app.use((err, _req, res, _next) => {
   console.error(err);
-  res.status(500).json({ error: err.message || 'Server error.' });
+  const leak = process.env.NODE_ENV !== 'production' && err && err.message;
+  res.status(500).json({ error: leak || 'Server error.' });
 });
 
 io.use((socket, next) => {

@@ -692,4 +692,69 @@ test('hosts keep chatting visitors after 24h; ads, broadcast, and stale purge', 
   assert.equal(csrf.status, 403);
 });
 
+test('money, levels, and roles cannot be set from the client', async () => {
+  await started;
+  const jar = cookieJar();
+  const form = new FormData();
+  form.set('username', 'hack' + Date.now().toString().slice(-6));
+  form.set('password', '121212');
+  form.set('gender', 'male');
+  form.set('birthYear', '1998');
+  form.set('phone', '091111111');
+  form.set('photo', new Blob([PNG], { type: 'image/png' }), 'p.html');
+  form.set('level', '9');
+  form.set('is_special', '1');
+  form.set('is_host', '1');
+  form.set('badge', 'VVIP');
+  form.set('amount', '999999');
+  const created = await req('/api/register', { method: 'POST', form, jar });
+  assert.ok(created.data.user, created.data.error);
+  assert.equal(created.data.user.level, 0);
+  assert.equal(created.data.user.isSpecial, false);
+  assert.equal(created.data.user.isHost, false);
+  assert.equal(created.data.user.badge, null);
+
+  await req('/api/me/liveness', {
+    method: 'POST',
+    json: { left: true, right: true, estimatedGender: 'male' },
+    jar
+  });
+  const admin = await loginAdmin();
+  const member = { jar, user: created.data.user };
+  await giveUpgrade(admin, member);
+  const host = await register('secH' + Date.now().toString().slice(-5), '343434', 'female');
+  await req(`/api/admin/accounts/${host.user.id}/host-approve`, { method: 'POST', jar: admin });
+  const opened = await req(`/api/conversations/with/${host.user.id}`, { method: 'POST', jar });
+  await req(`/api/conversations/${opened.data.conversation.id}/presence`, {
+    method: 'POST',
+    json: { action: 'enter', totalMs: 9e6, streakMs: 9e6, credited: true, amount: 50000 },
+    jar
+  });
+  const fake = await req(`/api/conversations/${opened.data.conversation.id}/presence`, {
+    method: 'POST',
+    json: { action: 'ping', totalMs: 9e6, streakMs: 9e6, credited: true, amount: 50000 },
+    jar: host.jar
+  });
+  assert.equal(fake.data.hostEarnings || 0, 0);
+  assert.equal(fake.data.mutual.credited, false);
+
+  const receipt = new FormData();
+  receipt.set('accountId', created.data.user.accountId);
+  receipt.set('months', '1');
+  receipt.set('amount', '1');
+  receipt.set('receipt', new Blob([PNG], { type: 'image/png' }), 'pay.png');
+  const submitted = await req('/api/upgrade', { method: 'POST', form: receipt, jar });
+  assert.equal(submitted.res.status, 200, submitted.data.error);
+  assert.ok(submitted.data.quote.amount > 1);
+
+  const nrc = await fetch(base + `/api/admin/accounts/${host.user.id}/nrc/front`, {
+    headers: { cookie: jar.header() }
+  });
+  assert.equal(nrc.status, 401);
+  const receiptPeek = await fetch(base + '/api/media/receipt/nope.png', {
+    headers: { cookie: jar.header() }
+  });
+  assert.equal(receiptPeek.status, 401);
+});
+
 after(() => new Promise((resolve) => server.close(resolve)));
