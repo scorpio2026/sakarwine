@@ -1470,8 +1470,14 @@ test('host earns 6000 for a 12-month upgrade that used their code', async () => 
   const approved = await req(`/api/admin/upgrades/${submitted.data.id}/approve`, { method: 'POST', jar: admin });
   assert.equal(approved.res.status, 200, approved.data.error);
   const me = await req('/api/me', { jar: host.jar });
+  assert.equal(me.data.user.hostEarnings, 12 * 500);
   assert.equal(me.data.user.hostEarnings, 6000);
+  assert.equal(me.data.user.hostIncomeLedger.length, 1);
+  assert.equal(me.data.user.hostIncomeLedger[0].amount, 12 * 500);
   assert.equal(me.data.user.hostIncomeLedger[0].amount, 6000);
+  const payerMe = await req('/api/me', { jar: payer.jar });
+  assert.equal(payerMe.data.user.hostEarnings || 0, 0);
+  assert.ok(payerMe.data.user.paidUntil > Date.now());
 });
 
 test('admin paints paid accounts green and badges extra upgrades', async () => {
