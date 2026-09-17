@@ -2220,9 +2220,10 @@ app.get('/api/upgrade/quote', requireUser, requireActive, (req, res) => {
 app.post('/api/upgrade', requireUser, requireActive, multerSingle(uploadReceipt, 'receipt'), (req, res) => {
   const months = clampMonths(Number(req.body.months));
   if (!months) return res.status(400).json({ error: 'Choose 1 to 12 months.' });
-  const accountId = String(req.body.accountId || req.user.account_id).trim();
-  if (accountId !== req.user.account_id) {
-    return res.status(400).json({ error: 'Account ID must match the signed-in account.' });
+  const rawTarget = String(req.body.targetAccountId || req.body.swId || '').trim() || req.user.account_id;
+  const target = findUserByAccountId(rawTarget);
+  if (!target || target.is_ai || target.status === 'closed') {
+    return res.status(400).json({ error: 'No account found for that ID.' });
   }
   if (!req.file) return res.status(400).json({ error: 'Upload your payment transfer screenshot.' });
   const rawHostCode = String(req.body.hostCode || '').trim();
@@ -2242,12 +2243,14 @@ app.post('/api/upgrade', requireUser, requireActive, multerSingle(uploadReceipt,
   const quote = quotePlan(monthly, months);
   const info = db
     .prepare(
-      `INSERT INTO upgrades (user_id, account_id, months, amount, currency, receipt_path, host_id, host_code, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`
+      `INSERT INTO upgrades (user_id, account_id, target_user_id, target_account_id, months, amount, currency, receipt_path, host_id, host_code, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`
     )
     .run(
       req.user.id,
       req.user.account_id,
+      target.id,
+      target.account_id,
       quote.months,
       quote.amount,
       getSetting(db, 'currency', 'MMK'),
@@ -2257,7 +2260,7 @@ app.post('/api/upgrade', requireUser, requireActive, multerSingle(uploadReceipt,
       Date.now()
     );
   io.to('admins').emit('upgrade:new', { id: info.lastInsertRowid, accountId: req.user.account_id });
-  res.json({ ok: true, id: info.lastInsertRowid, quote });
+  res.json({ ok: true, id: info.lastInsertRowid, quote, targetAccountId: target.account_id, gift: target.id !== req.user.id });
 });
 
 app.get('/api/upgrade/mine', requireUser, requireActive, (req, res) => {
@@ -2448,8 +2451,11 @@ function adminUserWithUpgradeFlags(row, extra = {}) {
 }
 
 function serializeUpgradeRow(u) {
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(u.user_id);
-  const paidActive = isPaid(user);
+  const submitter = db.prepare('SELECT * FROM users WHERE id = ?').get(u.user_id);
+  const targetId = u.target_user_id || u.user_id;
+  const target = db.prepare('SELECT * FROM users WHERE id = ?').get(targetId) || submitter;
+  const gift = Boolean(target && submitter && target.id !== submitter.id);
+  const paidActive = isPaid(target);
   return {
     id: u.id,
     userId: u.user_id,
@@ -2461,13 +2467,31 @@ function serializeUpgradeRow(u) {
     createdAt: u.created_at,
     reviewedAt: u.reviewed_at,
     receiptUrl: u.receipt_path ? `/api/media/receipt/${u.receipt_path}` : null,
-    phone: user ? user.phone : null,
-    username: user ? user.username : null,
-    level: user ? user.level : null,
+    phone: submitter ? submitter.phone : null,
+    username: submitter ? submitter.username : null,
+    level: target ? target.level : null,
     hostCode: u.host_code || null,
     hostId: u.host_id || null,
     paidActive,
-    extraUpgrade: Boolean(paidActive && u.status === 'pending')
+    extraUpgrade: Boolean(paidActive && u.status === 'pending'),
+    gift,
+    submitter: submitter
+      ? {
+          id: submitter.id,
+          accountId: submitter.account_id,
+          username: submitter.username,
+          phone: submitter.phone
+        }
+      : null,
+    target: target
+      ? {
+          id: target.id,
+          accountId: target.account_id,
+          username: target.username,
+          phone: target.phone,
+          level: target.level
+        }
+      : null
   };
 }
 
@@ -2797,7 +2821,9 @@ app.post('/api/admin/upgrades/:id/approve', requireAdmin, (req, res) => {
   const up = db.prepare('SELECT * FROM upgrades WHERE id = ?').get(id);
   if (!up) return res.status(404).json({ error: 'Upgrade not found.' });
   if (up.status !== 'pending') return res.status(400).json({ error: 'This request was already reviewed.' });
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(up.user_id);
+  const beneficiaryId = up.target_user_id || up.user_id;
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(beneficiaryId);
+  if (!user) return res.status(404).json({ error: 'No account found for that ID.' });
   const now = Date.now();
   const base = isPaid(user, now) ? user.paid_until : now;
   const paidUntil = addMonths(base, up.months);
@@ -2821,6 +2847,15 @@ app.post('/api/admin/upgrades/:id/approve', requireAdmin, (req, res) => {
     paidUntil,
     level: updated.level
   });
+  if (up.user_id !== user.id) {
+    emitToUser(up.user_id, 'upgrade:approved', {
+      months: up.months,
+      paidUntil,
+      level: updated.level,
+      gift: true,
+      targetAccountId: updated.account_id
+    });
+  }
   res.json({ ok: true, user: adminUser(updated) });
 });
 

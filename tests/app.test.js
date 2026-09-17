@@ -1456,16 +1456,63 @@ test('admin paints paid accounts green and badges extra upgrades', async () => {
   const dossier = await req(`/api/admin/dossier?q=${member.user.accountId}`, { jar: admin });
   assert.equal(dossier.data.user.paidActive, true);
   assert.equal(dossier.data.user.extraUpgrade, true);
+  const mePaid = await req('/api/me', { jar: member.jar });
+  assert.ok(mePaid.data.user.paidRemainingHours > 0);
 
   db.prepare('UPDATE users SET paid_until = ? WHERE id = ?').run(Date.now() - 1000, member.user.id);
   const list3 = await req('/api/admin/accounts', { jar: admin });
   const row3 = list3.data.accounts.find((a) => a.accountId === member.user.accountId);
   assert.equal(row3.paidActive, false);
   assert.equal(row3.extraUpgrade, false);
+  assert.equal(row3.paidRemainingHours, 0);
   const expiredQueue = await req('/api/admin/upgrades', { jar: admin });
   const extraExpired = expiredQueue.data.upgrades.find((u) => u.id === extraSub.data.id);
   assert.equal(extraExpired.paidActive, false);
   assert.equal(extraExpired.extraUpgrade, false);
+});
+
+test('upgrade can be gifted to another account by ID', async () => {
+  await started;
+  const admin = await loginAdmin();
+  const payer = await register('gpay' + Date.now().toString().slice(-5), '121212', 'male');
+  const giftTo = await register('grcv' + Date.now().toString().slice(-5), '232323', 'female');
+  const ghost = await req('/api/upgrade', {
+    method: 'POST',
+    form: (() => {
+      const f = new FormData();
+      f.set('targetAccountId', 'SW00009999');
+      f.set('months', '1');
+      f.set('receipt', new Blob([PNG], { type: 'image/png' }), 'pay.png');
+      return f;
+    })(),
+    jar: payer.jar
+  });
+  assert.equal(ghost.res.status, 400);
+
+  const giftForm = new FormData();
+  giftForm.set('targetAccountId', giftTo.user.accountId);
+  giftForm.set('months', '1');
+  giftForm.set('receipt', new Blob([PNG], { type: 'image/png' }), 'pay.png');
+  const gifted = await req('/api/upgrade', { method: 'POST', form: giftForm, jar: payer.jar });
+  assert.equal(gifted.res.status, 200, gifted.data.error);
+  assert.equal(gifted.data.gift, true);
+  const giftQueue = await req('/api/admin/upgrades', { jar: admin });
+  const giftRow = giftQueue.data.upgrades.find((u) => u.id === gifted.data.id);
+  assert.ok(giftRow);
+  assert.equal(giftRow.gift, true);
+  assert.equal(giftRow.submitter.accountId, payer.user.accountId);
+  assert.equal(giftRow.target.accountId, giftTo.user.accountId);
+  assert.equal(giftRow.submitter.phone, '091111111');
+  const giftOk = await req(`/api/admin/upgrades/${gifted.data.id}/approve`, { method: 'POST', jar: admin });
+  assert.equal(giftOk.res.status, 200, giftOk.data.error);
+  assert.equal(giftOk.data.user.accountId, giftTo.user.accountId);
+  assert.ok(giftOk.data.user.level >= 1);
+  const giftMe = await req('/api/me', { jar: giftTo.jar });
+  assert.ok(giftMe.data.user.paidUntil > Date.now());
+  assert.ok(giftMe.data.user.paidRemainingHours > 0);
+  const payerMe = await req('/api/me', { jar: payer.jar });
+  assert.equal(!payerMe.data.user.paidUntil || payerMe.data.user.paidUntil <= Date.now(), true);
+  assert.equal(payerMe.data.user.paidRemainingHours || 0, 0);
 });
 
 test('hosts keep chatting visitors after 24h; ads, broadcast, and stale purge', async () => {

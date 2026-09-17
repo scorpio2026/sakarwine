@@ -1367,6 +1367,44 @@ function formatRemain(ms, window) {
   return t('freeLeft', { h, m });
 }
 
+function remainingPaidHours(paidUntil, now = Date.now()) {
+  const until = Number(paidUntil);
+  if (!until || until <= now) return 0;
+  return Math.ceil((until - now) / 3600000);
+}
+
+function paidStatusText(u, now = Date.now()) {
+  if (u && u.isSpecial) return t('specialChat');
+  const until = u && u.paidUntil;
+  const hours = remainingPaidHours(until, now);
+  if (!hours) return t('notPaidYet');
+  return `${t('paidUntil', { when: I18n.formatWhen(until) })} · ${t('paidHoursLeft', { hours })}`;
+}
+
+function tickPaidRemain(paidUntil) {
+  if (state.paidTick) {
+    clearInterval(state.paidTick);
+    state.paidTick = null;
+  }
+  const paint = () => {
+    const el = $('#paid-remain');
+    if (!el) {
+      if (state.paidTick) {
+        clearInterval(state.paidTick);
+        state.paidTick = null;
+      }
+      return;
+    }
+    el.textContent = paidStatusText({ paidUntil, isSpecial: false });
+    if (!remainingPaidHours(paidUntil) && state.paidTick) {
+      clearInterval(state.paidTick);
+      state.paidTick = null;
+    }
+  };
+  paint();
+  if (remainingPaidHours(paidUntil)) state.paidTick = setInterval(paint, 30000);
+}
+
 function promptChatLang(c, opts = {}) {
   if (!c) return;
   if (!opts.force && !c.askViewLang) return;
@@ -1655,8 +1693,10 @@ async function showUpgrade() {
           <p>${t('specialUnlimited')}</p>
           <p class="small muted">${t('loungeBadge')} ${roleMark(state.user)}.</p>
         ` : `
+        ${remainingPaidHours(state.user.paidUntil) ? `<p class="small" id="paid-remain">${escapeHtml(paidStatusText(state.user))}</p>` : ''}
         <p class="small muted">${t('upgradeHelp')}</p>
-        <div class="field"><label>${t('accountId')}</label><input id="acc" value="${state.user.accountId}" readonly /></div>
+        <div class="field"><label>${t('upgradeTargetId')}</label><input id="acc" value="${state.user.accountId}" autocomplete="off" /></div>
+        <p class="small muted">${t('upgradeTargetHelp')}</p>
         <div class="field"><label>${t('hostCode')} <span class="muted">(${t('optional')})</span></label><input id="host-code" inputmode="numeric" maxlength="8" autocomplete="off" /></div>
         <p class="small muted">${t('hostCodeHelp')}</p>
         <div class="field"><label>${t('duration')}</label>
@@ -1680,6 +1720,7 @@ async function showUpgrade() {
   const upBack = $('#up-back');
   if (upBack) upBack.onclick = showHome;
   bindMeButton();
+  if (!state.user.isSpecial && remainingPaidHours(state.user.paidUntil)) tickPaidRemain(state.user.paidUntil);
   if (state.user.isSpecial) return;
   const paint = () => {
     const q = pub.quotes.find((x) => x.months === Number($('#months').value));
@@ -1695,7 +1736,9 @@ async function showUpgrade() {
   paint();
   $('#submit-up').onclick = async () => {
     const fd = new FormData();
-    fd.append('accountId', state.user.accountId);
+    const targetId = ($('#acc') && $('#acc').value.trim()) || state.user.accountId;
+    if (!targetId) return toast(t('errAccountId'));
+    fd.append('targetAccountId', targetId);
     fd.append('months', $('#months').value);
     const hostCode = $('#host-code').value.trim();
     if (hostCode && !/^\d{8}$/.test(hostCode)) return toast(t('errHostCode'));
@@ -1752,7 +1795,7 @@ function incomeDemoBlock(u) {
 function showProfile() {
   state.view = 'profile';
   const u = state.user;
-  const paidLine = u.paidUntil ? t('paidUntil', { when: I18n.formatWhen(u.paidUntil) }) : t('notPaidYet');
+  const paidLine = u.isSpecial ? t('specialChat') : paidStatusText(u);
   const hostCard = u.gender === 'female' && u.isHost ? `
         <div class="glass-card stack" style="margin-top:12px;text-align:left">
           <h3 style="margin:0">${t('hostEarnings')}</h3>
@@ -1790,7 +1833,7 @@ function showProfile() {
           <div class="me-name">${escapeHtml(u.username)}</div>
           <div class="muted">${escapeHtml(u.accountId || t('idHidden'))}</div>
         </div>
-        <div class="small">${roleMark(u)} · ${genderLabel(u.gender)} · ${t('born', { year: u.birthYear })}<br>${u.isSpecial ? t('specialChat') : paidLine}${u.gender === 'female' && u.occupation ? `<br>${escapeHtml(u.occupation)} · ${Number(u.monthlyIncome || 0).toLocaleString()} MMK` : ''}</div>
+        <div class="small">${roleMark(u)} · ${genderLabel(u.gender)} · ${t('born', { year: u.birthYear })}<br><span id="paid-remain">${escapeHtml(paidLine)}</span>${u.gender === 'female' && u.occupation ? `<br>${escapeHtml(u.occupation)} · ${Number(u.monthlyIncome || 0).toLocaleString()} MMK` : ''}</div>
         ${u.bio ? `<p class="profile-bio">${escapeHtml(u.bio)}</p>` : ''}
         <div class="me-actions">
           <button type="button" class="btn secondary" id="edit-profile">${t('editProfile')}</button>
@@ -1803,6 +1846,7 @@ function showProfile() {
       ${nav('profile')}
     </section>`;
   bindNav();
+  if (!u.isSpecial) tickPaidRemain(u.paidUntil);
   const meBack = $('#me-back');
   if (meBack) meBack.onclick = showHome;
   $('#open-settings').onclick = showSettings;

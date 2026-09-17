@@ -26,6 +26,17 @@ function money(n, c) {
   return `${Number(n).toLocaleString()} ${c || 'MMK'}`;
 }
 
+function remainingPaidHours(paidUntil, now = Date.now()) {
+  const until = Number(paidUntil);
+  if (!until || until <= now) return 0;
+  return Math.ceil((until - now) / 3600000);
+}
+
+function paidHoursLabel(paidUntil) {
+  const hours = remainingPaidHours(paidUntil);
+  return hours > 0 ? t('paidHoursLeft', { hours }) : '';
+}
+
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
@@ -113,15 +124,19 @@ function nrcBlock(a) {
 }
 
 function upgradeCard(u) {
+  const gift = Boolean(u.gift);
+  const payer = u.submitter || { accountId: u.accountId, username: u.username, phone: u.phone };
+  const target = u.target || payer;
   return `
     <div class="notice${u.paidActive ? ' paid-active' : ''}${u.extraUpgrade ? ' extra-upgrade' : ''}">
       <div class="row">
         <div>
           <span class="badge ${u.status}">${esc(u.status)}</span>
-          <strong>${esc(u.accountId)}</strong>
+          ${gift ? `<span class="extra-upgrade-badge">${esc(t('upgradeGift'))}</span>` : ''}
           ${u.extraUpgrade ? `<span class="extra-upgrade-badge">${esc(t('extraUpgrade'))}</span>` : ''}
-          · ${esc(u.username)}<br>
-          Phone ${esc(u.phone)} · ${u.months} month(s) · ${money(u.amount, u.currency)} · current Lv ${u.level}
+          <div><strong>${esc(t('upgradePaidBy'))}</strong> ${esc(payer.accountId)} · ${esc(payer.username)} · ${esc(payer.phone)}</div>
+          <div><strong>${esc(t('upgradeFor'))}</strong> ${esc(target.accountId)} · ${esc(target.username)}${target.phone ? ` · ${esc(target.phone)}` : ''}</div>
+          <div>${u.months} month(s) · ${money(u.amount, u.currency)} · target Lv ${target.level != null ? target.level : u.level}</div>
           ${u.hostCode ? `<div>Host code ${esc(u.hostCode)}</div>` : ''}
           <div class="muted">${new Date(u.createdAt).toLocaleString()}</div>
         </div>
@@ -218,7 +233,10 @@ async function bootDash() {
     const a = data.user;
     focusAccountId = a.accountId;
     lookupQ = a.accountId;
-    const paidLine = a.paidUntil ? new Date(a.paidUntil).toLocaleString() : 'Not paid';
+    const hoursLeft = paidHoursLabel(a.paidUntil);
+    const paidLine = remainingPaidHours(a.paidUntil)
+      ? `${new Date(a.paidUntil).toLocaleString()} · ${hoursLeft}`
+      : 'Not paid';
     panel.innerHTML = `
       <div class="row">
         <button data-leave>← All accounts</button>
@@ -431,7 +449,7 @@ async function bootDash() {
             <button class="ghost" data-open-id="${esc(a.accountId)}">${esc(a.accountId)}</button>
             ${a.isSpecial ? `<br><span class="badge-neon">${esc(a.badge || 'special')}</span>` : ''}${a.isHost ? `<br><span class="badge-neon badge-host" data-badge="host">host</span>` : ''}${a.hostStatus === 'pending' ? '<br><span class="muted">NRC pending</span>' : ''}</td>
           <td>${esc(a.phone)}<br><span class="muted">${esc(a.gender)} · ${a.birthYear}</span></td>
-          <td>${a.isSpecial ? `Unlimited · ${esc(a.badge || 'special')}` : `Lv ${a.level}<br>${a.paidUntil ? new Date(a.paidUntil).toLocaleDateString() : '—'}`}</td>
+          <td>${a.isSpecial ? `Unlimited · ${esc(a.badge || 'special')}` : `Lv ${a.level}<br>${remainingPaidHours(a.paidUntil) ? `${new Date(a.paidUntil).toLocaleDateString()} · ${esc(paidHoursLabel(a.paidUntil))}` : '—'}`}</td>
           <td>${a.accountIdHidden ? t('hiddenFromLounge') : t('visible')}</td>
           <td><span class="badge ${a.status}">${a.status}</span> ${a.online ? '· online' : ''}${a.createdByAdmin ? '<br><span class="muted">admin-created</span>' : ''}</td>
           <td class="actions">${moderationButtons(a)}</td>

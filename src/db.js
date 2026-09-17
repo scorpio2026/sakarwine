@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
+const { remainingPaidHours } = require('./pricing');
 
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
@@ -247,6 +248,8 @@ function migrate(db) {
   ensureColumn(db, 'users', 'bio', 'TEXT');
   ensureColumn(db, 'upgrades', 'host_code', 'TEXT');
   ensureColumn(db, 'upgrades', 'host_id', 'INTEGER');
+  ensureColumn(db, 'upgrades', 'target_user_id', 'INTEGER');
+  ensureColumn(db, 'upgrades', 'target_account_id', 'TEXT');
   ensureColumn(db, 'messages', 'source_lang', 'TEXT');
   db.exec('CREATE INDEX IF NOT EXISTS idx_users_host ON users(host_status)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_users_last_seen ON users(last_seen)');
@@ -378,6 +381,7 @@ function publicUser(row, { online = false, includePrivate = false, includePhone 
     createdByAdmin: Boolean(row.created_by_admin),
     paidUntil: row.paid_until,
     paid: Boolean(row.paid_until && row.paid_until > Date.now()),
+    paidRemainingHours: remainingPaidHours(row.paid_until),
     status: row.status,
     isAi: Boolean(row.is_ai),
     tourCompleted: Boolean(row.tour_completed),

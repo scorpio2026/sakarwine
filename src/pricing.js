@@ -46,8 +46,21 @@ function isSpecial(user) {
   return Boolean(user.isSpecial) || Number(user.is_special) === 1;
 }
 
+function paidUntilMs(userOrUntil) {
+  if (userOrUntil && typeof userOrUntil === 'object') {
+    return Number(userOrUntil.paid_until || userOrUntil.paidUntil || 0);
+  }
+  return Number(userOrUntil || 0);
+}
+
 function isPaid(user, now = Date.now()) {
-  return Boolean(user && user.paid_until && Number(user.paid_until) > now);
+  return paidUntilMs(user) > now;
+}
+
+function remainingPaidHours(userOrUntil, now = Date.now()) {
+  const until = paidUntilMs(userOrUntil);
+  if (!until || until <= now) return 0;
+  return Math.ceil((until - now) / 3600000);
 }
 
 function canChatUnlimited(user, now = Date.now()) {
@@ -61,6 +74,7 @@ module.exports = {
   allQuotes,
   addMonths,
   isPaid,
+  remainingPaidHours,
   isSpecial,
   canChatUnlimited
 };
