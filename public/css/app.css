@@ -354,6 +354,28 @@ body {
   font-weight: 700;
   margin: 4px 0 0;
 }
+.back-home-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding: 8px 12px 8px 8px;
+  border: 0;
+  border-radius: 16px;
+  background: #ecfdf5;
+  color: var(--green-deep);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  flex-shrink: 0;
+  touch-action: manipulation;
+}
+.back-home-btn svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
 
 .icon-btn {
   width: var(--tap);

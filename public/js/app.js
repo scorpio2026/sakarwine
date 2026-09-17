@@ -1604,9 +1604,11 @@ function showHelp(inApp = false) {
     <section class="screen">
       ${inApp ? '<div class="screen-body">' : ''}
       <div class="topbar">
-        <button type="button" class="icon-btn" id="back" aria-label="${t('backHome')}">${ICONS.back}</button>
+        <button type="button" class="back-home-btn" id="back-home">
+          ${ICONS.back}
+          <span>${t('backHome')}</span>
+        </button>
         <h2>${t('helpTitle')}</h2>
-        <button type="button" class="btn ghost" id="back-home">${t('backHome')}</button>
       </div>
       <div class="glass-card">
         <h3 style="margin-top:0">${t('pinRecovery')}</h3>
@@ -1627,7 +1629,6 @@ function showHelp(inApp = false) {
       </div>
       ${inApp ? `</div>${nav('help')}` : ''}
     </section>`;
-  $('#back').onclick = goHelpHome;
   $('#back-home').onclick = goHelpHome;
   const form = $('#pin-recovery-form');
   form.onsubmit = async (e) => {
