@@ -217,11 +217,11 @@ async function openProfilePhoto(userId) {
     modal(`
       <div class="profile-lite">
         ${photo}
-        <h3 style="margin:12px 0 4px">${escapeHtml(u.username)}</h3>
+        <h3 class="profile-lite-name">${escapeHtml(u.username)}</h3>
         <div class="profile-lite-roles">${roleMark(u)}</div>
         <p class="profile-id">${escapeHtml(u.accountId || '—')}</p>
         ${u.bio ? `<p class="profile-bio">${escapeHtml(u.bio)}</p>` : ''}
-        <button class="btn secondary block" id="photo-close">${t('close')}</button>
+        <button class="btn block" id="photo-close">${t('close')}</button>
       </div>`);
     $('#photo-close').onclick = closeModal;
   } catch (e) {
@@ -1671,13 +1671,13 @@ function renderChat(opts = {}) {
           </div>
         </div>` : ''}
         <div class="composer-main">
-        ${c.peer.isAi ? '' : `<button class="composer-plus" id="plus-btn" aria-label="${t('photo')}" ${composerOff ? 'disabled' : ''}>+</button>
-        <div class="plus-menu" id="plus-menu" hidden>
+        ${c.peer.isAi ? '' : `<div class="plus-menu" id="plus-menu" hidden>
           <button type="button" id="img-btn">${t('photo')}</button>
-          <button type="button" id="mic-btn">${t('voice')}</button>
         </div>`}
         <div class="composer-pill">
+          ${c.peer.isAi ? '' : `<button class="composer-plus" id="plus-btn" aria-label="${t('photo')}" ${composerOff ? 'disabled' : ''}>${ICONS.plus}</button>`}
           <textarea id="text" rows="1" ${composerOff ? 'disabled' : ''} placeholder="${t('typeHere')}"></textarea>
+          ${c.peer.isAi ? '' : `<button class="composer-mic" id="mic-btn" aria-label="${t('voice')}" ${composerOff ? 'disabled' : ''}>${ICONS.mic}</button>`}
         </div>
         <button class="chat-send" id="send" ${composerOff ? 'disabled' : ''} aria-label="${t('send')}">${ICONS.send}</button>
         ${c.peer.isAi ? '' : `<input id="img-file" class="hidden-file" type="file" accept="image/*" />`}
@@ -1812,14 +1812,17 @@ function renderChat(opts = {}) {
   });
   syncComposer();
   const plusMenu = $('#plus-menu');
-  if ($('#plus-btn') && plusMenu) {
+  if ($('#plus-btn')) {
   $('#plus-btn').onclick = () => {
-    plusMenu.hidden = !plusMenu.hidden;
-  };
-  $('#img-btn').onclick = () => {
-    plusMenu.hidden = true;
+    if (plusMenu) plusMenu.hidden = true;
     $('#img-file').click();
   };
+  if ($('#img-btn')) {
+  $('#img-btn').onclick = () => {
+    if (plusMenu) plusMenu.hidden = true;
+    $('#img-file').click();
+  };
+  }
   $('#img-file').onchange = async () => {
     const f = $('#img-file').files[0];
     if (!f) return;
@@ -1880,7 +1883,7 @@ function renderChat(opts = {}) {
           ]
         : [
             { target: '#text', text: t('tourChat1'), arrow: 'up' },
-            { target: '#img-btn', text: t('tourChat2'), arrow: 'up' },
+            { target: '#plus-btn', text: t('tourChat2'), arrow: 'up' },
             { target: '#mic-btn', text: t('tourChat3'), arrow: 'up' }
           ];
       Tour.start(steps);
@@ -2112,12 +2115,17 @@ async function showProfile() {
           <button type="button" class="btn secondary block" id="go-host-apply">${t('hostApplyTitle')}</button>
         </div>` : '';
   app.innerHTML = `
-    <section class="screen">
+    <section class="screen profile-screen">
+      <div class="profile-orbs" aria-hidden="true">
+        <span class="profile-orb profile-orb-a"></span>
+        <span class="profile-orb profile-orb-b"></span>
+        <span class="profile-orb profile-orb-c"></span>
+      </div>
       <div class="screen-body">
       <div class="topbar">
-        <button type="button" class="icon-btn" id="me-back" aria-label="${t('backHome')}">${ICONS.back}</button>
+        <button type="button" class="icon-btn glass-orb" id="me-back" aria-label="${t('backHome')}">${ICONS.back}</button>
         <h2>${t('you')}</h2>
-        <button type="button" class="icon-btn" id="open-settings" aria-label="${t('settings')}">${ICONS.gear}</button>
+        <button type="button" class="icon-btn glass-orb" id="open-settings" aria-label="${t('settings')}">${ICONS.gear}</button>
       </div>
       <div class="glass-card stack center me-card">
         <div class="me-identity">
@@ -2125,10 +2133,20 @@ async function showProfile() {
           <div class="me-name">${escapeHtml(u.username)}</div>
           <div class="muted">${escapeHtml(u.accountId || t('idHidden'))}</div>
         </div>
-        <div class="small">${roleMark(u)} · ${genderLabel(u.gender)} · ${t('born', { year: u.birthYear })}<br><span id="paid-remain">${paidLine}</span></div>
+        <div class="small me-tags">${roleMark(u)} · ${genderLabel(u.gender)} · ${t('born', { year: u.birthYear })}<br><span id="paid-remain">${paidLine}</span></div>
+        <div class="me-stats">
+          <div class="me-stat">
+            <b>${u.isSpecial ? escapeHtml(u.badge || 'VIP') : escapeHtml(String(u.level != null ? u.level : 0))}</b>
+            <span>${u.isSpecial ? escapeHtml(t('specialChat')) : t('lv', { n: u.level != null ? u.level : 0 })}</span>
+          </div>
+          <div class="me-stat">
+            <b>${escapeHtml(String(u.birthYear || '—'))}</b>
+            <span>${escapeHtml(genderLabel(u.gender))}</span>
+          </div>
+        </div>
         ${u.bio ? `<p class="profile-bio">${escapeHtml(u.bio)}</p>` : ''}
         <div class="me-actions">
-          <button type="button" class="btn secondary" id="edit-profile">${t('editProfile')}</button>
+          <button type="button" class="btn block" id="edit-profile">${t('editProfile')}</button>
           <button type="button" class="btn secondary" id="open-settings-row">${t('settings')}</button>
           ${u.isSpecial ? '' : `<button type="button" class="btn secondary" id="goto-upgrade">${t('navUpgrade')}</button>`}
         </div>

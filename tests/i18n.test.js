@@ -622,8 +622,38 @@ test('chat DM surfaces use glass neon chrome and keep bubble clustering', () => 
   assert.match(appJs, /function stackClass/);
   assert.match(appJs, /sameBubbleGroup/);
   assert.match(appJs, /class="composer-pill"/);
+  assert.match(appJs, /id="plus-btn"/);
+  assert.match(appJs, /id="mic-btn"/);
+  assert.match(appJs, /class="composer-mic"/);
   assert.equal(sakaSvg.includes('#10b981'), false);
   assert.match(sakaSvg, /#7c3aed/);
+});
+
+test('profile cards use overlapping glass avatar, real-field stats, and pill CTA', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const appCss = fs.readFileSync(path.join(__dirname, '../public/css/app.css'), 'utf8');
+  const appJs = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
+  const profileFn = appJs.slice(appJs.indexOf('async function showProfile'), appJs.indexOf('function settingsRow'));
+  const photoFn = appJs.slice(appJs.indexOf('async function openProfilePhoto'), appJs.indexOf('function roleMark'));
+  assert.match(profileFn, /profile-screen/);
+  assert.match(profileFn, /profile-orbs/);
+  assert.match(profileFn, /me-identity/);
+  assert.match(profileFn, /me-ava/);
+  assert.match(profileFn, /me-stats/);
+  assert.match(profileFn, /id="edit-profile"/);
+  assert.match(profileFn, /id="paid-remain"/);
+  assert.match(profileFn, /u\.birthYear/);
+  assert.match(profileFn, /roleMark\(u\)/);
+  assert.equal(profileFn.includes('Followers'), false);
+  assert.equal(profileFn.includes('Uploaded designs'), false);
+  assert.match(photoFn, /profile-lite/);
+  assert.match(photoFn, /profile-lite-roles/);
+  assert.match(photoFn, /roleMark\(u\)/);
+  assert.match(appCss, /\.profile-screen \.me-identity \.me-ava\s*\{[^}]*margin-top:\s*-72px/);
+  assert.match(appCss, /\.me-stats\s*\{/);
+  assert.match(appCss, /\.profile-lite-photo\s*\{[^}]*border-radius:\s*50%/);
+  assert.match(appCss, /\.composer-pill\s*\{[^}]*border-radius:\s*999px/);
 });
 
 test('admin dashboard interior uses glass neon chrome and keeps desk wiring', () => {
