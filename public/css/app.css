@@ -707,13 +707,6 @@ body {
   backdrop-filter: blur(18px);
   border-top: 1px solid rgba(16, 64, 48, 0.06);
 }
-.nav.nav-help-only {
-  grid-template-columns: 1fr;
-}
-.nav.nav-help-only button {
-  max-width: 168px;
-  margin: 0 auto;
-}
 .nav button {
   border: 0;
   background: transparent;

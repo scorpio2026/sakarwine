@@ -13,6 +13,7 @@ const state = {
   socket: null,
   view: 'welcome',
   chat: null,
+  chatFrom: 'home',
   typing: false
 };
 
@@ -27,6 +28,7 @@ const ICONS = {
   send: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12l16-8-6 16-2-6-8-2z"/></svg>`,
   gem: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 10l8-6 8 6-8 10L4 10z"/><path d="M4 10h16M12 4v16"/></svg>`,
   me: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.2"/><path d="M5 19c1.4-3.2 3.8-5 7-5s5.6 1.8 7 5"/></svg>`,
+  help: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M9.6 9.2a2.4 2.4 0 1 1 3.4 2.2c-.8.4-1.4 1.1-1.4 2"/><circle cx="12" cy="16.6" r="0.9" fill="currentColor" stroke="none"/></svg>`,
   back: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 6l-6 6 6 6"/></svg>`,
   image: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M7 17l4-4 3 3 3-3 3 4"/></svg>`,
   mic: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v3"/></svg>`,
@@ -69,6 +71,7 @@ function rerender() {
   else if (v === 'register') showRegister();
   else if (v === 'scan') showScan();
   else if (v === 'home') showHome();
+  else if (v === 'chats') showInbox();
   else if (v === 'chat' && state.chat) renderChat();
   else if (v === 'upgrade') showUpgrade();
   else if (v === 'profile') showProfile();
@@ -198,6 +201,7 @@ function connectSocket() {
     } else if (message.sender && message.sender.id !== state.user.id) {
       toast(t('newMessageFrom', { name: message.sender.username }));
     }
+    if (state.view === 'chats') loadInbox();
   });
   socket.on('chat:messaging', ({ conversationId, messagingOpen }) => {
     if (state.chat && state.chat.id === conversationId) {
@@ -218,6 +222,7 @@ function connectSocket() {
   });
   socket.on('presence', () => {
     if (state.view === 'home') loadHome();
+    if (state.view === 'chats') loadInbox();
   });
   socket.on('typing', ({ conversationId, typing }) => {
     if (state.chat && state.chat.id === conversationId) {
@@ -458,9 +463,14 @@ function showScan() {
 }
 
 function nav(active) {
+  const tab = (go, icon, label) =>
+    `<button type="button" data-go="${go}" class="${active === go ? 'active' : ''}"><span class="icon-btn">${icon}</span>${label}</button>`;
   return `
-    <nav class="nav nav-help-only" aria-label="${t('navHelp')}">
-      <button type="button" data-go="help" class="${active === 'help' ? 'active' : ''}"><span class="icon-btn">${ICONS.chat}</span>${t('navHelp')}</button>
+    <nav class="nav" aria-label="${t('navHome')}">
+      ${tab('home', ICONS.people, t('navHome'))}
+      ${tab('chats', ICONS.chat, t('navChat'))}
+      ${tab('profile', ICONS.me, t('navProfile'))}
+      ${tab('help', ICONS.help, t('navHelp'))}
     </nav>`;
 }
 
@@ -468,7 +478,10 @@ function bindNav() {
   document.querySelectorAll('.nav [data-go]').forEach((b) => {
     b.onclick = () => {
       const go = b.dataset.go;
-      if (go === 'help') showHelp(true);
+      if (go === 'home') showHome();
+      else if (go === 'chats') showInbox();
+      else if (go === 'profile') showProfile();
+      else if (go === 'help') showHelp(true);
     };
   });
 }
@@ -542,8 +555,76 @@ function paintHomeList() {
       <span class="when">${u.online ? t('onlineNow') : ''}</span>
     </div>`).join('') || `<p class="settings-empty">${t('noPeople')}</p>`;
   list.querySelectorAll('.user-row').forEach((row) => {
-    row.onclick = () => openChat(Number(row.dataset.id));
+    row.onclick = () => openChat(Number(row.dataset.id), { from: 'home' });
   });
+}
+
+function inboxPreview(last) {
+  if (!last) return '';
+  if (last.type === 'image') return t('photo');
+  if (last.type === 'voice') return t('voice');
+  return last.body || '';
+}
+
+function paintInboxList(conversations) {
+  const list = $('#chat-list');
+  if (!list) return;
+  const items = conversations || [];
+  list.innerHTML = items.map((c) => {
+    const peer = c.peer || {};
+    const last = c.lastMessage || {};
+    const gClass = peer.isAi ? '' : (peer.gender === 'female' ? 'gender-female' : 'gender-male');
+    return `
+    <div class="user-row ${gClass}" data-id="${c.id}" data-peer="${peer.id}">
+      ${avatarHtml(peer)}
+      <div class="meta">
+        <div class="name">${escapeHtml(peer.username || '')} ${peer.isAi ? '· ' + t('guide') : ''} ${roleMark(peer)}</div>
+        <div class="sub">${escapeHtml(inboxPreview(last))}</div>
+      </div>
+      <span class="when">${last.createdAt ? formatMsgTime(last.createdAt) : ''}</span>
+    </div>`;
+  }).join('') || `<p class="settings-empty">${t('noChats')}</p>`;
+  list.querySelectorAll('.user-row').forEach((row) => {
+    row.onclick = () => openChat(Number(row.dataset.peer), { from: 'chats' });
+  });
+}
+
+async function loadInbox() {
+  const list = $('#chat-list');
+  if (!list) return;
+  try {
+    const data = await api('/api/conversations');
+    paintInboxList(data.conversations || []);
+  } catch (e) {
+    list.innerHTML = `<p class="settings-empty">${escapeHtml(I18n.error(e && e.message))}</p>`;
+  }
+}
+
+async function showInbox() {
+  state.view = 'chats';
+  const u = state.user;
+  app.innerHTML = `
+    <section class="screen home-screen">
+      ${mastheadHtml()}
+      <div class="screen-body">
+      <div class="topbar">
+        ${meBtnHtml()}
+        <h2>${t('chatTitle')}</h2>
+        <span class="pill-slot">${statusPill(u)}</span>
+      </div>
+      <div id="chat-list" class="user-list"></div>
+      </div>
+      ${nav('chats')}
+    </section>`;
+  bindNav();
+  bindMeButton();
+  await loadInbox();
+}
+
+function leaveChat() {
+  stopChatPresence();
+  if (state.chatFrom === 'chats') showInbox();
+  else showHome();
 }
 
 async function showHome(opts = {}) {
@@ -745,6 +826,8 @@ function escapeHtml(s) {
 
 async function openChat(userId, opts = {}) {
   try {
+    if (opts.from === 'chats' || (!opts.from && state.view === 'chats')) state.chatFrom = 'chats';
+    else if (state.view !== 'chat') state.chatFrom = 'home';
     const opened = await api(`/api/conversations/with/${userId}`, { method: 'POST' });
     const full = await api(`/api/conversations/${opened.conversation.id}`);
     state.chat = {
@@ -882,10 +965,7 @@ function renderChat(opts = {}) {
         <input id="img-file" class="hidden-file" type="file" accept="image/*" />
       </div>
     </section>`;
-  $('#back').onclick = () => {
-    stopChatPresence();
-    showHome();
-  };
+  $('#back').onclick = leaveChat;
   startChatPresence();
   const box = $('#messages');
   box.scrollTop = box.scrollHeight;
@@ -929,8 +1009,7 @@ function renderChat(opts = {}) {
     } else {
       await api(`/api/users/${c.peer.id}/block`, { method: 'POST' });
       toast(t('blockedToast'));
-      stopChatPresence();
-      showHome();
+      leaveChat();
     }
   };
   if ($('#delete-chat')) $('#delete-chat').onclick = () => {
@@ -944,8 +1023,7 @@ function renderChat(opts = {}) {
         await api(`/api/conversations/${c.id}`, { method: 'DELETE' });
         closeModal();
         toast(t('chatDeleted'));
-        stopChatPresence();
-        showHome();
+        leaveChat();
       } catch (e) {
         toastErr(e);
       }
@@ -1112,7 +1190,7 @@ async function showUpgrade() {
         `}
       </div>
       </div>
-      ${nav('upgrade')}
+      ${nav()}
     </section>`;
   bindNav();
   const upBack = $('#up-back');
@@ -1351,7 +1429,9 @@ function showHostApply() {
           <button class="btn block" id="host-apply-send">${t('hostApplySend')}</button>` : ''}
         </div>
       </div>
+      ${nav('profile')}
     </section>`;
+  bindNav();
   $('#back').onclick = showSettings;
   const bindPreview = (id, previewId) => {
     const input = $(`#${id}`);
@@ -1481,7 +1561,9 @@ function showSettings() {
           </button>
         </div>
       </div>
+      ${nav('profile')}
     </section>`;
+  bindNav();
   $('#back').onclick = showProfile;
   $('#go-edit').onclick = showEditProfile;
   $('#go-pin').onclick = showChangePin;
@@ -1521,7 +1603,9 @@ function showChangePin() {
           </form>
         </div>
       </div>
+      ${nav('profile')}
     </section>`;
+  bindNav();
   $('#back').onclick = showSettings;
   document.querySelectorAll('.pin-digits').forEach((el) => {
     el.addEventListener('input', () => {
@@ -1582,7 +1666,9 @@ function showEditProfile() {
           <p class="small muted" style="text-align:left;margin:0">${t('bioHelp')}</p>
         </div>
       </div>
+      ${nav('profile')}
     </section>`;
+  bindNav();
   $('#back').onclick = showSettings;
   $('#edit-photo').onchange = () => {
     const file = $('#edit-photo').files[0];
@@ -1638,7 +1724,9 @@ async function showBlocked() {
         <p class="muted small" style="margin-top:0">${t('blockedHelp')}</p>
         <div id="blocked-list" class="blocked-list"><p class="muted">${t('loading')}</p></div>
       </div>
+      ${nav('profile')}
     </section>`;
+  bindNav();
   $('#back').onclick = showSettings;
   try {
     const data = await api('/api/me/blocked');

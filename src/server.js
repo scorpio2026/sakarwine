@@ -1410,6 +1410,42 @@ app.post('/api/conversations/with/:userId', requireUser, requireActive, (req, re
   });
 });
 
+app.get('/api/conversations', requireUser, requireActive, (req, res) => {
+  const me = req.user.id;
+  const rows = db
+    .prepare(
+      `SELECT c.*,
+         m.id AS last_id, m.type AS last_type, m.body AS last_body, m.created_at AS last_created,
+         h.hidden_after_id AS hidden_after_id
+       FROM conversations c
+       LEFT JOIN messages m ON m.id = (
+         SELECT MAX(id) FROM messages WHERE conversation_id = c.id
+       )
+       LEFT JOIN conversation_hides h ON h.conversation_id = c.id AND h.user_id = ?
+       WHERE c.user_lo = ? OR c.user_hi = ?
+       ORDER BY COALESCE(m.created_at, c.started_at) DESC`
+    )
+    .all(me, me, me);
+  const conversations = [];
+  for (const row of rows) {
+    if (!row.last_id) continue;
+    if (row.hidden_after_id != null && row.last_id <= row.hidden_after_id) continue;
+    const peer = db.prepare('SELECT * FROM users WHERE id = ?').get(otherUserId(row, me));
+    if (!peer) continue;
+    conversations.push({
+      id: row.id,
+      peer: publicUser(peer, { online: isOnline(peer.id), viewer: req.user }),
+      lastMessage: {
+        id: row.last_id,
+        type: row.last_type,
+        body: row.last_body,
+        createdAt: row.last_created
+      }
+    });
+  }
+  res.json({ conversations });
+});
+
 app.get('/api/conversations/:id', requireUser, requireActive, async (req, res) => {
   const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(Number(req.params.id));
   if (!conv || (conv.user_lo !== req.user.id && conv.user_hi !== req.user.id)) {

@@ -791,6 +791,67 @@ test('chat history is per-user delete and messages cannot be edited', async () =
   assert.equal(delSaka.res.status, 400);
 });
 
+test('member inbox lists visible conversations and hides deleted threads', async () => {
+  await started;
+  const a = await register('inbA' + Date.now().toString().slice(-5), '121212', 'male');
+  const b = await register('inbB' + Date.now().toString().slice(-5), '343434', 'female');
+
+  const denied = await req('/api/conversations');
+  assert.equal(denied.res.status, 401);
+
+  const before = await req('/api/conversations', { jar: a.jar });
+  assert.equal(before.res.status, 200, before.data.error);
+  assert.ok(Array.isArray(before.data.conversations));
+  assert.ok(before.data.conversations.every((c) => c.peer && c.peer.isAi));
+  before.data.conversations.forEach((c) => {
+    assert.equal(c.peer.phone, undefined);
+  });
+
+  const opened = await req(`/api/conversations/with/${b.user.id}`, { method: 'POST', jar: a.jar });
+  const cid = opened.data.conversation.id;
+  const emptyThread = await req('/api/conversations', { jar: a.jar });
+  assert.equal(emptyThread.data.conversations.some((c) => c.id === cid), false);
+
+  const sent = await req(`/api/conversations/${cid}/messages`, {
+    method: 'POST',
+    json: { body: 'hello inbox' },
+    jar: a.jar
+  });
+  assert.equal(sent.res.status, 200, sent.data.error);
+
+  const listed = await req('/api/conversations', { jar: a.jar });
+  const row = listed.data.conversations.find((c) => c.id === cid);
+  assert.ok(row);
+  assert.equal(row.peer.id, b.user.id);
+  assert.equal(row.peer.phone, undefined);
+  assert.equal(row.lastMessage.body, 'hello inbox');
+  assert.equal(listed.data.conversations[0].id, cid);
+
+  const asB = await req('/api/conversations', { jar: b.jar });
+  const bRow = asB.data.conversations.find((c) => c.id === cid);
+  assert.ok(bRow);
+  assert.equal(bRow.peer.id, a.user.id);
+  assert.equal(bRow.peer.phone, undefined);
+
+  const del = await req(`/api/conversations/${cid}`, { method: 'DELETE', jar: b.jar });
+  assert.equal(del.res.status, 200, del.data.error);
+  const hidden = await req('/api/conversations', { jar: b.jar });
+  assert.equal(hidden.data.conversations.some((c) => c.id === cid), false);
+  const stillA = await req('/api/conversations', { jar: a.jar });
+  assert.ok(stillA.data.conversations.some((c) => c.id === cid));
+
+  const again = await req(`/api/conversations/${cid}/messages`, {
+    method: 'POST',
+    json: { body: 'after hide' },
+    jar: a.jar
+  });
+  assert.equal(again.res.status, 200, again.data.error);
+  const restored = await req('/api/conversations', { jar: b.jar });
+  const back = restored.data.conversations.find((c) => c.id === cid);
+  assert.ok(back);
+  assert.equal(back.lastMessage.body, 'after hide');
+});
+
 test('female registration matches male; host apply is later from Settings', async () => {
   await started;
   const jar = cookieJar();
