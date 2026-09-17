@@ -974,6 +974,19 @@ test('admin paints paid accounts green and badges extra upgrades', async () => {
   assert.equal(row2.extraUpgrade, true);
   assert.equal(row2.pendingUpgrades, 1);
 
+  const queue = await req('/api/admin/upgrades', { jar: admin });
+  const extraRow = queue.data.upgrades.find((u) => u.id === extraSub.data.id);
+  assert.ok(extraRow);
+  assert.equal(extraRow.status, 'pending');
+  assert.equal(extraRow.paidActive, true);
+  assert.equal(extraRow.extraUpgrade, true);
+  const approvedRow = queue.data.upgrades.find(
+    (u) => u.accountId === member.user.accountId && u.status === 'approved'
+  );
+  assert.ok(approvedRow);
+  assert.equal(approvedRow.paidActive, true);
+  assert.equal(approvedRow.extraUpgrade, false);
+
   const dossier = await req(`/api/admin/dossier?q=${member.user.accountId}`, { jar: admin });
   assert.equal(dossier.data.user.paidActive, true);
   assert.equal(dossier.data.user.extraUpgrade, true);
@@ -983,6 +996,10 @@ test('admin paints paid accounts green and badges extra upgrades', async () => {
   const row3 = list3.data.accounts.find((a) => a.accountId === member.user.accountId);
   assert.equal(row3.paidActive, false);
   assert.equal(row3.extraUpgrade, false);
+  const expiredQueue = await req('/api/admin/upgrades', { jar: admin });
+  const extraExpired = expiredQueue.data.upgrades.find((u) => u.id === extraSub.data.id);
+  assert.equal(extraExpired.paidActive, false);
+  assert.equal(extraExpired.extraUpgrade, false);
 });
 
 test('hosts keep chatting visitors after 24h; ads, broadcast, and stale purge', async () => {

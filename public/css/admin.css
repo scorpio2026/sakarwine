@@ -102,13 +102,17 @@ button.danger { background: linear-gradient(180deg, #a22, #611); color: white; b
 }
 table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--stroke); vertical-align: top; }
-tr.paid-active td { background: #d1fae5; }
+tr.paid-active td { background: #bbf7d0; }
 .dossier.paid-active {
-  background: #d1fae5;
+  background: #bbf7d0;
   border-radius: 16px;
   padding: 10px 12px;
 }
-.lookup-hits .hit.paid-active { background: #d1fae5; color: #123026; }
+.lookup-hits .hit.paid-active { background: #bbf7d0; color: #123026; }
+.notice.paid-active {
+  background: #bbf7d0;
+  border-color: #34d399;
+}
 .extra-upgrade-badge {
   display: inline-flex;
   align-items: center;
@@ -243,7 +247,7 @@ audio { width: 100%; max-width: 100%; }
     background: rgba(0, 0, 0, 0.18);
   }
   .table-scroll tr.paid-active {
-    background: #d1fae5;
+    background: #bbf7d0;
   }
   .table-scroll tr.paid-active td { background: transparent; }
   .table-scroll td {

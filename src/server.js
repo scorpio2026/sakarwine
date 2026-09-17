@@ -1792,6 +1792,7 @@ function adminUserWithUpgradeFlags(row, extra = {}) {
 
 function serializeUpgradeRow(u) {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(u.user_id);
+  const paidActive = isPaid(user);
   return {
     id: u.id,
     userId: u.user_id,
@@ -1807,7 +1808,9 @@ function serializeUpgradeRow(u) {
     username: user ? user.username : null,
     level: user ? user.level : null,
     hostCode: u.host_code || null,
-    hostId: u.host_id || null
+    hostId: u.host_id || null,
+    paidActive,
+    extraUpgrade: Boolean(paidActive && u.status === 'pending')
   };
 }
 
@@ -2022,7 +2025,7 @@ app.get('/api/admin/hosts', requireAdmin, (_req, res) => {
     )
     .all();
   res.json({
-    hosts: rows.map((u) => adminUser(u, { includeNrc: true, online: isOnline(u.id) }))
+    hosts: rows.map((u) => adminUserWithUpgradeFlags(u, { includeNrc: true, online: isOnline(u.id) }))
   });
 });
 

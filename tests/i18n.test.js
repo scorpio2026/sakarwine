@@ -64,3 +64,16 @@ test('masthead wordmark is unfilled and home rows use gender frames', () => {
   assert.match(I18n.t('hostCodeHelp'), /Optional/i);
   assert.equal(I18n.t('errHostCode'), 'Enter a valid host code.');
 });
+
+test('admin dashboard paints paid accounts green and badges extra upgrades', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const css = fs.readFileSync(path.join(__dirname, '../public/css/admin.css'), 'utf8');
+  assert.match(css, /tr\.paid-active td\s*\{[^}]*#bbf7d0/);
+  assert.match(css, /\.extra-upgrade-badge/);
+  const js = fs.readFileSync(path.join(__dirname, '../public/js/admin.js'), 'utf8');
+  assert.match(js, /a\.paidActive \? 'paid-active'/);
+  assert.match(js, /u\.paidActive \? ' paid-active'/);
+  assert.match(js, /u\.extraUpgrade/);
+  assert.equal(js.includes('extra-upgrade-badge'), true);
+});

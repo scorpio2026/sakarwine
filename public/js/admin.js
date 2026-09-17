@@ -111,11 +111,13 @@ function nrcBlock(a) {
 
 function upgradeCard(u) {
   return `
-    <div class="notice">
+    <div class="notice${u.paidActive ? ' paid-active' : ''}${u.extraUpgrade ? ' extra-upgrade' : ''}">
       <div class="row">
         <div>
           <span class="badge ${u.status}">${esc(u.status)}</span>
-          <strong>${esc(u.accountId)}</strong> · ${esc(u.username)}<br>
+          <strong>${esc(u.accountId)}</strong>
+          ${u.extraUpgrade ? `<span class="extra-upgrade-badge">${esc(t('extraUpgrade'))}</span>` : ''}
+          · ${esc(u.username)}<br>
           Phone ${esc(u.phone)} · ${u.months} month(s) · ${money(u.amount, u.currency)} · current Lv ${u.level}
           ${u.hostCode ? `<div>Host code ${esc(u.hostCode)}</div>` : ''}
           <div class="muted">${new Date(u.createdAt).toLocaleString()}</div>
@@ -569,12 +571,13 @@ async function bootDash() {
         ? hosts
             .map(
               (a) => `
-        <div class="notice">
+        <div class="notice${a.paidActive ? ' paid-active' : ''}">
           <div class="row">
             <div>
               <span class="badge ${a.hostStatus}">${esc(a.hostStatus)}</span>
               ${hostMark(a)}
               <strong>${esc(a.username)}</strong>
+              ${a.extraUpgrade ? `<span class="extra-upgrade-badge">${esc(t('extraUpgrade'))}</span>` : ''}
               <button class="ghost" data-open-id="${esc(a.accountId)}">${esc(a.accountId)}</button><br>
               Phone ${esc(a.phone)} · ${incomeLine(a)}
             </div>
