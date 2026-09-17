@@ -809,8 +809,7 @@ async function bootDash() {
         <div class="field"><label>${t('siteNameLabel')}</label><input id="sn" value="${esc(s.siteName)}" /></div>
         <div class="field"><label>${t('paymentInstructions')}</label><textarea id="pi" rows="5">${esc(s.paymentInstructions)}</textarea></div>
         <div class="field"><label>${t('adminContactLabel')}</label><textarea id="ac" rows="3">${esc(s.adminContact)}</textarea></div>
-        <div class="field"><label>${t('incomeDemoUrl')}</label><input id="dv" value="${esc(s.incomeDemoVideoUrl || '/demo/income-host.mp4')}" /></div>
-        <p class="muted">${t('incomeDemoHelp')}</p>
+        <p class="muted">${t('hostDemoAdminHelp')}</p>
         <div class="field">
           <label><input type="checkbox" id="maint" ${s.maintenance ? 'checked' : ''} /> ${t('maintenanceMode')}</label>
         </div>
@@ -823,7 +822,6 @@ async function bootDash() {
             siteName: $('#sn').value,
             paymentInstructions: $('#pi').value,
             adminContact: $('#ac').value,
-            incomeDemoVideoUrl: $('#dv').value,
             maintenance: $('#maint').checked
           }
         });

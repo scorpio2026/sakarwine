@@ -1906,9 +1906,9 @@ function hostStatusLine(u) {
 
 function incomeDemoBlock() {
   const slots = [
-    { src: '/uploads/host-demo-apply.mp4', title: t('hostDemoApply') },
-    { src: '/uploads/host-demo-code.mp4', title: t('hostDemoCode') },
-    { src: '/uploads/host-demo-income.mp4', title: t('hostDemoIncome') }
+    { key: 'apply', src: '/uploads/host-demo-apply.mp4', title: t('hostDemoApply') },
+    { key: 'code', src: '/uploads/host-demo-code.mp4', title: t('hostDemoCode') },
+    { key: 'income', src: '/uploads/host-demo-income.mp4', title: t('hostDemoIncome') }
   ];
   return `
     <div class="income-demo">
@@ -1916,14 +1916,50 @@ function incomeDemoBlock() {
       <p>${t('hostIncomeHelp')}</p>
       <p class="host-earn">${t('hostIncomeExample')}</p>
       <div class="host-guide-videos">
-        ${slots.map((s) => `
-          <figure class="host-guide-slot">
-            <figcaption>${escapeHtml(s.title)}</figcaption>
-            <video class="host-guide-video" controls playsinline preload="metadata" src="${escapeHtml(s.src)}"></video>
-            <p class="muted host-guide-ph">${t('hostDemoPlaceholder')}</p>
-          </figure>`).join('')}
+        <div class="host-guide-kicker">${t('hostDemoTitle')}</div>
+        <div class="host-guide-tabs" role="tablist" aria-label="${t('hostDemoTitle')}">
+          ${slots.map((s, i) => `<button type="button" class="host-guide-tab" role="tab" data-guide-src="${escapeHtml(s.src)}" data-guide-title="${escapeHtml(s.title)}" aria-selected="${i === 0 ? 'true' : 'false'}">${escapeHtml(s.title)}</button>`).join('')}
+        </div>
+        <div class="host-guide-stage">
+          <video class="host-guide-video" id="host-guide-video" controls playsinline preload="metadata" hidden></video>
+          <div class="host-guide-ph" id="host-guide-ph">
+            <strong id="host-guide-ph-title">${escapeHtml(slots[0].title)}</strong>
+            <span>${t('hostDemoPlaceholder')}</span>
+          </div>
+        </div>
       </div>
     </div>`;
+}
+
+function bindHostGuideVideos() {
+  const tabs = document.querySelectorAll('.host-guide-tab');
+  const video = $('#host-guide-video');
+  const ph = $('#host-guide-ph');
+  const phTitle = $('#host-guide-ph-title');
+  if (!tabs.length || !video || !ph) return;
+  const show = (tab) => {
+    tabs.forEach((btn) => btn.setAttribute('aria-selected', btn === tab ? 'true' : 'false'));
+    const title = tab.dataset.guideTitle || '';
+    const src = tab.dataset.guideSrc || '';
+    if (phTitle) phTitle.textContent = title;
+    ph.hidden = false;
+    video.hidden = true;
+    video.removeAttribute('src');
+    video.load();
+    video.onloadeddata = () => {
+      ph.hidden = true;
+      video.hidden = false;
+    };
+    video.onerror = () => {
+      video.hidden = true;
+      ph.hidden = false;
+    };
+    video.src = src;
+  };
+  tabs.forEach((tab) => {
+    tab.onclick = () => show(tab);
+  });
+  show(tabs[0]);
 }
 
 async function showProfile() {
@@ -2084,6 +2120,7 @@ function showHostApply() {
     </section>`;
   bindNav();
   $('#back').onclick = showSettings;
+  bindHostGuideVideos();
   const bindPreview = (id, previewId) => {
     const input = $(`#${id}`);
     if (!input) return;
