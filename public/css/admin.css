@@ -120,6 +120,14 @@ audio { width: 100%; max-width: 100%; }
 .field { margin: 10px 0; }
 .field label { display: block; font-size: 0.78rem; color: var(--rose); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 4px; }
 .login { max-width: min(380px, 100%); margin: 8vh auto 24px; width: 100%; }
+.admin-logo {
+  display: block;
+  width: min(220px, 80%);
+  height: auto;
+  margin: 0 auto 14px;
+  border-radius: 10px;
+  background: #000;
+}
 .muted { color: rgba(255,244,236,.65); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .badge-neon {

@@ -41,6 +41,7 @@ function showLogin() {
   paintUi = showLogin;
   root.innerHTML = `
     <div class="card login">
+      <img class="admin-logo" src="/assets/sakarwine-logo.png" alt="SAKARWINE" />
       <h1>${t('adminTitle')}</h1>
       <p class="muted">${t('adminSub')}</p>
       <div class="field"><label>${t('username')}</label><input id="u" /></div>

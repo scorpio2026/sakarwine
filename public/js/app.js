@@ -290,7 +290,6 @@ function showWelcome() {
       <div class="welcome-hero">
         <img class="brand-logo" src="/assets/sakarwine-logo.png" alt="${name}" />
         <h1>${name}</h1>
-        <div class="hero-mark">${ICONS.bubble}</div>
         <svg class="hero-wave" viewBox="0 0 375 56" preserveAspectRatio="none" aria-hidden="true">
           <path d="M0 24C62 52 118 4 188 24C248 42 312 8 375 26V56H0Z" fill="#ffffff"/>
         </svg>
@@ -584,7 +583,7 @@ async function showHome(opts = {}) {
       <div class="screen-body">
       <div class="topbar">
         <div>
-          <img class="brand-logo" src="/assets/sakarwine-logo.png" alt="${escapeHtml(state.settings.siteName)}" style="width:148px;margin:0 0 4px" />
+          <img class="masthead-logo" src="/assets/sakarwine-logo.png" alt="${escapeHtml(state.settings.siteName)}" />
           <h2 id="home-title">${t('contactsTitle')}</h2>
         </div>
         <span class="pill-slot">${statusPill(u)}</span>

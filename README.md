@@ -54,7 +54,7 @@ Copy `.env.example` into your shell or Render dashboard. The app reads standard 
 - **Settings** (Me → gear / Settings): app language (မြန်မာ / English / ไทย / 中文 / 한국어 / 日本語), **chat view language** (ask in each chat, or a default among the six), edit photo and username, manage the blocked list, and log out. Gender, birth year, phone, and PIN are not member-editable.
 - The lounge UI (login through Settings) and admin chrome switch among **six languages**. Choice is stored in `localStorage` (`sw_lang`) and on the account (`ui_lang`); default is **Myanmar**.
 - **Chat view language:** if the other person writes in a **different** language, sakarwine **asks once** which of the six languages to show for that chat (globe in the chat header to change later). If both sides already match, there is no prompt. A Settings default skips the per-chat prompt. Original text is stored with `source_lang` and stays available via **Show original**. Translations are cached. System notes and voice are not translated; image captions (text only) are. Set `TRANSLATE_API_KEY` (Google Cloud Translation, or LibreTranslate via `TRANSLATE_URL`) on Render. If the key is missing, sakarwine tries a free MyMemory fallback, then shows the original.
-- The **SAKARWINE** rainbow wordmark (`/assets/sakarwine-logo.png`) is the app **header / masthead**, not a profile avatar.
+- The official **SAKARWINE** rainbow wordmark (`/assets/sakarwine-logo.png`) is the app **header / masthead** and welcome hero lockup, not a profile avatar. Favicon and home-screen icon use the same mark.
 - Forgot PIN? There is **no self-serve reset**. Contact admin with the phone used at registration. The Settings PIN note points members there.
 
 ## Upgrades
