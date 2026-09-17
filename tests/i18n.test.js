@@ -19,6 +19,20 @@ test('i18n catalogs share the same keys and default to Myanmar', () => {
   assert.equal(I18n.t('upgradePromoTitle'), 'Upgrade and save up to 50%');
   I18n.setLang('my');
   assert.equal(I18n.lang, 'my');
+  assert.equal(I18n.t('enterLounge'), 'အကောင့်ဝင်ရန်');
+  I18n.setLang('th');
+  assert.equal(I18n.t('enterLounge'), 'เข้าสู่ระบบ');
+  I18n.setLang('zh');
+  assert.equal(I18n.t('enterLounge'), '登录');
+  I18n.setLang('ko');
+  assert.equal(I18n.t('enterLounge'), '로그인');
+  I18n.setLang('ja');
+  assert.equal(I18n.t('enterLounge'), 'ログイン');
+  const bannedLoungeLogin = /enter lounge|under lounge|เข้าเลานจ์|进入会客厅|라운지 입장|ラウンジに入る/i;
+  for (const code of codes) {
+    assert.equal(bannedLoungeLogin.test(I18n.catalogs[code].enterLounge), false, `${code} enterLounge still mentions lounge`);
+  }
+  I18n.setLang('my');
   assert.notEqual(I18n.t('enterLounge'), 'Login');
   assert.equal(I18n.t('helpTitle'), 'အကူအညီ');
   assert.equal(I18n.t('pinRecovery'), 'PIN ပြန်ရယူခြင်း');
