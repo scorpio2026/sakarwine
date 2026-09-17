@@ -1881,7 +1881,8 @@ function groupChatWindow(member, user, now = Date.now()) {
     remainingMs: Math.max(0, remaining),
     canSend: remaining > 0,
     paid: false,
-    fromJoin: true
+    fromJoin: true,
+    freeMs: FREE_CHAT_MS
   };
 }
 

@@ -962,6 +962,11 @@ test('paid members can create groups; invites accept and decline', async () => {
   assert.ok(gRow);
   assert.equal(gRow.name, 'Sunset');
 
+  const inviteeThread = await req(`/api/groups/${gid}/messages`, { jar: invitee.jar });
+  assert.equal(inviteeThread.data.window.fromJoin, true);
+  assert.equal(inviteeThread.data.window.canSend, true);
+  assert.equal(inviteeThread.data.window.freeMs, 60000);
+
   const sentG = await req(`/api/groups/${gid}/messages`, {
     method: 'POST',
     json: { body: 'hello group' },
