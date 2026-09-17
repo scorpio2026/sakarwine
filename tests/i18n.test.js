@@ -709,6 +709,7 @@ test('chat DM surfaces use glass neon chrome and keep bubble clustering', () => 
   assert.match(appJs, /guide-chat/);
   assert.match(appJs, /id="guide-lang"/);
   assert.match(appJs, /t\(item\.q, null, faqLang\)/);
+  assert.match(appJs, /t\('sakaFaqHint', null, faqLang\)/);
   assert.match(appJs, /localizeChatBody\(body, \{ name, lang \}\)/);
   assert.match(appCss, /\.chat-screen \.bubble\.first\.me/);
   assert.match(appCss, /\.chat-screen \.bubble\.mid\.me/);

@@ -1676,7 +1676,7 @@ function renderChat(opts = {}) {
           <div class="saka-faq-langbar">
             <button type="button" class="saka-faq-lang" id="guide-lang">${escapeHtml(t('language'))}: ${escapeHtml(faqNative)}</button>
           </div>
-          <p class="saka-faq-hint">${escapeHtml(t('sakaFaqHint'))}</p>
+          <p class="saka-faq-hint">${escapeHtml(t('sakaFaqHint', null, faqLang))}</p>
           <div class="saka-faq-chips">
             ${SAKA_FAQ.map((item) => `<button type="button" class="saka-faq-chip" data-faq="${item.topic}">${escapeHtml(t(item.q, null, faqLang))}</button>`).join('')}
           </div>
