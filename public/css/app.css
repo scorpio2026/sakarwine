@@ -121,7 +121,7 @@ body {
   -webkit-overflow-scrolling: touch;
   padding-bottom: 18px;
 }
-.screen-body > .glass-card { min-height: 0; }
+.screen-body > .glass-card { min-height: auto; flex-shrink: 0; }
 
 .brand-lockup {
   text-align: center;
@@ -1000,7 +1000,6 @@ button:disabled, .btn:disabled, .icon-btn:disabled, .chat-tool:disabled, .chat-s
 .settings-chev svg { width: 20px; height: 20px; }
 .settings-row.danger {
   color: var(--danger);
-  justify-content: center;
   font-weight: 800;
 }
 .settings-note {
