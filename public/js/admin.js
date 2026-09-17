@@ -98,6 +98,7 @@ let paintUi = null;
 
 function setAdminLoginChrome(on) {
   document.body.classList.toggle('is-admin-login', on);
+  document.body.classList.toggle('is-admin-dash', !on);
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.content = '#0b0714';
 }
@@ -581,15 +582,18 @@ async function bootDash() {
     const stats = await api('/api/admin/stats');
     document.title = t('adminTitle');
     root.innerHTML = `
-      <div class="row">
-        <div>
-          <h1>${t('adminTitle')}</h1>
-          <div class="muted">${t('signedInAs', { name: me.username })}</div>
-        </div>
-        ${I18n.switcherHtml('admin-lang')}
-        <button class="ghost" id="out">${t('signOut')}</button>
-      </div>
-      ${desk ? deskWorkHtml(stats) : deskHomeHtml(stats)}`;
+      <div class="admin-dash">
+        <div class="admin-dash-glow" aria-hidden="true"></div>
+        <header class="admin-head">
+          <div>
+            <h1>${t('adminTitle')}</h1>
+            <div class="muted">${t('signedInAs', { name: me.username })}</div>
+          </div>
+          ${I18n.switcherHtml('admin-lang')}
+          <button class="ghost" id="out">${t('signOut')}</button>
+        </header>
+        ${desk ? deskWorkHtml(stats) : deskHomeHtml(stats)}
+      </div>`;
     I18n.bindSwitcher('admin-lang');
     $('#out').onclick = async () => {
       await api('/api/admin/logout', { method: 'POST' });

@@ -625,3 +625,36 @@ test('chat DM surfaces use glass neon chrome and keep bubble clustering', () => 
   assert.equal(sakaSvg.includes('#10b981'), false);
   assert.match(sakaSvg, /#7c3aed/);
 });
+
+test('admin dashboard interior uses glass neon chrome and keeps desk wiring', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const adminCss = fs.readFileSync(path.join(__dirname, '../public/css/admin.css'), 'utf8');
+  const adminJs = fs.readFileSync(path.join(__dirname, '../public/js/admin.js'), 'utf8');
+  const renderAt = adminJs.indexOf('async function render()');
+  const dashSlice = adminJs.slice(renderAt, renderAt + 1600);
+  assert.match(dashSlice, /admin-dash/);
+  assert.match(dashSlice, /admin-dash-glow/);
+  assert.match(dashSlice, /admin-head/);
+  assert.match(dashSlice, /id="out"/);
+  assert.match(dashSlice, /I18n\.switcherHtml\('admin-lang'\)/);
+  assert.match(adminJs, /is-admin-dash/);
+  assert.match(adminJs, /data-desk="money"/);
+  assert.match(adminJs, /data-desk="other"/);
+  assert.match(adminJs, /id="desk-back"/);
+  assert.match(adminJs, /\/api\/admin\/stats/);
+  assert.match(adminJs, /\/api\/admin\/accounts/);
+  assert.match(adminJs, /\/api\/admin\/login/);
+  assert.match(adminCss, /\.admin-head\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(adminCss, /\.desk-card\s*\{[^}]*border-radius:\s*28px/);
+  assert.match(adminCss, /\.desk-card\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(adminCss, /\.tabs\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(adminCss, /\.notice\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(adminCss, /\.lookup-hits\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(adminCss, /\.stat\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(adminCss, /\.badge\.approved/);
+  assert.match(adminCss, /--neon-cyan/);
+  assert.equal(adminCss.includes('rgba(125,255,195'), false);
+  assert.equal(adminCss.includes('#1a0a12'), false);
+  assert.equal(adminCss.includes('#10b981'), false);
+});
