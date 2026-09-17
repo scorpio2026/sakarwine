@@ -602,3 +602,26 @@ test('logged-in app and admin shells share glass neon tokens; create-account for
   assert.match(scanSlice, /id="start-scan"/);
   assert.match(scanSlice, /\/api\/me\/liveness/);
 });
+
+test('chat DM surfaces use glass neon chrome and keep bubble clustering', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const appCss = fs.readFileSync(path.join(__dirname, '../public/css/app.css'), 'utf8');
+  const appJs = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
+  const sakaSvg = fs.readFileSync(path.join(__dirname, '../public/assets/saka-guide.svg'), 'utf8');
+  assert.match(appCss, /\.chat-screen\s*\{[^}]*radial-gradient/);
+  assert.match(appCss, /\.chat-screen \.chat-head\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(appCss, /\.bubble\.me\s*\{[^}]*--cta-a/);
+  assert.match(appCss, /\.bubble\.them\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(appCss, /\.composer-pill\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(appCss, /\.chat-send\s*\{[^}]*--sw-cta/);
+  assert.match(appCss, /\.saka-faq-chip\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(appCss, /\.chat-screen \.bubble\.first\.me/);
+  assert.match(appCss, /\.chat-screen \.bubble\.mid\.me/);
+  assert.match(appCss, /\.chat-screen \.bubble\.last\.them/);
+  assert.match(appJs, /function stackClass/);
+  assert.match(appJs, /sameBubbleGroup/);
+  assert.match(appJs, /class="composer-pill"/);
+  assert.equal(sakaSvg.includes('#10b981'), false);
+  assert.match(sakaSvg, /#7c3aed/);
+});
