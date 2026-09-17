@@ -430,14 +430,18 @@ body {
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.pill-slot { flex-shrink: 0; max-width: 46%; }
+.pill-slot { flex-shrink: 0; max-width: min(58%, 12rem); }
 .pill {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   padding: 4px 8px;
   border-radius: 999px;
   background: rgba(16, 185, 129, .12);
   color: var(--green-deep);
   border: 1px solid rgba(16, 185, 129, .28);
+  display: inline-block;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.25;
 }
 
 .gender-filter {

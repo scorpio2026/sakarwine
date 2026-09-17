@@ -189,6 +189,15 @@ test('bottom nav has Home, Chat, Group, Profile, and Help — no Upgrade tab', (
   assert.equal(I18n.t('paidCountdown', { h: 12, m: '04', s: '09' }), '12h 04m 09s remaining');
   assert.match(js, /setInterval\(paint, 1000\)/);
   assert.match(js, /paidCountdown/);
+  assert.match(js, /paidHoursLeft/);
+  assert.match(js, /function bindPaidRemain/);
+  assert.match(js, /id="paid-remain-pill"/);
+  assert.match(js, /id="paid-remain"/);
+  assert.match(js, /visibilitychange/);
+  assert.match(js, /function paidPillText/);
+  assert.match(js, /async function showHome[\s\S]*?bindPaidRemain\(\);/);
+  assert.match(js, /async function showInbox[\s\S]*?bindPaidRemain\(\);/);
+  assert.match(js, /async function showProfile[\s\S]*?bindPaidRemain\(\);/);
 });
 
 test('settings PIN change is translated and separate from Help recovery', () => {

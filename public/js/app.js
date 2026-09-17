@@ -171,7 +171,16 @@ function roleMark(user) {
 
 function statusPill(user) {
   if (user && user.isSpecial) return roleMark(user);
+  if (user && remainingPaidParts(user.paidUntil).ms) {
+    return `<span class="pill" id="paid-remain-pill">${t('paid')} · ${escapeHtml(paidCountdownLabel(user.paidUntil))} · ${t('lv', { n: user.level })}</span>`;
+  }
   return `<span class="pill">${user && user.paid ? t('paid') : t('free24h')} · ${t('lv', { n: user.level })}</span>`;
+}
+
+function bindPaidRemain() {
+  const u = state.user;
+  if (!u || u.isSpecial) return;
+  tickPaidRemain(u.paidUntil);
 }
 
 function petals() {}
@@ -342,6 +351,10 @@ async function boot() {
   }, true);
   state.settings = await api('/api/public-settings');
   document.title = state.settings.siteName;
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden || !state.user) return;
+    refreshMe().then(() => bindPaidRemain()).catch(() => {});
+  });
   try {
     const me = await api('/api/me');
     state.user = me.user;
@@ -685,6 +698,7 @@ async function showInbox() {
     </section>`;
   bindNav();
   bindMeButton();
+  bindPaidRemain();
   await loadInbox();
 }
 
@@ -1183,6 +1197,7 @@ async function showHome(opts = {}) {
     </section>`;
   bindNav();
   bindMeButton();
+  bindPaidRemain();
   document.querySelectorAll('.gender-chip').forEach((btn) => {
     btn.onclick = () => {
       const next = btn.dataset.gender === 'male' || btn.dataset.gender === 'female' ? btn.dataset.gender : 'all';
@@ -1437,7 +1452,14 @@ function paidStatusText(u, now = Date.now()) {
   const until = u && u.paidUntil;
   const label = paidCountdownLabel(until, now);
   if (!label) return t('notPaidYet');
-  return `${t('paidUntil', { when: I18n.formatWhen(until) })} · ${label}`;
+  const hours = remainingPaidHours(until, now);
+  return `${t('paidUntil', { when: I18n.formatWhen(until) })} · ${t('paidHoursLeft', { hours })} · ${label}`;
+}
+
+function paidPillText(paidUntil, now = Date.now()) {
+  const lv = t('lv', { n: (state.user && state.user.level) || 0 });
+  const label = paidCountdownLabel(paidUntil, now);
+  return label ? `${t('paid')} · ${label} · ${lv}` : `${t('free24h')} · ${lv}`;
 }
 
 function tickPaidRemain(paidUntil) {
@@ -1446,16 +1468,23 @@ function tickPaidRemain(paidUntil) {
     state.paidTick = null;
   }
   const paint = () => {
-    const el = $('#paid-remain');
-    if (!el) {
+    const remainEl = $('#paid-remain');
+    const pillEl = $('#paid-remain-pill');
+    if (!remainEl && !pillEl) {
       if (state.paidTick) {
         clearInterval(state.paidTick);
         state.paidTick = null;
       }
       return;
     }
-    el.textContent = paidStatusText({ paidUntil, isSpecial: false });
-    if (!remainingPaidParts(paidUntil).ms && state.paidTick) {
+    const parts = remainingPaidParts(paidUntil);
+    if (remainEl) remainEl.textContent = paidStatusText({ paidUntil, isSpecial: false });
+    if (pillEl) pillEl.textContent = paidPillText(paidUntil);
+    if (state.user && !parts.ms) {
+      state.user.paid = false;
+      state.user.paidRemainingHours = 0;
+    }
+    if (!parts.ms && state.paidTick) {
       clearInterval(state.paidTick);
       state.paidTick = null;
     }
@@ -1779,7 +1808,7 @@ async function showUpgrade() {
   const upBack = $('#up-back');
   if (upBack) upBack.onclick = showHome;
   bindMeButton();
-  if (!state.user.isSpecial && remainingPaidParts(state.user.paidUntil).ms) tickPaidRemain(state.user.paidUntil);
+  bindPaidRemain();
   if (state.user.isSpecial) return;
   const paint = () => {
     const q = pub.quotes.find((x) => x.months === Number($('#months').value));
@@ -1851,9 +1880,12 @@ function incomeDemoBlock(u) {
     </div>`;
 }
 
-function showProfile() {
+async function showProfile() {
   state.view = 'profile';
+  await refreshMe().catch(() => {});
+  if (state.view !== 'profile') return;
   const u = state.user;
+  if (!u) return;
   const paidLine = u.isSpecial ? t('specialChat') : paidStatusText(u);
   const hostCard = u.gender === 'female' && u.isHost ? `
         <div class="glass-card stack" style="margin-top:12px;text-align:left">
@@ -1905,7 +1937,7 @@ function showProfile() {
       ${nav('profile')}
     </section>`;
   bindNav();
-  if (!u.isSpecial) tickPaidRemain(u.paidUntil);
+  bindPaidRemain();
   const meBack = $('#me-back');
   if (meBack) meBack.onclick = showHome;
   $('#open-settings').onclick = showSettings;

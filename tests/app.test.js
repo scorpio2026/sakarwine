@@ -15,6 +15,7 @@ process.env.NODE_ENV = 'test';
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { server, db } = require('../src/server');
+const { remainingPaidHours } = require('../src/pricing');
 const { purgeStaleAccounts } = require('../src/platform');
 
 const PNG = Buffer.from(
@@ -1514,7 +1515,13 @@ test('admin paints paid accounts green and badges extra upgrades', async () => {
   assert.equal(dossier.data.user.paidActive, true);
   assert.equal(dossier.data.user.extraUpgrade, true);
   const mePaid = await req('/api/me', { jar: member.jar });
+  assert.ok(mePaid.data.user.paidUntil > Date.now());
   assert.ok(mePaid.data.user.paidRemainingHours > 0);
+  assert.equal(mePaid.data.user.paidRemainingHours, remainingPaidHours(mePaid.data.user.paidUntil));
+  db.prepare('UPDATE users SET paid_until = ? WHERE id = ?').run(Date.now() + 90 * 60 * 1000, member.user.id);
+  const meHours = await req('/api/me', { jar: member.jar });
+  assert.equal(meHours.data.user.paidRemainingHours, 2);
+  assert.equal(meHours.data.user.paidRemainingHours, remainingPaidHours(meHours.data.user.paidUntil));
 
   db.prepare('UPDATE users SET paid_until = ? WHERE id = ?').run(Date.now() - 1000, member.user.id);
   const list3 = await req('/api/admin/accounts', { jar: admin });

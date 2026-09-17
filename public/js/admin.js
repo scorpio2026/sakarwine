@@ -40,9 +40,10 @@ function remainingPaidParts(paidUntil, now = Date.now()) {
 function paidHoursLabel(paidUntil) {
   const parts = remainingPaidParts(paidUntil);
   if (!parts.ms) return '';
+  const hours = Math.ceil(parts.ms / 3600000);
   const m = String(parts.minutes).padStart(2, '0');
   const s = String(parts.seconds).padStart(2, '0');
-  return t('paidCountdown', { h: parts.hours, m, s });
+  return `${t('paidHoursLeft', { hours })} · ${t('paidCountdown', { h: parts.hours, m, s })}`;
 }
 
 function esc(s) {
