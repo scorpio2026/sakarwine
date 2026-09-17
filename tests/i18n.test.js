@@ -363,6 +363,12 @@ test('Lv, Host, and Admin chips use frosted glass neon edges', () => {
   const appJs = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
   assert.match(appCss, /\.badge-lv,\s*\.badge-neon\s*\{[^}]*backdrop-filter:\s*blur/);
   assert.match(adminCss, /\.badge-lv,\s*\.badge-neon\s*\{[^}]*backdrop-filter:\s*blur/);
+  assert.match(appCss, /\.badge-lv::after,\s*\.badge-neon::after/);
+  assert.match(adminCss, /\.badge-lv::after,\s*\.badge-neon::after/);
+  assert.equal(/\.badge-lv,\s*\.badge-neon\s*\{[^}]*animation:\s*none/.test(appCss), false);
+  assert.equal(/\.badge-lv,\s*\.badge-neon\s*\{[^}]*animation:\s*none/.test(adminCss), false);
+  assert.match(appCss, /animation:\s*neon-run 2\.2s linear infinite/);
+  assert.match(adminCss, /animation:\s*neon-run 2\.2s linear infinite/);
   assert.match(appCss, /--badge-glow:\s*rgba\(52, 211, 153/);
   assert.match(appCss, /--badge-glow:\s*rgba\(232, 121, 249/);
   assert.match(appCss, /--badge-glow:\s*rgba\(34, 211, 238/);
