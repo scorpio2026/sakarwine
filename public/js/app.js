@@ -462,12 +462,6 @@ function showWelcome() {
   state.view = 'welcome';
   app.innerHTML = `
     <section class="screen welcome-screen">
-      <div class="welcome-orbs" aria-hidden="true">
-        <span class="orb orb-a"></span>
-        <span class="orb orb-b"></span>
-        <span class="orb orb-c"></span>
-        <span class="orb orb-d"></span>
-      </div>
       <div class="welcome-hero">
         <div class="brand-lockup">
           <span class="logo-aura" aria-hidden="true"></span>
@@ -523,12 +517,6 @@ function showRegister() {
   state.view = 'register';
   app.innerHTML = `
     <section class="screen register-screen auth-screen">
-      <div class="welcome-orbs" aria-hidden="true">
-        <span class="orb orb-a"></span>
-        <span class="orb orb-b"></span>
-        <span class="orb orb-c"></span>
-        <span class="orb orb-d"></span>
-      </div>
       <div class="topbar auth-topbar">
         <button class="icon-btn" id="back">${ICONS.back}</button>
         <h2>${t('joinTitle')}</h2>
@@ -590,12 +578,6 @@ function showScan() {
   state.view = 'scan';
   app.innerHTML = `
     <section class="screen scan-screen auth-screen">
-      <div class="welcome-orbs" aria-hidden="true">
-        <span class="orb orb-a"></span>
-        <span class="orb orb-b"></span>
-        <span class="orb orb-c"></span>
-        <span class="orb orb-d"></span>
-      </div>
       <div class="topbar auth-topbar"><h2>${t('faceScan')}</h2></div>
       <div class="glass-card auth-card">
       <p class="muted small">${t('scanHelp')}</p>

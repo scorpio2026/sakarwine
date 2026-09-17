@@ -611,7 +611,7 @@ test('auth login screens use glass neon chrome and keep existing login wiring', 
   const adminJs = fs.readFileSync(path.join(__dirname, '../public/js/admin.js'), 'utf8');
   const welcomeSlice = appJs.slice(appJs.indexOf('function showWelcome'), appJs.indexOf('async function login'));
   const loginSlice = adminJs.slice(adminJs.indexOf('function showLogin'), adminJs.indexOf('function moderationButtons'));
-  assert.match(welcomeSlice, /welcome-orbs/);
+  assert.equal(welcomeSlice.includes('welcome-orbs'), false);
   assert.match(welcomeSlice, /sakarwine-logo\.png/);
   assert.match(welcomeSlice, /id="login-user"/);
   assert.match(welcomeSlice, /id="login-pass"/);
@@ -661,7 +661,12 @@ test('logged-in app and admin shells share glass neon tokens; create-account for
   assert.match(appCss, /body:has\(\.auth-screen\)/);
   assert.match(appCss, /background:\s*var\(--sw-canvas\)/);
   assert.match(appCss, /\.app\s*\{[^}]*background:\s*transparent/);
-  assert.match(appCss, /body:has\(\.welcome-screen\) \.sw-canvas-glow/);
+  assert.match(appCss, /body:has\(\.welcome-screen\),\s*body:has\(\.auth-screen\)\s*\{[^}]*background:\s*var\(--sw-canvas\)/);
+  assert.match(appCss, /body\.is-maintenance \.sw-canvas-glow/);
+  assert.equal(appCss.includes('body:has(.welcome-screen) .sw-canvas-glow'), false);
+  assert.equal(appCss.includes('body:has(.auth-screen) .sw-canvas-glow'), false);
+  assert.equal(appCss.includes('.welcome-orbs'), false);
+  assert.match(themeCss, /--auth-bg:\s*var\(--sw-canvas\)/);
   assert.equal(appCss.includes('rgba(22, 16, 40, 0.82)'), false);
   assert.match(adminCss, /background:\s*var\(--sw-canvas\)/);
   assert.match(themeCss, /\.admin-dash-glow,\s*\.sw-canvas-glow\s*\{[^}]*background:\s*var\(--sw-glow\)/);
@@ -669,7 +674,7 @@ test('logged-in app and admin shells share glass neon tokens; create-account for
   const registerSlice = appJs.slice(appJs.indexOf('function showRegister'), appJs.indexOf('function showScan'));
   const scanSlice = appJs.slice(appJs.indexOf('function showScan'), appJs.indexOf('function nav('));
   assert.match(registerSlice, /register-screen auth-screen/);
-  assert.match(registerSlice, /welcome-orbs/);
+  assert.equal(registerSlice.includes('welcome-orbs'), false);
   assert.match(registerSlice, /auth-card/);
   assert.match(registerSlice, /name="username"/);
   assert.match(registerSlice, /name="password"/);
@@ -679,6 +684,7 @@ test('logged-in app and admin shells share glass neon tokens; create-account for
   assert.match(registerSlice, /name="photo"/);
   assert.equal(registerSlice.includes("switcherHtml('lang-switch')"), false);
   assert.match(scanSlice, /scan-screen auth-screen/);
+  assert.equal(scanSlice.includes('welcome-orbs'), false);
   assert.match(scanSlice, /auth-card/);
   assert.match(scanSlice, /id="cam"/);
   assert.match(scanSlice, /id="start-scan"/);

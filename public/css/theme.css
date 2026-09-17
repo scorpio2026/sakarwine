@@ -33,7 +33,7 @@
   --sw-cta-shadow: 0 12px 28px rgba(124, 58, 237, 0.38);
 
   /* Aliases so existing app/admin rules pick up the glass system */
-  --auth-bg: var(--sw-void);
+  --auth-bg: var(--sw-canvas);
   --auth-ink: var(--sw-ink);
   --bg: var(--sw-deep);
   --bg0: var(--sw-deep);
